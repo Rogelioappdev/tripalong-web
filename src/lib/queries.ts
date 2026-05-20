@@ -106,6 +106,92 @@ export async function updateProfile(userId: string, updates: Partial<UserProfile
   if (error) throw error
 }
 
+export async function createTrip(data: {
+  creator_id: string
+  destination: string
+  country: string
+  title: string
+  description: string | null
+  cover_image: string | null
+  images: string[]
+  vibes: string[]
+  pace: 'slow' | 'balanced' | 'fast'
+  budget_level: string | null
+  group_preference: 'everyone' | 'male' | 'female'
+  max_group_size: number
+  is_flexible_dates: boolean
+  start_date: string | null
+  end_date: string | null
+  status: 'planning'
+}) {
+  const { error } = await supabase.from('trips').insert(data)
+  if (error) throw error
+}
+
+export async function getUserTripChats(userId: string) {
+  const { data, error } = await supabase
+    .from('trip_chat_members')
+    .select(`
+      trip_chat_id,
+      trip_chat:trip_chats(
+        id,
+        trip:trips(id, destination, country, cover_image)
+      )
+    `)
+    .eq('user_id', userId)
+
+  if (error) throw error
+  return data ?? []
+}
+
+export async function getLastTripMessage(chatId: string) {
+  const { data } = await supabase
+    .from('trip_messages')
+    .select('content, created_at')
+    .eq('trip_chat_id', chatId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+  return data
+}
+
+export async function getDMConversations(userId: string) {
+  const { data, error } = await supabase
+    .from('direct_conversations')
+    .select(`
+      id, created_at,
+      participant1:users!participant1_id(id, name, profile_photo),
+      participant2:users!participant2_id(id, name, profile_photo)
+    `)
+    .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`)
+    .order('created_at', { ascending: false })
+
+  if (error) return []
+  return (data ?? []).map((conv: any) => ({
+    ...conv,
+    other_user: conv.participant1?.id === userId ? conv.participant2 : conv.participant1,
+  }))
+}
+
+export async function getDMMessages(conversationId: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*, sender:users(id, name, profile_photo)')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+    .limit(100)
+
+  if (error) throw error
+  return data ?? []
+}
+
+export async function sendDMMessage(conversationId: string, senderId: string, content: string) {
+  const { error } = await supabase
+    .from('messages')
+    .insert({ conversation_id: conversationId, sender_id: senderId, content })
+  if (error) throw error
+}
+
 export async function createProfile(userId: string, email: string, name: string, age: number) {
   const { error } = await supabase
     .from('users')

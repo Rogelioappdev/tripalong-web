@@ -66,6 +66,25 @@ export type TripChat = {
   created_at: string
 }
 
+export type DirectConversation = {
+  id: string
+  participant1_id: string
+  participant2_id: string
+  created_at: string
+  other_user?: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
+  last_message?: string
+  last_message_at?: string
+}
+
+export type DMMessage = {
+  id: string
+  conversation_id: string
+  sender_id: string
+  content: string
+  created_at: string
+  sender?: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
+}
+
 export type TripMessage = {
   id: string
   trip_chat_id: string
