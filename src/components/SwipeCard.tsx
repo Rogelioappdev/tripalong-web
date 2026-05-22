@@ -9,41 +9,28 @@ interface SwipeCardProps {
   onSwipeRight: () => void
   onTap: () => void
   isTop: boolean
+  isJoined?: boolean
+  isSaved?: boolean
+  matchPct?: number
   sharedX?: ReturnType<typeof useMotionValue<number>>
-}
-
-const VIBE_EMOJI: Record<string, string> = {
-  adventure: '🏔️', cultural: '🏛️', foodie: '🍜', luxury: '✨',
-  backpacking: '🎒', relaxed: '🌴', budget: '💸', party: '🎉',
-  chill: '😌', nature: '🌿', beach: '🌊', spiritual: '🧘',
-  'road trip': '🚗',
-}
-
-const BUDGET_LABEL: Record<string, string> = {
-  budget: '💸 Budget',
-  moderate: '💳 Moderate',
-  luxury: '✨ Luxury',
 }
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, sharedX }: SwipeCardProps) {
+export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, matchPct, sharedX }: SwipeCardProps) {
   const internalX = useMotionValue(0)
-  // Top card uses sharedX so SwipeStack can observe its position for behind-card animation
   const x = sharedX ?? internalX
   const controls = useAnimation()
 
   const rotate = useTransform(x, [-250, 250], [-18, 18])
   const passOpacity = useTransform(x, [-150, -20, 0], [1, 0.3, 0])
   const joinOpacity = useTransform(x, [0, 20, 150], [0, 0.3, 1])
-
-  const behindScale = useTransform(x, [-200, 0, 200], [1.0, 0.92, 1.0])
-  const behindY = useTransform(x, [-200, 0, 200], [0, 20, 0])
+  const behindScale = useTransform(x, [-200, 0, 200], [1.0, 0.94, 1.0])
+  const behindY = useTransform(x, [-200, 0, 200], [0, 16, 0])
 
   const memberCount = trip.members?.[0]?.count ?? 0
-  const spotsLeft = trip.max_group_size - memberCount
 
   const dateLabel = trip.is_flexible_dates
     ? 'Flexible dates'
@@ -71,15 +58,10 @@ export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, share
   if (!isTop) {
     return (
       <motion.div
-        className="absolute inset-0 rounded-3xl overflow-hidden"
-        style={{
-          scale: behindScale ?? 0.92,
-          y: behindY ?? 20,
-          zIndex: 0,
-          transformOrigin: 'bottom center',
-        }}
+        className="absolute inset-0 rounded-[22px] overflow-hidden"
+        style={{ scale: behindScale, y: behindY, zIndex: 0, transformOrigin: 'bottom center' }}
       >
-        <CardContent trip={trip} memberCount={memberCount} spotsLeft={spotsLeft} dateLabel={dateLabel} />
+        <CardContent trip={trip} memberCount={memberCount} dateLabel={dateLabel} isJoined={false} matchPct={undefined} />
       </motion.div>
     )
   }
@@ -91,105 +73,118 @@ export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, share
       dragElastic={0.7}
       animate={controls}
       style={{ x, rotate, touchAction: 'none', zIndex: 10, position: 'absolute', inset: 0 }}
-      className="rounded-3xl overflow-hidden cursor-grab active:cursor-grabbing"
+      className="rounded-[22px] overflow-hidden cursor-grab active:cursor-grabbing"
       onDragEnd={handleDragEnd}
       onClick={onTap}
     >
-      {/* PASS overlay */}
+      {/* PASS stamp */}
       <motion.div
-        className="absolute top-8 left-6 z-20 border-2 border-red-400 rounded-xl px-4 py-2 rotate-[-15deg]"
+        className="absolute top-7 left-5 z-20 border-2 border-red-400 rounded-xl px-4 py-1.5 rotate-[-15deg]"
         style={{ opacity: passOpacity }}
       >
-        <span className="text-red-400 font-black text-2xl tracking-widest">PASS</span>
+        <span className="text-red-400 font-black text-xl tracking-widest">PASS</span>
       </motion.div>
 
-      {/* JOIN overlay */}
+      {/* JOIN stamp */}
       <motion.div
-        className="absolute top-8 right-6 z-20 border-2 border-green-400 rounded-xl px-4 py-2 rotate-[15deg]"
+        className="absolute top-7 right-5 z-20 border-2 border-green-400 rounded-xl px-4 py-1.5 rotate-[15deg]"
         style={{ opacity: joinOpacity }}
       >
-        <span className="text-green-400 font-black text-2xl tracking-widest">JOIN</span>
+        <span className="text-green-400 font-black text-xl tracking-widest">JOIN</span>
       </motion.div>
 
-      <CardContent trip={trip} memberCount={memberCount} spotsLeft={spotsLeft} dateLabel={dateLabel} />
+      <CardContent trip={trip} memberCount={memberCount} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} />
     </motion.div>
   )
 }
 
-function CardContent({ trip, memberCount, spotsLeft, dateLabel }: {
+function CardContent({ trip, memberCount, dateLabel, isJoined, matchPct }: {
   trip: TripWithDetails
   memberCount: number
-  spotsLeft: number
   dateLabel: string
+  isJoined?: boolean
+  matchPct?: number
 }) {
   return (
-    <div className="relative w-full h-full bg-surface rounded-3xl overflow-hidden select-none">
-      {/* Cover image — top 55% */}
+    <div className="relative w-full h-full bg-[#111] rounded-[22px] overflow-hidden select-none">
+      {/* Cover image */}
       <div className="absolute inset-0">
         {trip.cover_image ? (
-          <img
-            src={trip.cover_image}
-            alt={trip.destination}
-            className="w-full h-full object-cover"
-            draggable={false}
-          />
+          <img src={trip.cover_image} alt={trip.destination} className="w-full h-full object-cover" draggable={false} />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-6xl bg-surface-input">
-            🌍
-          </div>
+          <div className="w-full h-full bg-[#1a1a1a] flex items-center justify-center text-6xl">🌍</div>
         )}
       </div>
 
       {/* Gradient overlay */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0.97) 100%)',
-        }}
-      />
+      <div className="absolute inset-0" style={{
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, transparent 30%, rgba(0,0,0,0.7) 62%, rgba(0,0,0,0.97) 100%)',
+      }} />
 
-      {/* Spots badge */}
-      <div className="absolute top-4 right-4 z-10 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs font-semibold text-white/80">
-        {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
-      </div>
+      {/* Top-left: Match % */}
+      {matchPct !== undefined && (
+        <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
+          <span className="text-white/80 text-xs font-semibold">{matchPct}% Match</span>
+        </div>
+      )}
 
-      {/* Content — bottom */}
+      {/* Top-right: Joined badge */}
+      {isJoined && (
+        <div className="absolute top-4 right-4 z-10 bg-green-500/90 backdrop-blur-sm rounded-full px-3 py-1.5 flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+            <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="text-white text-xs font-semibold">Joined</span>
+        </div>
+      )}
+
+      {/* Bottom content */}
       <div className="absolute bottom-0 left-0 right-0 p-5 z-10">
         {/* Country */}
         {trip.country && (
           <div className="flex items-center gap-1 mb-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#F0EBE3"/>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="rgba(240,235,227,0.7)"/>
             </svg>
-            <span className="text-accent text-xs font-semibold tracking-wide uppercase">{trip.country}</span>
+            <span className="text-[#F0EBE3]/70 text-xs font-medium tracking-wide">{trip.country.toLowerCase()}</span>
           </div>
         )}
 
         {/* Destination */}
-        <h2 className="text-white font-extrabold text-3xl leading-none mb-1 tracking-tight">
+        <h2 className="text-white font-extrabold leading-none mb-2 tracking-tight" style={{ fontSize: 'clamp(28px, 8vw, 40px)' }}>
           {trip.destination}
         </h2>
 
-        {/* Dates + budget */}
+        {/* Dates · Budget */}
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-white/60 text-sm">{dateLabel}</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="4" width="18" height="18" rx="2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.8"/>
+            <path d="M16 2v4M8 2v4M3 10h18" stroke="rgba(255,255,255,0.45)" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+          <span className="text-white/50 text-sm">{dateLabel}</span>
           {trip.budget_level && (
             <>
-              <span className="text-white/30">·</span>
-              <span className="text-white/60 text-sm capitalize">{trip.budget_level}</span>
+              <span className="text-white/25">·</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="rgba(255,255,255,0.45)" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+              <span className="text-white/50 text-sm capitalize">{trip.budget_level}</span>
             </>
           )}
         </div>
 
-        {/* Vibes */}
+        {/* Description */}
+        {trip.description && (
+          <p className="text-white/50 text-sm leading-snug mb-3 line-clamp-2">{trip.description}</p>
+        )}
+
+        {/* Vibe tags */}
         {trip.vibes && trip.vibes.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-4">
             {trip.vibes.slice(0, 3).map(vibe => (
-              <span
-                key={vibe}
-                className="text-xs bg-white/10 rounded-full px-3 py-1 text-white/70 font-medium"
-              >
-                {VIBE_EMOJI[vibe] ?? ''} {vibe}
+              <span key={vibe} className="text-xs rounded-full px-3 py-1 font-semibold capitalize"
+                style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.22)', color: '#F0EBE3' }}>
+                {vibe}
               </span>
             ))}
           </div>
@@ -198,18 +193,22 @@ function CardContent({ trip, memberCount, spotsLeft, dateLabel }: {
         {/* Creator row */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden shrink-0">
-              {trip.creator.profile_photo ? (
-                <img src={trip.creator.profile_photo} alt="" className="w-full h-full object-cover" draggable={false} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white/60">
-                  {trip.creator.name?.[0]?.toUpperCase() ?? '?'}
-                </div>
-              )}
+            <div className="flex -space-x-2">
+              <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden border border-white/20 shrink-0">
+                {trip.creator.profile_photo ? (
+                  <img src={trip.creator.profile_photo} alt="" className="w-full h-full object-cover" draggable={false} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white/60">
+                    {trip.creator.name?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                )}
+              </div>
             </div>
-            <span className="text-white/50 text-sm">{trip.creator.name}</span>
+            <span className="text-white/50 text-sm">
+              {trip.creator.name}
+              {memberCount > 1 ? ` +${memberCount - 1} going` : ' · going'}
+            </span>
           </div>
-          <span className="text-white/30 text-sm">{memberCount} going</span>
         </div>
       </div>
     </div>

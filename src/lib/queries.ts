@@ -192,6 +192,29 @@ export async function sendDMMessage(conversationId: string, senderId: string, co
   if (error) throw error
 }
 
+export async function saveTrip(tripId: string, userId: string) {
+  const { error } = await supabase
+    .from('saved_trips')
+    .upsert({ trip_id: tripId, user_id: userId }, { onConflict: 'trip_id,user_id' })
+  if (error) throw error
+}
+
+export async function getUserSavedTripIds(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('saved_trips')
+    .select('trip_id')
+    .eq('user_id', userId)
+  return (data ?? []).map((d: any) => d.trip_id)
+}
+
+export async function getUserJoinedTripIds(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('trip_members')
+    .select('trip_id')
+    .eq('user_id', userId)
+  return (data ?? []).map((d: any) => d.trip_id)
+}
+
 export async function createProfile(userId: string, email: string, name: string, age: number) {
   const { error } = await supabase
     .from('users')
