@@ -13,7 +13,7 @@ const VIBE_EMOJI: Record<string, string> = {
 }
 
 export function TripCard({ trip, onClick }: TripCardProps) {
-  const memberCount = trip.members?.[0]?.count ?? 0
+  const memberCount = trip.member_count ?? 0
   const spotsLeft = trip.max_group_size - memberCount
 
   const formatDate = (d: string) =>

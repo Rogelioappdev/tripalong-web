@@ -30,7 +30,7 @@ export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoi
   const behindScale = useTransform(x, [-200, 0, 200], [1.0, 0.94, 1.0])
   const behindY = useTransform(x, [-200, 0, 200], [0, 16, 0])
 
-  const memberCount = trip.members?.[0]?.count ?? 0
+  const memberCount = trip.member_count ?? 0
 
   const dateLabel = trip.is_flexible_dates
     ? 'Flexible dates'
