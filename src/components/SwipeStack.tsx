@@ -113,8 +113,11 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
         )}
       </div>
 
-      {/* Pass / Save / Join buttons */}
-      <div className="flex items-center justify-center gap-8 py-5 shrink-0">
+      {/* Pass / Save / Join buttons — above home indicator */}
+      <div
+        className="flex items-center justify-center gap-8 shrink-0"
+        style={{ paddingTop: 12, paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}
+      >
         {/* Pass */}
         <button onClick={handlePass} className="flex flex-col items-center gap-1.5 group">
           <div className="w-14 h-14 rounded-full bg-[#1a1a1a] border border-white/10 flex items-center justify-center shadow-lg group-active:scale-95 transition-transform">

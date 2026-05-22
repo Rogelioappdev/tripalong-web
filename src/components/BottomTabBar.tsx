@@ -12,11 +12,10 @@ export function BottomTabBar() {
   const isOnFeed = pathname === '/feed'
   const [revealed, setRevealed] = useState(false)
 
-  // Auto-hide when returning to feed
+  // Auto-hide when arriving at feed, auto-show on other pages
   useEffect(() => {
-    if (isOnFeed) setRevealed(false)
-    else setRevealed(true)
-  }, [isOnFeed])
+    setRevealed(false)
+  }, [pathname])
 
   if (HIDE_ON.some(p => pathname === p) || pathname.startsWith('/auth')) return null
 
@@ -58,20 +57,49 @@ export function BottomTabBar() {
     },
   ]
 
+  // On feed: tab bar is hidden by default, only visible when revealed
+  // On other pages: always visible
+  const isVisible = !isOnFeed || revealed
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden flex flex-col items-center pb-6">
-      {/* Chevron handle — only visible on feed when tab bar is hidden */}
+    <>
+      {/* Overlay — dismiss tab bar when tapping outside on feed */}
+      <AnimatePresence>
+        {isOnFeed && revealed && (
+          <motion.div
+            key="overlay"
+            className="fixed inset-0 z-40 md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}
+            onClick={() => setRevealed(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Chevron pull-up handle — only on feed when tab bar is hidden */}
       <AnimatePresence>
         {isOnFeed && !revealed && (
           <motion.button
             key="chevron"
-            initial={{ opacity: 0, y: 10 }}
+            className="fixed z-50 md:hidden flex items-center justify-center"
+            style={{
+              bottom: 10,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 44,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: 'rgba(255,255,255,0.07)',
+              border: '0.5px solid rgba(255,255,255,0.1)',
+            }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
+            exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.2 }}
             onClick={() => setRevealed(true)}
-            className="mb-2 w-11 h-7 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M18 15l-6-6-6 6" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -81,43 +109,46 @@ export function BottomTabBar() {
       </AnimatePresence>
 
       {/* Floating pill tab bar */}
-      <motion.div
+      <motion.nav
+        className="fixed z-50 md:hidden"
+        style={{ bottom: 24, left: 12, right: 12 }}
         initial={false}
-        animate={{
-          y: isOnFeed && !revealed ? 92 : 0,
-          opacity: isOnFeed && !revealed ? 0 : 1,
-        }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="flex items-center mx-3 px-2"
-        style={{
-          backgroundColor: '#050505',
-          borderRadius: 36,
-          height: 66,
-          width: 'calc(100% - 24px)',
-          border: '0.5px solid rgba(255,255,255,0.07)',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.7)',
-        }}
+        animate={{ y: isVisible ? 0 : 120, opacity: isVisible ? 1 : 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
       >
-        {tabs.map(tab => {
-          const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className="flex flex-col items-center justify-center gap-1 flex-1 py-2"
-              onClick={() => { if (tab.href === '/feed') setRevealed(false) }}
-            >
-              <div className="flex items-center justify-center" style={{ height: tab.isCenter ? 44 : 26 }}>
-                {tab.icon(active)}
-              </div>
-              <span className="text-[10px] font-semibold tracking-wide"
-                style={{ color: active ? '#fff' : 'rgba(255,255,255,0.38)' }}>
-                {tab.label}
-              </span>
-            </Link>
-          )
-        })}
-      </motion.div>
-    </div>
+        <div
+          className="flex items-center"
+          style={{
+            backgroundColor: '#050505',
+            borderRadius: 36,
+            height: 66,
+            border: '0.5px solid rgba(255,255,255,0.07)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.75)',
+          }}
+        >
+          {tabs.map(tab => {
+            const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className="flex flex-col items-center justify-center gap-1 flex-1 py-2"
+                onClick={() => setRevealed(false)}
+              >
+                <div className="flex items-center justify-center" style={{ height: tab.isCenter ? 44 : 26 }}>
+                  {tab.icon(active)}
+                </div>
+                <span
+                  className="text-[10px] font-semibold tracking-wide"
+                  style={{ color: active ? '#fff' : 'rgba(255,255,255,0.38)' }}
+                >
+                  {tab.label}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+      </motion.nav>
+    </>
   )
 }

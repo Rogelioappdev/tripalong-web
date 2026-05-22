@@ -35,7 +35,7 @@ export default function FeedPage() {
     <>
       <NavBar />
 
-      <main className="h-screen bg-black flex flex-col md:pt-14">
+      <main className="bg-black flex flex-col md:pt-14" style={{ height: '100dvh' }}>
         {/* Mobile header — matches app exactly */}
         <div className="md:hidden flex items-center justify-between px-5 pt-14 pb-3 shrink-0">
           <h1 className="text-white font-extrabold text-2xl tracking-tight">TripAlong</h1>
@@ -77,19 +77,21 @@ export default function FeedPage() {
           </button>
         </div>
 
-        {/* Card + action buttons area */}
-        <div className="flex-1 min-h-0 flex items-start justify-center px-4 pb-24 md:pb-8 pt-1">
+        {/* Card + action buttons — fills all remaining height, no bottom padding */}
+        <div className="flex-1 min-h-0 flex items-stretch justify-center px-4 md:pb-8">
           {isLoading ? (
-            <div className="flex flex-col items-center gap-3 mt-20">
+            <div className="flex flex-col items-center justify-center gap-3 w-full">
               <div className="w-12 h-12 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
               <p className="text-white/30 text-sm">Loading trips...</p>
             </div>
           ) : trips && trips.length > 0 ? (
-            <div className="w-full max-w-sm flex flex-col" style={{ height: 'min(78vh, 620px)' }}>
+            <div className="w-full max-w-sm flex flex-col">
               <SwipeStack trips={trips} userId={userId} onTripTap={setSelectedTrip} />
             </div>
           ) : (
-            <div className="text-white/30 text-sm mt-20">No trips found.</div>
+            <div className="flex items-center justify-center w-full">
+              <p className="text-white/30 text-sm">No trips found.</p>
+            </div>
           )}
         </div>
       </main>
