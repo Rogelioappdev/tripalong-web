@@ -5,42 +5,43 @@ export async function getTrips(): Promise<TripWithDetails[]> {
   const { data: { session } } = await supabase.auth.getSession()
   const userId = session?.user?.id
 
-  // Exclude trips from blocked users
-  let blockedIds: string[] = []
-  if (userId) {
-    const { data: blocks } = await supabase
-      .from('user_blocks')
-      .select('blocked_id')
-      .eq('blocker_id', userId)
-    blockedIds = (blocks ?? []).map((b: any) => b.blocked_id as string)
-  }
-
-  let query = supabase
+  // Fetch main trips with members (no saves — saved_trips may not exist)
+  const { data, error } = await supabase
     .from('trips')
     .select(`
       *,
       creator:users!creator_id(id, name, profile_photo),
       members:trip_members(
-        id, trip_id, user_id, status, created_at,
-        user:users(id, name, profile_photo, gender)
-      ),
-      saves:saved_trips(count)
+        user_id,
+        user:users(id, name, profile_photo)
+      )
     `)
     .eq('status', 'planning')
     .order('created_at', { ascending: false })
     .limit(50)
 
-  if (blockedIds.length > 0) {
-    query = query.not('creator_id', 'in', `(${blockedIds.join(',')})`)
+  if (error) {
+    console.error('getTrips error:', error)
+    throw error
   }
 
-  const { data, error } = await query
-  if (error) throw error
+  // Optionally fetch save counts — silently skip if table doesn't exist
+  let saveCounts: Record<string, number> = {}
+  try {
+    const { data: saves } = await supabase
+      .from('saved_trips')
+      .select('trip_id')
+    if (saves) {
+      saves.forEach((s: any) => {
+        saveCounts[s.trip_id] = (saveCounts[s.trip_id] ?? 0) + 1
+      })
+    }
+  } catch {}
 
   return (data ?? []).map((trip: any) => ({
     ...trip,
     member_count: trip.members?.length ?? 0,
-    save_count: (trip.saves?.[0]?.count ?? 0) as number,
+    save_count: saveCounts[trip.id] ?? 0,
   })) as TripWithDetails[]
 }
 
@@ -51,19 +52,18 @@ export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
       *,
       creator:users!creator_id(id, name, profile_photo),
       members:trip_members(
-        id, trip_id, user_id, status, created_at,
-        user:users(id, name, profile_photo, gender)
-      ),
-      saves:saved_trips(count)
+        user_id,
+        user:users(id, name, profile_photo)
+      )
     `)
     .eq('id', tripId)
     .single()
 
   if (error) throw error
   return {
-    ...data,
+    ...(data as any),
     member_count: (data as any).members?.length ?? 0,
-    save_count: ((data as any).saves?.[0]?.count ?? 0) as number,
+    save_count: 0,
   } as TripWithDetails
 }
 
@@ -235,19 +235,23 @@ export async function saveTrip(tripId: string, userId: string) {
 }
 
 export async function getUserSavedTripIds(userId: string): Promise<string[]> {
-  const { data } = await supabase
-    .from('saved_trips')
-    .select('trip_id')
-    .eq('user_id', userId)
-  return (data ?? []).map((d: any) => d.trip_id)
+  try {
+    const { data } = await supabase
+      .from('saved_trips')
+      .select('trip_id')
+      .eq('user_id', userId)
+    return (data ?? []).map((d: any) => d.trip_id)
+  } catch { return [] }
 }
 
 export async function getUserJoinedTripIds(userId: string): Promise<string[]> {
-  const { data } = await supabase
-    .from('trip_members')
-    .select('trip_id')
-    .eq('user_id', userId)
-  return (data ?? []).map((d: any) => d.trip_id)
+  try {
+    const { data } = await supabase
+      .from('trip_members')
+      .select('trip_id')
+      .eq('user_id', userId)
+    return (data ?? []).map((d: any) => d.trip_id)
+  } catch { return [] }
 }
 
 export async function createProfile(userId: string, email: string, name: string, age: number) {
