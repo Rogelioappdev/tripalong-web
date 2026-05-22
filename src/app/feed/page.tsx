@@ -13,6 +13,9 @@ import { getTrips } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import type { TripWithDetails } from '@/lib/types'
 
+// Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
+const TAB_BAR_CLEARANCE = 82
+
 export default function FeedPage() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
@@ -35,27 +38,30 @@ export default function FeedPage() {
     <>
       <NavBar />
 
-      <main className="bg-black flex flex-col md:pt-14" style={{ height: '100dvh' }}>
-        {/* Mobile header — matches app exactly */}
-        <div className="md:hidden flex items-center justify-between px-5 pt-14 pb-3 shrink-0">
+      <main
+        className="bg-black flex flex-col md:pt-14"
+        style={{ height: '100dvh' }}
+      >
+        {/* Mobile header */}
+        <div className="md:hidden flex items-center justify-between px-5 shrink-0"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
           <h1 className="text-white font-extrabold text-2xl tracking-tight">TripAlong</h1>
           <div className="flex items-center gap-2">
-            {/* Bookmark icon */}
-            <button className="w-9 h-9 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <button className="w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
                   stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
-            {/* Create Trip pill */}
             <button
               onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 bg-white/8 border border-white/10 rounded-full px-3.5 py-2"
+              className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+              style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.12)' }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                 <path d="M12 5v14M5 12h14" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
               </svg>
-              <span className="text-white text-sm font-semibold">Create Trip</span>
+              <span className="text-white text-xs font-semibold">Create Trip</span>
             </button>
           </div>
         </div>
@@ -77,11 +83,14 @@ export default function FeedPage() {
           </button>
         </div>
 
-        {/* Card + action buttons — fills all remaining height, no bottom padding */}
-        <div className="flex-1 min-h-0 flex items-stretch justify-center px-4 md:pb-8">
+        {/* Card + buttons — fills remaining space above tab bar */}
+        <div
+          className="flex-1 min-h-0 flex items-stretch justify-center px-3 md:pb-8"
+          style={{ paddingBottom: TAB_BAR_CLEARANCE }}
+        >
           {isLoading ? (
             <div className="flex flex-col items-center justify-center gap-3 w-full">
-              <div className="w-12 h-12 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+              <div className="w-10 h-10 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
               <p className="text-white/30 text-sm">Loading trips...</p>
             </div>
           ) : trips && trips.length > 0 ? (

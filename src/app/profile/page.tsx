@@ -166,7 +166,7 @@ export default function ProfilePage() {
   return (
     <>
       <NavBar />
-      <main className="pt-14 min-h-screen bg-black pb-24 md:pb-8">
+      <main className="pt-14 min-h-screen bg-black pb-20 md:pb-8">
         <div className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-6">
 
           {/* Hero photo */}

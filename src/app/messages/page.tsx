@@ -43,7 +43,7 @@ export default function MessagesPage() {
   return (
     <>
       <NavBar />
-      <main className="pt-14 min-h-screen bg-black pb-24 md:pb-8">
+      <main className="pt-14 min-h-screen bg-black pb-20 md:pb-8">
         <div className="max-w-2xl mx-auto">
           {/* Mobile header */}
           <div className="md:hidden px-5 pt-6 pb-4">
