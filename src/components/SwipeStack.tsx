@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useMotionValue } from 'framer-motion'
 import { SwipeCard } from './SwipeCard'
-import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds } from '@/lib/queries'
-import type { TripWithDetails } from '@/lib/types'
+import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
+import { calculateTripMatch } from '@/lib/matching'
+import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 interface SwipeStackProps {
   trips: TripWithDetails[]
@@ -16,12 +17,14 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set())
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const topCardX = useMotionValue(0)
 
   useEffect(() => {
     if (!userId) return
     getUserJoinedTripIds(userId).then(ids => setJoinedIds(new Set(ids)))
     getUserSavedTripIds(userId).then(ids => setSavedIds(new Set(ids)))
+    getProfile(userId).then(p => setUserProfile(p))
   }, [userId])
 
   const visibleTrips = trips.slice(currentIndex, currentIndex + 2)
@@ -43,15 +46,15 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
 
   const handleSwipeLeft = () => advance()
 
-  const handlePass = async () => {
+  const handlePass = () => {
     if (!currentTrip) return
-    await topCardX.set(-700)
+    topCardX.set(-700)
     handleSwipeLeft()
   }
 
-  const handleJoin = async () => {
+  const handleJoin = () => {
     if (!currentTrip) return
-    await handleSwipeRight(currentTrip)
+    handleSwipeRight(currentTrip)
   }
 
   const handleSave = async () => {
@@ -78,6 +81,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
   }
 
   const isCurrentJoined = currentTrip ? joinedIds.has(currentTrip.id) : false
+  const matchPct = currentTrip ? calculateTripMatch(userProfile, currentTrip) : undefined
 
   return (
     <div className="flex flex-col items-center w-full h-full gap-0">
@@ -101,6 +105,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
             isTop={true}
             sharedX={topCardX}
             isJoined={isCurrentJoined}
+            matchPct={matchPct}
             onSwipeLeft={handleSwipeLeft}
             onSwipeRight={() => handleSwipeRight(currentTrip)}
             onTap={() => onTripTap(currentTrip)}
@@ -111,10 +116,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
       {/* Pass / Save / Join buttons */}
       <div className="flex items-center justify-center gap-8 py-5 shrink-0">
         {/* Pass */}
-        <button
-          onClick={handlePass}
-          className="flex flex-col items-center gap-1.5 group"
-        >
+        <button onClick={handlePass} className="flex flex-col items-center gap-1.5 group">
           <div className="w-14 h-14 rounded-full bg-[#1a1a1a] border border-white/10 flex items-center justify-center shadow-lg group-active:scale-95 transition-transform">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="#FF453A" strokeWidth="2.5" strokeLinecap="round"/>
@@ -124,16 +126,13 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
         </button>
 
         {/* Save */}
-        <button
-          onClick={handleSave}
-          className="flex flex-col items-center gap-1.5 group"
-        >
+        <button onClick={handleSave} className="flex flex-col items-center gap-1.5 group">
           <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-white/10 flex items-center justify-center shadow-lg group-active:scale-95 transition-transform">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-                stroke={savedIds.has(currentTrip?.id ?? '') ? '#F0EBE3' : 'rgba(255,255,255,0.6)'}
+                stroke={currentTrip && savedIds.has(currentTrip.id) ? '#F0EBE3' : 'rgba(255,255,255,0.6)'}
                 strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-                fill={savedIds.has(currentTrip?.id ?? '') ? 'rgba(240,235,227,0.2)' : 'none'}
+                fill={currentTrip && savedIds.has(currentTrip.id) ? 'rgba(240,235,227,0.2)' : 'none'}
               />
             </svg>
           </div>
@@ -141,10 +140,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
         </button>
 
         {/* Join */}
-        <button
-          onClick={handleJoin}
-          className="flex flex-col items-center gap-1.5 group"
-        >
+        <button onClick={handleJoin} className="flex flex-col items-center gap-1.5 group">
           <div className="w-14 h-14 rounded-full bg-[#1a1a1a] border border-white/10 flex items-center justify-center shadow-lg group-active:scale-95 transition-transform">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>

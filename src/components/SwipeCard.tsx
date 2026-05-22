@@ -193,22 +193,46 @@ function CardContent({ trip, memberCount, dateLabel, isJoined, matchPct }: {
         {/* Creator row */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            {/* Stacked member avatars */}
             <div className="flex -space-x-2">
-              <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden border border-white/20 shrink-0">
+              {/* Creator always first */}
+              <div className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0 z-10">
                 {trip.creator.profile_photo ? (
                   <img src={trip.creator.profile_photo} alt="" className="w-full h-full object-cover" draggable={false} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white/60">
+                  <div className="w-full h-full bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">
                     {trip.creator.name?.[0]?.toUpperCase() ?? '?'}
                   </div>
                 )}
               </div>
+              {/* Up to 2 more member avatars */}
+              {(trip.members ?? []).slice(0, 2).map((m, i) => (
+                <div key={m.user_id} className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0" style={{ zIndex: 9 - i }}>
+                  {m.user?.profile_photo ? (
+                    <img src={m.user.profile_photo} alt="" className="w-full h-full object-cover" draggable={false} />
+                  ) : (
+                    <div className="w-full h-full bg-white/15 flex items-center justify-center text-[10px] font-bold text-white">
+                      {m.user?.name?.[0]?.toUpperCase() ?? '?'}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
             <span className="text-white/50 text-sm">
               {trip.creator.name}
-              {memberCount > 1 ? ` +${memberCount - 1} going` : ' · going'}
+              {memberCount > 0 ? ` +${memberCount} going` : ' · going'}
             </span>
           </div>
+          {/* Save count */}
+          {trip.save_count > 0 && (
+            <div className="flex items-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                  stroke="rgba(255,255,255,0.35)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="text-white/35 text-xs">{trip.save_count} saved</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

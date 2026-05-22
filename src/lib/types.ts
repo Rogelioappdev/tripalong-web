@@ -45,9 +45,20 @@ export type Trip = {
   updated_at: string
 }
 
+export type TripMemberWithUser = {
+  id: string
+  trip_id: string
+  user_id: string
+  status: 'in' | 'maybe' | 'out'
+  created_at: string
+  user: Pick<UserProfile, 'id' | 'name' | 'profile_photo' | 'gender'>
+}
+
 export type TripWithDetails = Trip & {
   creator: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
-  members: { count: number }[]
+  members: TripMemberWithUser[]
+  member_count: number
+  save_count: number
 }
 
 export type TripMember = {

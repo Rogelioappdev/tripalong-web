@@ -2,19 +2,46 @@ import { supabase } from './supabase'
 import type { TripWithDetails, TripMessage, UserProfile } from './types'
 
 export async function getTrips(): Promise<TripWithDetails[]> {
-  const { data, error } = await supabase
+  const { data: { session } } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+
+  // Exclude trips from blocked users
+  let blockedIds: string[] = []
+  if (userId) {
+    const { data: blocks } = await supabase
+      .from('user_blocks')
+      .select('blocked_id')
+      .eq('blocker_id', userId)
+    blockedIds = (blocks ?? []).map((b: any) => b.blocked_id as string)
+  }
+
+  let query = supabase
     .from('trips')
     .select(`
       *,
       creator:users!creator_id(id, name, profile_photo),
-      members:trip_members(count)
+      members:trip_members(
+        id, trip_id, user_id, status, created_at,
+        user:users(id, name, profile_photo, gender)
+      ),
+      saves:saved_trips(count)
     `)
     .eq('status', 'planning')
     .order('created_at', { ascending: false })
     .limit(50)
 
+  if (blockedIds.length > 0) {
+    query = query.not('creator_id', 'in', `(${blockedIds.join(',')})`)
+  }
+
+  const { data, error } = await query
   if (error) throw error
-  return (data as TripWithDetails[]) ?? []
+
+  return (data ?? []).map((trip: any) => ({
+    ...trip,
+    member_count: trip.members?.length ?? 0,
+    save_count: (trip.saves?.[0]?.count ?? 0) as number,
+  })) as TripWithDetails[]
 }
 
 export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
@@ -23,13 +50,21 @@ export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
     .select(`
       *,
       creator:users!creator_id(id, name, profile_photo),
-      members:trip_members(*, user:users(id, name, profile_photo))
+      members:trip_members(
+        id, trip_id, user_id, status, created_at,
+        user:users(id, name, profile_photo, gender)
+      ),
+      saves:saved_trips(count)
     `)
     .eq('id', tripId)
     .single()
 
   if (error) throw error
-  return data as TripWithDetails
+  return {
+    ...data,
+    member_count: (data as any).members?.length ?? 0,
+    save_count: ((data as any).saves?.[0]?.count ?? 0) as number,
+  } as TripWithDetails
 }
 
 export async function joinTrip(tripId: string, userId: string) {
