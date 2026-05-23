@@ -146,7 +146,7 @@ export function SavedTripsModal({ userId, onClose }: Props) {
         className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[28px] overflow-hidden flex flex-col"
         style={{
           backgroundColor: '#0d0d0d',
-          maxHeight: '88dvh',
+          height: '88dvh',
           paddingBottom: 'env(safe-area-inset-bottom)',
           touchAction: 'pan-y',
         }}
