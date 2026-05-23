@@ -298,6 +298,15 @@ export async function leaveTrip(tripId: string, userId: string) {
   if (error) throw error
 }
 
+export async function updateTripMemberStatus(tripId: string, userId: string, status: 'in' | 'maybe') {
+  const { error } = await supabase
+    .from('trip_members')
+    .update({ status })
+    .eq('trip_id', tripId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
 export async function saveTrip(tripId: string, userId: string) {
   const { error } = await supabase
     .from('saved_trips')

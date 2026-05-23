@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat } from '@/lib/queries'
+import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat, updateTripMemberStatus } from '@/lib/queries'
 import type { TripWithDetails } from '@/lib/types'
 
 interface Props {
@@ -25,7 +25,9 @@ export function SavedTripsModal({ userId, onClose }: Props) {
   const [mainTab, setMainTab] = useState<MainTab>('saved')
   const [subTab, setSubTab] = useState<MyTripsSubTab>('in')
   const [confirmUnsave, setConfirmUnsave] = useState<TripWithDetails | null>(null)
+  const [confirmLeave, setConfirmLeave] = useState<TripWithDetails | null>(null)
   const [localJoined, setLocalJoined] = useState<Set<string>>(new Set())
+  const [localStatuses, setLocalStatuses] = useState<Record<string, 'in' | 'maybe'>>({})
   const [chatLoading, setChatLoading] = useState<string | null>(null)
   const qc = useQueryClient()
 
@@ -90,11 +92,28 @@ export function SavedTripsModal({ userId, onClose }: Props) {
     } catch {}
   }
 
-  const handleLeave = async (tripId: string) => {
+  const handleLeave = async (trip: TripWithDetails) => {
+    setConfirmLeave(null)
     try {
-      await leaveTrip(tripId, userId)
+      await leaveTrip(trip.id, userId)
       invalidate()
     } catch {}
+  }
+
+  const handleStatusChange = async (trip: TripWithDetails, status: 'in' | 'maybe') => {
+    setLocalStatuses(s => ({ ...s, [trip.id]: status }))
+    try {
+      await updateTripMemberStatus(trip.id, userId, status)
+      invalidate()
+    } catch {
+      // revert on failure
+      setLocalStatuses(s => ({ ...s, [trip.id]: status === 'in' ? 'maybe' : 'in' }))
+    }
+  }
+
+  const getTripStatus = (trip: TripWithDetails): 'in' | 'maybe' => {
+    if (localStatuses[trip.id]) return localStatuses[trip.id]
+    return (trip.members?.find(m => m.user_id === userId)?.status as 'in' | 'maybe') ?? 'in'
   }
 
   const isJoined = (trip: TripWithDetails) =>
@@ -255,9 +274,9 @@ export function SavedTripsModal({ userId, onClose }: Props) {
                 <MyTripCard
                   key={trip.id}
                   trip={trip}
-                  userId={userId}
-                  subTab={subTab}
-                  onLeave={() => handleLeave(trip.id)}
+                  currentStatus={getTripStatus(trip)}
+                  onStatusChange={(s) => handleStatusChange(trip, s)}
+                  onLeave={() => setConfirmLeave(trip)}
                   onOpenChat={() => handleOpenChat(trip)}
                   chatLoading={chatLoading === trip.id}
                 />
@@ -273,6 +292,15 @@ export function SavedTripsModal({ userId, onClose }: Props) {
           trip={confirmUnsave}
           onConfirm={() => handleUnsave(confirmUnsave)}
           onCancel={() => setConfirmUnsave(null)}
+        />
+      )}
+
+      {/* Leave confirm sheet */}
+      {confirmLeave && (
+        <LeaveConfirmSheet
+          trip={confirmLeave}
+          onConfirm={() => handleLeave(confirmLeave)}
+          onCancel={() => setConfirmLeave(null)}
         />
       )}
     </>
@@ -432,10 +460,10 @@ function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat, cha
   )
 }
 
-function MyTripCard({ trip, userId, subTab, onLeave, onOpenChat, chatLoading }: {
+function MyTripCard({ trip, currentStatus, onStatusChange, onLeave, onOpenChat, chatLoading }: {
   trip: TripWithDetails
-  userId: string
-  subTab: MyTripsSubTab
+  currentStatus: 'in' | 'maybe'
+  onStatusChange: (s: 'in' | 'maybe') => void
   onLeave: () => void
   onOpenChat: () => void
   chatLoading?: boolean
@@ -458,15 +486,15 @@ function MyTripCard({ trip, userId, subTab, onLeave, onOpenChat, chatLoading }: 
         <div className="absolute inset-0" style={{
           background: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.97) 100%)'
         }} />
-        {/* Status badge */}
+        {/* Status badge — reflects real current status */}
         <div
           className="absolute top-3 left-3 flex items-center gap-1 px-2.5 py-1 rounded-full"
-          style={subTab === 'in'
+          style={currentStatus === 'in'
             ? { backgroundColor: 'rgba(48,209,88,0.2)', border: '0.5px solid rgba(48,209,88,0.4)' }
             : { backgroundColor: 'rgba(255,214,10,0.15)', border: '0.5px solid rgba(255,214,10,0.35)' }}
         >
-          <span className="text-[10px] font-bold" style={{ color: subTab === 'in' ? '#30D158' : '#FFD60A' }}>
-            {subTab === 'in' ? '✓ I\'m In' : '⏰ Maybe'}
+          <span className="text-[10px] font-bold" style={{ color: currentStatus === 'in' ? '#30D158' : '#FFD60A' }}>
+            {currentStatus === 'in' ? "✓ I'm In" : '⏰ Maybe'}
           </span>
         </div>
         {/* Bottom info */}
@@ -488,8 +516,9 @@ function MyTripCard({ trip, userId, subTab, onLeave, onOpenChat, chatLoading }: 
         <div className="flex items-center gap-2">
           {/* I'm In */}
           <button
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-all"
-            style={subTab === 'in'
+            onClick={() => onStatusChange('in')}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-all active:scale-95"
+            style={currentStatus === 'in'
               ? { backgroundColor: 'rgba(48,209,88,0.15)', color: '#30D158', border: '1px solid rgba(48,209,88,0.4)' }
               : { backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '0.5px solid rgba(255,255,255,0.1)' }}
           >
@@ -497,8 +526,9 @@ function MyTripCard({ trip, userId, subTab, onLeave, onOpenChat, chatLoading }: 
           </button>
           {/* Maybe */}
           <button
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-all"
-            style={subTab === 'maybe'
+            onClick={() => onStatusChange('maybe')}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-all active:scale-95"
+            style={currentStatus === 'maybe'
               ? { backgroundColor: 'rgba(255,214,10,0.12)', color: '#FFD60A', border: '1px solid rgba(255,214,10,0.35)' }
               : { backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '0.5px solid rgba(255,255,255,0.1)' }}
           >
@@ -585,6 +615,65 @@ function UnsaveConfirmSheet({ trip, onConfirm, onCancel }: {
             style={{ backgroundColor: '#FF453A', color: '#fff' }}
           >
             Remove from Saved
+          </button>
+          <button
+            onClick={onCancel}
+            className="w-full py-4 rounded-2xl font-semibold text-base active:opacity-70 transition-opacity"
+            style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function LeaveConfirmSheet({ trip, onConfirm, onCancel }: {
+  trip: TripWithDetails
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-60" onClick={onCancel}
+        onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()} />
+      <div
+        className="fixed bottom-0 left-0 right-0 z-70 rounded-t-[28px] overflow-hidden"
+        style={{
+          backgroundColor: '#111',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          border: '0.5px solid rgba(255,255,255,0.1)',
+          touchAction: 'pan-y',
+        }}
+        onPointerDown={e => e.stopPropagation()}
+        onTouchStart={e => e.stopPropagation()}
+      >
+        <div className="flex justify-center pt-3 pb-2">
+          <div className="w-10 h-1 rounded-full bg-white/20" />
+        </div>
+        <div className="px-5 pt-2 pb-4">
+          <div className="relative rounded-2xl overflow-hidden h-32 mb-4">
+            {trip.cover_image ? (
+              <img src={trip.cover_image} alt={trip.destination} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-[#1a1a1a] flex items-center justify-center text-4xl">🌍</div>
+            )}
+            <div className="absolute inset-0 flex items-end p-3"
+              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%)' }}>
+              <div>
+                <p className="text-white/60 text-xs">{trip.country}</p>
+                <p className="text-white font-bold text-lg">{trip.destination}</p>
+              </div>
+            </div>
+          </div>
+          <p className="text-white/50 text-sm text-center mb-4">Leave this trip? You'll be removed from the group.</p>
+          <button
+            onClick={onConfirm}
+            className="w-full py-4 rounded-2xl font-bold text-base mb-3 active:opacity-80 transition-opacity"
+            style={{ backgroundColor: '#FF453A', color: '#fff' }}
+          >
+            Leave Trip
           </button>
           <button
             onClick={onCancel}
