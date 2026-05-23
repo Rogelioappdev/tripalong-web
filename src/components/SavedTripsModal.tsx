@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, saveTrip } from '@/lib/queries'
+import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat } from '@/lib/queries'
 import type { TripWithDetails } from '@/lib/types'
 
 interface Props {
   userId: string
   onClose: () => void
-  onOpenChat: (tripId: string) => void
 }
 
 type MainTab = 'saved' | 'mytrips'
@@ -20,11 +20,13 @@ function formatDates(trip: TripWithDetails) {
   return trip.end_date ? `${fmt(trip.start_date)} – ${fmt(trip.end_date)}` : fmt(trip.start_date)
 }
 
-export function SavedTripsModal({ userId, onClose, onOpenChat }: Props) {
+export function SavedTripsModal({ userId, onClose }: Props) {
+  const router = useRouter()
   const [mainTab, setMainTab] = useState<MainTab>('saved')
   const [subTab, setSubTab] = useState<MyTripsSubTab>('in')
   const [confirmUnsave, setConfirmUnsave] = useState<TripWithDetails | null>(null)
   const [localJoined, setLocalJoined] = useState<Set<string>>(new Set())
+  const [chatLoading, setChatLoading] = useState<string | null>(null)
   const qc = useQueryClient()
 
   const { data: savedTrips = [], isLoading: savedLoading } = useQuery({
@@ -55,6 +57,22 @@ export function SavedTripsModal({ userId, onClose, onOpenChat }: Props) {
     qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
     qc.invalidateQueries({ queryKey: ['my-trips', userId] })
   }, [qc, userId])
+
+  // Mirrors iOS handleGroupChat: ensure user is in the trip chat (idempotent),
+  // then navigate straight to that chat. Works for both saved-but-not-joined
+  // (join chat to learn more) and already-joined (open chat) trips.
+  const handleOpenChat = async (trip: TripWithDetails) => {
+    setChatLoading(trip.id)
+    try {
+      const chatId = await joinTripChat(trip.id)
+      onClose()
+      router.push(`/chat/${chatId}`)
+    } catch (e) {
+      console.error('Failed to open chat:', e)
+    } finally {
+      setChatLoading(null)
+    }
+  }
 
   const handleJoin = async (trip: TripWithDetails) => {
     setLocalJoined(s => new Set([...s, trip.id]))
@@ -216,7 +234,8 @@ export function SavedTripsModal({ userId, onClose, onOpenChat }: Props) {
                   joined={isJoined(trip)}
                   onJoin={() => handleJoin(trip)}
                   onUnsave={() => setConfirmUnsave(trip)}
-                  onOpenChat={() => onOpenChat(trip.id)}
+                  onOpenChat={() => handleOpenChat(trip)}
+                  chatLoading={chatLoading === trip.id}
                 />
               ))
             )
@@ -239,7 +258,8 @@ export function SavedTripsModal({ userId, onClose, onOpenChat }: Props) {
                   userId={userId}
                   subTab={subTab}
                   onLeave={() => handleLeave(trip.id)}
-                  onOpenChat={() => onOpenChat(trip.id)}
+                  onOpenChat={() => handleOpenChat(trip)}
+                  chatLoading={chatLoading === trip.id}
                 />
               ))
             )
@@ -259,13 +279,14 @@ export function SavedTripsModal({ userId, onClose, onOpenChat }: Props) {
   )
 }
 
-function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat }: {
+function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat, chatLoading }: {
   trip: TripWithDetails
   userId: string
   joined: boolean
   onJoin: () => void
   onUnsave: () => void
   onOpenChat: () => void
+  chatLoading?: boolean
 }) {
   const memberCount = trip.members?.filter(m => m.status === 'in').length ?? 0
   const dates = formatDates(trip)
@@ -389,14 +410,19 @@ function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat }: {
 
         {/* Chat button */}
         <button
-          onClick={onOpenChat}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform"
+          onClick={chatLoading ? undefined : onOpenChat}
+          disabled={chatLoading}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
           style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.12)' }}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-              stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          {chatLoading ? (
+            <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
           <span className="text-white/55 text-sm font-semibold">
             {joined ? 'Open Chat' : 'Join Group Chat to learn more'}
           </span>
@@ -406,12 +432,13 @@ function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat }: {
   )
 }
 
-function MyTripCard({ trip, userId, subTab, onLeave, onOpenChat }: {
+function MyTripCard({ trip, userId, subTab, onLeave, onOpenChat, chatLoading }: {
   trip: TripWithDetails
   userId: string
   subTab: MyTripsSubTab
   onLeave: () => void
   onOpenChat: () => void
+  chatLoading?: boolean
 }) {
   const memberCount = trip.members?.filter(m => m.status === 'in').length ?? 0
   const dates = formatDates(trip)
@@ -492,14 +519,19 @@ function MyTripCard({ trip, userId, subTab, onLeave, onOpenChat }: {
 
         {/* Message Group */}
         <button
-          onClick={onOpenChat}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform"
+          onClick={chatLoading ? undefined : onOpenChat}
+          disabled={chatLoading}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
           style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.12)' }}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-              stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          {chatLoading ? (
+            <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
           <span className="text-white/55 text-sm font-semibold">Message Group</span>
         </button>
       </div>

@@ -121,9 +121,6 @@ export default function FeedPage() {
         <SavedTripsModal
           userId={userId}
           onClose={() => setShowSaved(false)}
-          onOpenChat={(tripId) => {
-            setShowSaved(false)
-          }}
         />
       )}
     </>

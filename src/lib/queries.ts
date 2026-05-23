@@ -104,6 +104,15 @@ export async function getTripChat(tripId: string) {
   return data
 }
 
+// Adds the current user to a trip's group chat without joining the trip itself.
+// Safe to call even if already a chat member (RPC is idempotent).
+export async function joinTripChat(tripId: string): Promise<string> {
+  const { error } = await supabase.rpc('ensure_trip_chat_member', { p_trip_id: tripId })
+  if (error) throw error
+  const chat = await getTripChat(tripId)
+  return chat.id
+}
+
 export async function getChatMessages(chatId: string): Promise<TripMessage[]> {
   const { data, error } = await supabase
     .from('trip_messages')
