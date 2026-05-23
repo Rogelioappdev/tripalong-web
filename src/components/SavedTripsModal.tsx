@@ -337,18 +337,18 @@ function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat }: {
               onClick={joined ? undefined : onJoin}
               className="w-16 h-16 rounded-full flex items-center justify-center active:scale-95 transition-transform"
               style={joined
-                ? { backgroundColor: 'rgba(48,209,88,0.15)', border: '2px solid #30D158' }
+                ? { backgroundColor: '#ffffff' }
                 : { backgroundColor: '#1a3d25', border: '2px solid #30D158' }}
             >
-              {joined ? (
-                <span className="text-[#30D158] text-xs font-bold">Joined</span>
-              ) : (
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                  <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5"
+                  stroke={joined ? '#000000' : '#30D158'}
+                  strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </button>
-            <span className="text-white/40 text-[11px]">Join</span>
+            <span className="text-[11px]" style={{ color: joined ? '#ffffff' : 'rgba(255,255,255,0.4)' }}>
+              {joined ? 'Joined' : 'Join'}
+            </span>
           </div>
 
           {/* Unsave */}
