@@ -104,12 +104,19 @@ export async function getTripChat(tripId: string) {
   return data
 }
 
-// Adds the current user to a trip's group chat without joining the trip itself.
-// Safe to call even if already a chat member (RPC is idempotent).
+// Adds the current user to a trip's group chat without needing to be a trip member.
+// Uses a direct insert (RLS allows any authenticated user) instead of the
+// ensure_trip_chat_member RPC which requires status='in' in trip_members.
 export async function joinTripChat(tripId: string): Promise<string> {
-  const { error } = await supabase.rpc('ensure_trip_chat_member', { p_trip_id: tripId })
-  if (error) throw error
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Not authenticated')
   const chat = await getTripChat(tripId)
+  await supabase
+    .from('trip_chat_members')
+    .upsert(
+      { trip_chat_id: chat.id, user_id: session.user.id, last_read_at: new Date().toISOString() },
+      { onConflict: 'trip_chat_id,user_id' }
+    )
   return chat.id
 }
 
