@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useMotionValue } from 'framer-motion'
+import { useQueryClient } from '@tanstack/react-query'
 import { SwipeCard } from './SwipeCard'
 import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
 import { calculateTripMatch } from '@/lib/matching'
@@ -19,6 +20,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const topCardX = useMotionValue(0)
+  const qc = useQueryClient()
 
   useEffect(() => {
     if (!userId) return
@@ -40,7 +42,11 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
     advance()
     if (userId && !joinedIds.has(trip.id)) {
       setJoinedIds(s => new Set([...s, trip.id]))
-      try { await joinTrip(trip.id, userId) } catch {}
+      try {
+        await joinTrip(trip.id, userId)
+        qc.invalidateQueries({ queryKey: ['my-trips', userId] })
+        qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
+      } catch {}
     }
   }
 
@@ -61,7 +67,10 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
     if (!currentTrip || !userId) return
     if (!savedIds.has(currentTrip.id)) {
       setSavedIds(s => new Set([...s, currentTrip.id]))
-      try { await saveTrip(currentTrip.id, userId) } catch {}
+      try {
+        await saveTrip(currentTrip.id, userId)
+        qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
+      } catch {}
     }
     advance()
   }

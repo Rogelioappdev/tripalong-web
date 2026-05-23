@@ -31,12 +31,16 @@ export function SavedTripsModal({ userId, onClose, onOpenChat }: Props) {
     queryKey: ['saved-trips', userId],
     queryFn: () => getSavedTrips(userId),
     enabled: !!userId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const { data: myTrips = [], isLoading: myLoading } = useQuery({
     queryKey: ['my-trips', userId],
     queryFn: () => getMyTrips(userId),
     enabled: !!userId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const tripsIn = myTrips.filter(t =>
