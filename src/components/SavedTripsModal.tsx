@@ -201,7 +201,7 @@ export function SavedTripsModal({ userId, onClose, onOpenChat }: Props) {
         <div className="h-px bg-white/6 mx-5 shrink-0" />
 
         {/* Content */}
-        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+        <div className="overflow-y-auto flex-1 px-4 pt-4 pb-20 space-y-4">
           {mainTab === 'saved' && (
             savedLoading ? (
               <LoadingState />
