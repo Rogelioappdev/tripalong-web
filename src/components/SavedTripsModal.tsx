@@ -517,20 +517,20 @@ function MyTripCard({ trip, currentStatus, onStatusChange, onLeave, onOpenChat, 
           {/* I'm In */}
           <button
             onClick={() => onStatusChange('in')}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-all active:scale-95"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-colors"
             style={currentStatus === 'in'
               ? { backgroundColor: 'rgba(48,209,88,0.15)', color: '#30D158', border: '1px solid rgba(48,209,88,0.4)' }
-              : { backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+              : { backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
           >
             ✓ I'm In
           </button>
           {/* Maybe */}
           <button
             onClick={() => onStatusChange('maybe')}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-all active:scale-95"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-colors"
             style={currentStatus === 'maybe'
               ? { backgroundColor: 'rgba(255,214,10,0.12)', color: '#FFD60A', border: '1px solid rgba(255,214,10,0.35)' }
-              : { backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+              : { backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
           >
             ⏰ Maybe
           </button>
