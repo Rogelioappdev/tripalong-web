@@ -227,6 +227,67 @@ export async function sendDMMessage(conversationId: string, senderId: string, co
   if (error) throw error
 }
 
+export async function getSavedTrips(userId: string): Promise<TripWithDetails[]> {
+  const { data, error } = await supabase
+    .from('saved_trips')
+    .select(`
+      trip:trips(
+        *,
+        creator:users!creator_id(id, name, profile_photo),
+        members:trip_members(user_id, status, user:users(id, name, profile_photo))
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? [])
+    .map((row: any) => row.trip)
+    .filter(Boolean)
+    .map((trip: any) => ({ ...trip, member_count: trip.members?.length ?? 0, save_count: 0 })) as TripWithDetails[]
+}
+
+export async function getMyTrips(userId: string): Promise<TripWithDetails[]> {
+  const { data, error } = await supabase
+    .from('trip_members')
+    .select(`
+      status,
+      trip:trips(
+        *,
+        creator:users!creator_id(id, name, profile_photo),
+        members:trip_members(user_id, status, user:users(id, name, profile_photo))
+      )
+    `)
+    .eq('user_id', userId)
+  if (error) throw error
+  const seen = new Set<string>()
+  const trips: TripWithDetails[] = []
+  for (const row of data ?? []) {
+    const trip = (row as any).trip
+    if (!trip || seen.has(trip.id)) continue
+    seen.add(trip.id)
+    trips.push({ ...trip, member_count: trip.members?.length ?? 0, save_count: 0 } as TripWithDetails)
+  }
+  return trips
+}
+
+export async function unsaveTrip(tripId: string, userId: string) {
+  const { error } = await supabase
+    .from('saved_trips')
+    .delete()
+    .eq('trip_id', tripId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
+export async function leaveTrip(tripId: string, userId: string) {
+  const { error } = await supabase
+    .from('trip_members')
+    .delete()
+    .eq('trip_id', tripId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
 export async function saveTrip(tripId: string, userId: string) {
   const { error } = await supabase
     .from('saved_trips')

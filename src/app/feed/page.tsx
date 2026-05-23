@@ -11,6 +11,7 @@ import { TripDetailModal } from '@/components/TripDetailModal'
 import { CreateTripModal } from '@/components/CreateTripModal'
 import { getTrips } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
+import { SavedTripsModal } from '@/components/SavedTripsModal'
 import type { TripWithDetails } from '@/lib/types'
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
@@ -21,6 +22,7 @@ export default function FeedPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [showSaved, setShowSaved] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -47,7 +49,9 @@ export default function FeedPage() {
           style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
           <h1 className="text-white font-extrabold text-2xl tracking-tight">TripAlong</h1>
           <div className="flex items-center gap-2">
-            <button className="w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
+            <button
+              onClick={() => setShowSaved(true)}
+              className="w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center active:scale-95 transition-transform">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
                   stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -111,6 +115,16 @@ export default function FeedPage() {
 
       {showCreate && (
         <CreateTripModal onClose={() => setShowCreate(false)} userId={userId} />
+      )}
+
+      {showSaved && userId && (
+        <SavedTripsModal
+          userId={userId}
+          onClose={() => setShowSaved(false)}
+          onOpenChat={(tripId) => {
+            setShowSaved(false)
+          }}
+        />
       )}
     </>
   )
