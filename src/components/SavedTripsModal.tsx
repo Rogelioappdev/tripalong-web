@@ -83,12 +83,25 @@ export function SavedTripsModal({ userId, onClose, onOpenChat }: Props) {
     localJoined.has(trip.id) ||
     trip.members?.some(m => m.user_id === userId && m.status === 'in')
 
+  // Lock body scroll and block touch events from reaching the swipe feed behind
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  const stopEvents = (e: React.SyntheticEvent) => {
+    e.stopPropagation()
+  }
+
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — absorbs all pointer/touch so nothing reaches SwipeCard */}
       <div
         className="fixed inset-0 bg-black/60 z-40"
         onClick={onClose}
+        onPointerDown={stopEvents}
+        onTouchStart={stopEvents}
       />
 
       {/* Sheet */}
@@ -98,7 +111,10 @@ export function SavedTripsModal({ userId, onClose, onOpenChat }: Props) {
           backgroundColor: '#0d0d0d',
           maxHeight: '88dvh',
           paddingBottom: 'env(safe-area-inset-bottom)',
+          touchAction: 'pan-y',
         }}
+        onPointerDown={stopEvents}
+        onTouchStart={stopEvents}
       >
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
@@ -498,14 +514,18 @@ function UnsaveConfirmSheet({ trip, onConfirm, onCancel }: {
 }) {
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-60" onClick={onCancel} />
+      <div className="fixed inset-0 bg-black/50 z-60" onClick={onCancel}
+        onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()} />
       <div
         className="fixed bottom-0 left-0 right-0 z-70 rounded-t-[28px] overflow-hidden"
         style={{
           backgroundColor: '#111',
           paddingBottom: 'env(safe-area-inset-bottom)',
           border: '0.5px solid rgba(255,255,255,0.1)',
+          touchAction: 'pan-y',
         }}
+        onPointerDown={e => e.stopPropagation()}
+        onTouchStart={e => e.stopPropagation()}
       >
         <div className="flex justify-center pt-3 pb-2">
           <div className="w-10 h-1 rounded-full bg-white/20" />
