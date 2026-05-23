@@ -117,8 +117,8 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
       <div className="flex items-center justify-center gap-7 py-3 shrink-0">
         {/* Pass */}
         <button onClick={handlePass} className="flex flex-col items-center gap-1 group">
-          <div className="w-11 h-11 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+          <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="#FF453A" strokeWidth="2.5" strokeLinecap="round"/>
             </svg>
           </div>
@@ -127,8 +127,8 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
 
         {/* Save */}
         <button onClick={handleSave} className="flex flex-col items-center gap-1 group">
-          <div className="w-9 h-9 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <div className="w-10 h-10 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
                 stroke={currentTrip && savedIds.has(currentTrip.id) ? '#F0EBE3' : 'rgba(255,255,255,0.55)'}
                 strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
@@ -141,8 +141,8 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
 
         {/* Join */}
         <button onClick={handleJoin} className="flex flex-col items-center gap-1 group">
-          <div className="w-11 h-11 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+          <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
