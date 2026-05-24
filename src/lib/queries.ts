@@ -167,6 +167,8 @@ export async function createTrip(data: {
   is_flexible_dates: boolean
   start_date: string | null
   end_date: string | null
+  age_min: number | null
+  age_max: number | null
   status: 'planning'
 }) {
   const { error } = await supabase.from('trips').insert(data)

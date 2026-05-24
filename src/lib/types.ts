@@ -40,6 +40,8 @@ export type Trip = {
   group_preference: 'male' | 'female' | 'everyone' | 'mixed' | null
   max_group_size: number
   budget_level: string | null
+  age_min: number | null
+  age_max: number | null
   status: 'planning' | 'confirmed' | 'completed' | 'cancelled'
   created_at: string
   updated_at: string

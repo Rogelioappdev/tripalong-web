@@ -69,6 +69,8 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [anyAge, setAnyAge] = useState(true)
+  const [minAge, setMinAge] = useState(18)
+  const [maxAge, setMaxAge] = useState(45)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -128,6 +130,8 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
         is_flexible_dates: flexDates || !!season,
         start_date: season ? null : startDate || null,
         end_date: season ? null : endDate || null,
+        age_min: anyAge ? null : minAge,
+        age_max: anyAge ? null : maxAge,
         status: 'planning',
         title: destination.trim(),
         images: [],
@@ -444,35 +448,91 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
             {/* AGE PREFERENCE */}
             <div>
               <p className={label} style={{ marginBottom: '12px' }}>Age Preference</p>
+              {/* Any age toggle */}
               <div
-                className="flex items-center justify-between rounded-2xl px-4 py-3"
+                className="flex items-center justify-between rounded-2xl px-4 py-3 mb-3"
                 style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)' }}
               >
                 <div>
                   <p className="text-white/70 text-sm font-medium">Any age</p>
-                  <p className="text-white/30 text-xs mt-0.5">Travelers you're looking for</p>
+                  <p className="text-white/30 text-xs mt-0.5">Open to all travelers</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setAnyAge(a => !a)}
                   className="relative transition-colors shrink-0"
                   style={{
-                    width: '44px',
-                    height: '26px',
-                    borderRadius: '13px',
+                    width: '44px', height: '26px', borderRadius: '13px',
                     backgroundColor: anyAge ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.15)',
                   }}
                 >
                   <div
-                    className="absolute top-[3px] transition-all rounded-full bg-black"
+                    className="absolute top-[3px] transition-all rounded-full"
                     style={{
-                      width: '20px',
-                      height: '20px',
+                      width: '20px', height: '20px',
                       left: anyAge ? 'calc(100% - 23px)' : '3px',
                       backgroundColor: anyAge ? '#111' : 'rgba(255,255,255,0.5)',
                     }}
                   />
                 </button>
               </div>
+
+              {/* Age range picker — visible when anyAge is off */}
+              {!anyAge && (
+                <div
+                  className="rounded-2xl px-4 py-4"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Min age */}
+                    <div className="flex-1 flex flex-col items-center gap-2">
+                      <p className="text-white/35 text-[10px] font-bold uppercase tracking-widest">Min age</p>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setMinAge(v => Math.max(18, v - 1))}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
+                        >−</button>
+                        <span className="text-white font-bold text-xl w-8 text-center">{minAge}</span>
+                        <button
+                          type="button"
+                          onClick={() => setMinAge(v => Math.min(maxAge - 1, v + 1))}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
+                        >+</button>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="text-white/20 font-light text-xl pb-1">–</div>
+
+                    {/* Max age */}
+                    <div className="flex-1 flex flex-col items-center gap-2">
+                      <p className="text-white/35 text-[10px] font-bold uppercase tracking-widest">Max age</p>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setMaxAge(v => Math.max(minAge + 1, v - 1))}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
+                        >−</button>
+                        <span className="text-white font-bold text-xl w-8 text-center">{maxAge}</span>
+                        <button
+                          type="button"
+                          onClick={() => setMaxAge(v => Math.min(65, v + 1))}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
+                        >+</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-white/25 text-[11px] text-center mt-3">
+                    Looking for travelers aged {minAge}–{maxAge}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* BUDGET */}
