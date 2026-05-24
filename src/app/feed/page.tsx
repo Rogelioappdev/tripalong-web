@@ -31,6 +31,18 @@ export default function FeedPage() {
     })
   }, [router])
 
+  // Lock page scroll — feed is a fixed app screen, not a scrollable document
+  useEffect(() => {
+    const html = document.documentElement
+    const body = document.body
+    html.style.overflow = 'hidden'
+    body.style.overflow = 'hidden'
+    return () => {
+      html.style.overflow = ''
+      body.style.overflow = ''
+    }
+  }, [])
+
   const { data: trips, isLoading } = useQuery({
     queryKey: ['trips'],
     queryFn: getTrips,
@@ -42,7 +54,7 @@ export default function FeedPage() {
 
       <main
         className="bg-black flex flex-col md:pt-14"
-        style={{ height: '100dvh' }}
+        style={{ height: '100dvh', overflow: 'hidden' }}
       >
         {/* Mobile header */}
         <div className="md:hidden flex items-center justify-between px-5 shrink-0"
