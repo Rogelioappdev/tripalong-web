@@ -135,15 +135,15 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       <div
-        className="relative w-full sm:max-w-lg flex flex-col overflow-hidden"
+        className="relative w-full sm:max-w-lg sm:rounded-3xl flex flex-col overflow-hidden"
         style={{
           backgroundColor: '#0d0d0d',
           borderRadius: '28px 28px 0 0',
-          maxHeight: '95dvh',
+          height: '95dvh',
         }}
       >
-        {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1">
+        {/* Scrollable content — min-h-0 required so flex-1 actually bounds within the container */}
+        <div className="overflow-y-auto flex-1 min-h-0">
 
           {/* Hero cover photo — header is overlaid on top */}
           <div className="relative shrink-0" style={{ height: '220px' }}>
