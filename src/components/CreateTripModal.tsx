@@ -71,6 +71,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
   const [anyAge, setAnyAge] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -162,7 +163,19 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
           {/* Hero cover photo — header is overlaid on top */}
           <div className="relative shrink-0" style={{ height: '220px' }}>
             {coverImage ? (
-              <img src={coverImage} alt="cover" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                className="w-full h-full block active:brightness-90 transition-[filter]"
+                onClick={() => setShowPreview(true)}
+                aria-label="Preview feed card"
+              >
+                <img src={coverImage} alt="cover" className="w-full h-full object-cover" />
+                {/* Subtle hint */}
+                <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="white" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="12" r="3" stroke="white" strokeWidth="2"/></svg>
+                  <span className="text-white/80 text-[11px] font-medium">Preview on feed</span>
+                </div>
+              </button>
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center gap-2" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
                 <span className="text-4xl">🌍</span>
@@ -543,6 +556,72 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
             {loading ? 'Creating...' : 'Create Trip'}
           </button>
         </div>
+
+        {/* Feed card preview overlay */}
+        {showPreview && (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center z-10 px-8"
+            style={{ backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)' }}
+            onClick={() => setShowPreview(false)}
+          >
+            <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-4">Feed preview</p>
+
+            {/* Card mock — matches TripCard exactly */}
+            <div
+              className="w-full rounded-2xl overflow-hidden border border-white/10"
+              style={{ backgroundColor: 'rgba(255,255,255,0.04)', maxWidth: '320px' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Cover image — 4:3 */}
+              <div className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
+                {coverImage ? (
+                  <img src={coverImage} alt={destination} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-4xl bg-white/6">🌍</div>
+                )}
+                <div className="absolute top-3 right-3 rounded-full px-2.5 py-1 text-xs text-white/80" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                  {groupSize} spot{groupSize !== 1 ? 's' : ''} left
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <h3 className="font-semibold text-white text-sm leading-tight line-clamp-1">
+                    {destination || 'Your destination'}{country ? `, ${country}` : ''}
+                  </h3>
+                  {budget && <span className="text-white/30 text-xs shrink-0">{budget}</span>}
+                </div>
+
+                <p className="text-white/40 text-xs mb-3">
+                  {flexDates || season ? (season || 'Flexible dates') :
+                    startDate ? `${new Date(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${endDate ? ` – ${new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}` :
+                    'Dates TBD'}
+                </p>
+
+                {vibes.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {vibes.slice(0, 3).map(v => (
+                      <span key={v} className="text-xs rounded-full px-2 py-0.5 text-white/60" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                        {VIBES.find(x => x.value === v)?.emoji ?? ''} {v}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-xs text-white/60">
+                    you
+                  </div>
+                  <span className="text-white/40 text-xs">You</span>
+                  <span className="text-white/20 text-xs ml-auto">0 going</span>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-white/25 text-[11px] mt-4">Tap anywhere to close</p>
+          </div>
+        )}
       </div>
     </div>
   )
