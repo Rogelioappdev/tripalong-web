@@ -184,7 +184,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
             )}
             {/* gradient: dark top for header, dark bottom for text */}
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 pointer-events-none"
               style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,0.25) 65%, rgba(0,0,0,0.88) 100%)' }}
             />
 
@@ -208,7 +208,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
             </div>
 
             {/* Destination name overlay */}
-            <div className="absolute bottom-0 left-0 right-0 px-5 pb-4">
+            <div className="absolute bottom-0 left-0 right-0 px-5 pb-4 pointer-events-none">
               <p
                 className="text-white font-extrabold text-[28px] leading-tight tracking-tight"
                 style={{ textShadow: '0 2px 12px rgba(0,0,0,0.7)' }}
