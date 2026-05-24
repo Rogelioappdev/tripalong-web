@@ -40,11 +40,10 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
 
   const handleSwipeRight = async (trip: TripWithDetails) => {
     advance()
-    if (userId && !joinedIds.has(trip.id)) {
-      setJoinedIds(s => new Set([...s, trip.id]))
+    if (userId && !savedIds.has(trip.id)) {
+      setSavedIds(s => new Set([...s, trip.id]))
       try {
-        await joinTrip(trip.id, userId)
-        qc.invalidateQueries({ queryKey: ['my-trips', userId] })
+        await saveTrip(trip.id, userId)
         qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
       } catch {}
     }
@@ -122,7 +121,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
         )}
       </div>
 
-      {/* Pass / Save / Join buttons */}
+      {/* Pass / Join / Save buttons */}
       <div className="flex items-center justify-center gap-7 py-3 shrink-0">
         {/* Pass */}
         <button onClick={handlePass} className="flex flex-col items-center gap-1 group">
@@ -134,20 +133,6 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
           <span className="text-white/35 text-[10px] font-semibold">Pass</span>
         </button>
 
-        {/* Save */}
-        <button onClick={handleSave} className="flex flex-col items-center gap-1 group">
-          <div className="w-10 h-10 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-                stroke={currentTrip && savedIds.has(currentTrip.id) ? '#F0EBE3' : 'rgba(255,255,255,0.55)'}
-                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-                fill={currentTrip && savedIds.has(currentTrip.id) ? 'rgba(240,235,227,0.15)' : 'none'}
-              />
-            </svg>
-          </div>
-          <span className="text-white/35 text-[10px] font-semibold">Save</span>
-        </button>
-
         {/* Join */}
         <button onClick={handleJoin} className="flex flex-col items-center gap-1 group">
           <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
@@ -156,6 +141,20 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
             </svg>
           </div>
           <span className="text-white/35 text-[10px] font-semibold">Join</span>
+        </button>
+
+        {/* Save */}
+        <button onClick={handleSave} className="flex flex-col items-center gap-1 group">
+          <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                stroke={currentTrip && savedIds.has(currentTrip.id) ? '#F0EBE3' : 'rgba(255,255,255,0.55)'}
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                fill={currentTrip && savedIds.has(currentTrip.id) ? 'rgba(240,235,227,0.15)' : 'none'}
+              />
+            </svg>
+          </div>
+          <span className="text-white/35 text-[10px] font-semibold">Save</span>
         </button>
       </div>
     </div>
