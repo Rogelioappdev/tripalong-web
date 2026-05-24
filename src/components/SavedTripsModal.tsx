@@ -140,7 +140,7 @@ export function SavedTripsModal({ userId, onClose }: Props) {
     <>
       {/* Backdrop — absorbs all pointer/touch so nothing reaches SwipeCard */}
       <div
-        className="fixed inset-0 bg-black/60 z-40"
+        className="fixed inset-0 bg-black/60 z-[55]"
         onClick={onClose}
         onPointerDown={stopEvents}
         onTouchStart={stopEvents}
@@ -148,7 +148,7 @@ export function SavedTripsModal({ userId, onClose }: Props) {
 
       {/* Sheet */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[28px] overflow-hidden flex flex-col"
+        className="fixed bottom-0 left-0 right-0 z-[60] rounded-t-[28px] overflow-hidden flex flex-col"
         style={{
           backgroundColor: '#0d0d0d',
           height: '88dvh',

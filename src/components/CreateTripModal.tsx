@@ -131,7 +131,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
   const label = 'text-white/50 text-[11px] font-bold uppercase tracking-widest'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       <div
