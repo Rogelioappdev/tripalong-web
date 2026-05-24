@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat, updateTripMemberStatus } from '@/lib/queries'
+import { TripDetailModal } from '@/components/TripDetailModal'
 import type { TripWithDetails } from '@/lib/types'
 
 interface Props {
@@ -22,8 +24,10 @@ function formatDates(trip: TripWithDetails) {
 
 export function SavedTripsModal({ userId, onClose }: Props) {
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
   const [mainTab, setMainTab] = useState<MainTab>('saved')
   const [subTab, setSubTab] = useState<MyTripsSubTab>('in')
+  const [viewTrip, setViewTrip] = useState<TripWithDetails | null>(null)
   const [confirmUnsave, setConfirmUnsave] = useState<TripWithDetails | null>(null)
   const [confirmLeave, setConfirmLeave] = useState<TripWithDetails | null>(null)
   const [localJoined, setLocalJoined] = useState<Set<string>>(new Set())
@@ -122,6 +126,7 @@ export function SavedTripsModal({ userId, onClose }: Props) {
 
   // Lock body scroll and block touch events from reaching the swipe feed behind
   useEffect(() => {
+    setMounted(true)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
@@ -251,6 +256,7 @@ export function SavedTripsModal({ userId, onClose }: Props) {
                   trip={trip}
                   userId={userId}
                   joined={isJoined(trip)}
+                  onView={() => setViewTrip(trip)}
                   onJoin={() => handleJoin(trip)}
                   onUnsave={() => setConfirmUnsave(trip)}
                   onOpenChat={() => handleOpenChat(trip)}
@@ -275,6 +281,7 @@ export function SavedTripsModal({ userId, onClose }: Props) {
                   key={trip.id}
                   trip={trip}
                   currentStatus={getTripStatus(trip)}
+                  onView={() => setViewTrip(trip)}
                   onStatusChange={(s) => handleStatusChange(trip, s)}
                   onLeave={() => setConfirmLeave(trip)}
                   onOpenChat={() => handleOpenChat(trip)}
@@ -303,14 +310,21 @@ export function SavedTripsModal({ userId, onClose }: Props) {
           onCancel={() => setConfirmLeave(null)}
         />
       )}
+
+      {/* Trip detail view — portal to body so z-index never conflicts with the sheet */}
+      {viewTrip && mounted && createPortal(
+        <TripDetailModal trip={viewTrip} onClose={() => setViewTrip(null)} />,
+        document.body
+      )}
     </>
   )
 }
 
-function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat, chatLoading }: {
+function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenChat, chatLoading }: {
   trip: TripWithDetails
   userId: string
   joined: boolean
+  onView: () => void
   onJoin: () => void
   onUnsave: () => void
   onOpenChat: () => void
@@ -324,8 +338,8 @@ function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat, cha
       className="rounded-[22px] overflow-hidden"
       style={{ backgroundColor: '#0d0d0d', border: '1px solid rgba(255,255,255,0.07)' }}
     >
-      {/* Cover image */}
-      <div className="relative h-48">
+      {/* Cover — button guarantees click fires reliably in scroll containers on all devices */}
+      <button type="button" className="relative w-full block active:opacity-90 transition-opacity" style={{ height: '192px' }} onClick={onView}>
         {trip.cover_image ? (
           <img src={trip.cover_image} alt={trip.destination} className="w-full h-full object-cover" />
         ) : (
@@ -380,10 +394,10 @@ function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat, cha
             )}
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Action buttons */}
-      <div className="px-3 pb-3.5 pt-2 space-y-2.5">
+      <div className="px-3 pb-3.5 pt-2 space-y-2.5" onClick={e => e.stopPropagation()}>
         {/* Pass / Join / Unsave row */}
         <div className="flex items-center justify-evenly">
           {/* Pass */}
@@ -460,9 +474,10 @@ function SavedTripCard({ trip, userId, joined, onJoin, onUnsave, onOpenChat, cha
   )
 }
 
-function MyTripCard({ trip, currentStatus, onStatusChange, onLeave, onOpenChat, chatLoading }: {
+function MyTripCard({ trip, currentStatus, onView, onStatusChange, onLeave, onOpenChat, chatLoading }: {
   trip: TripWithDetails
   currentStatus: 'in' | 'maybe'
+  onView: () => void
   onStatusChange: (s: 'in' | 'maybe') => void
   onLeave: () => void
   onOpenChat: () => void
@@ -476,8 +491,8 @@ function MyTripCard({ trip, currentStatus, onStatusChange, onLeave, onOpenChat, 
       className="rounded-[22px] overflow-hidden"
       style={{ backgroundColor: '#0d0d0d', border: '1px solid rgba(255,255,255,0.07)' }}
     >
-      {/* Cover image */}
-      <div className="relative h-44">
+      {/* Cover — button guarantees click fires reliably in scroll containers on all devices */}
+      <button type="button" className="relative w-full block active:opacity-90 transition-opacity" style={{ height: '176px' }} onClick={onView}>
         {trip.cover_image ? (
           <img src={trip.cover_image} alt={trip.destination} className="w-full h-full object-cover" />
         ) : (
@@ -497,6 +512,11 @@ function MyTripCard({ trip, currentStatus, onStatusChange, onLeave, onOpenChat, 
             {currentStatus === 'in' ? "✓ I'm In" : '⏰ Maybe'}
           </span>
         </div>
+        {/* Tap to view hint */}
+        <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)', border: '0.5px solid rgba(255,255,255,0.12)' }}>
+          <span className="text-white/60 text-[10px]">Tap to view →</span>
+        </div>
         {/* Bottom info */}
         <div className="absolute bottom-0 left-0 right-0 p-3.5">
           {trip.country && (
@@ -508,10 +528,10 @@ function MyTripCard({ trip, currentStatus, onStatusChange, onLeave, onOpenChat, 
             {memberCount > 0 && <span className="text-white/45 text-xs">{memberCount} going</span>}
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Buttons */}
-      <div className="px-3 pb-3.5 pt-2 space-y-2.5">
+      <div className="px-3 pb-3.5 pt-2 space-y-2.5" onClick={e => e.stopPropagation()}>
         {/* Status row */}
         <div className="flex items-center gap-2">
           {/* I'm In */}
