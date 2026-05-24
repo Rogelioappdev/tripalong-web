@@ -324,6 +324,34 @@ export async function getUserSavedTripIds(userId: string): Promise<string[]> {
   } catch { return [] }
 }
 
+const TRIP_IMAGE_CATEGORIES = ['europe', 'asia', 'africa', 'beach', 'city', 'desert', 'latin-america', 'mountain', 'nature', 'winter']
+const STORAGE_BASE = 'https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/trip-images'
+
+export async function getDestinationPhotos(destination: string): Promise<string[]> {
+  if (!destination.trim()) return []
+  const normalized = destination.toLowerCase().trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+  if (!normalized) return []
+
+  const results = await Promise.allSettled(
+    TRIP_IMAGE_CATEGORIES.map(async (cat) => {
+      const { data } = await supabase.storage
+        .from('trip-images')
+        .list(`${cat}/${normalized}`, { limit: 10, sortBy: { column: 'name', order: 'asc' } })
+      if (!data?.length) return []
+      return data
+        .filter(f => f.id) // f.id is null for sub-folders, present for actual files
+        .slice(0, 8)
+        .map(f => `${STORAGE_BASE}/${cat}/${normalized}/${f.name}`)
+    })
+  )
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<string[]> => r.status === 'fulfilled')
+    .flatMap(r => r.value)
+}
+
 export async function getUserJoinedTripIds(userId: string): Promise<string[]> {
   try {
     const { data } = await supabase

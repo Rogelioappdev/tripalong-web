@@ -1,31 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { createTrip } from '@/lib/queries'
+import { createTrip, getDestinationPhotos } from '@/lib/queries'
 
 interface CreateTripModalProps {
   onClose: () => void
   userId: string | null
 }
 
-const COVER_PHOTOS = [
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
-  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80',
-  'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&q=80',
-  'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800&q=80',
-  'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&q=80',
-  'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800&q=80',
-  'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80',
-  'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&q=80',
-]
-
 const QUICK_DESTINATIONS = [
   { city: 'Bali', country: 'Indonesia' },
   { city: 'Tokyo', country: 'Japan' },
   { city: 'Barcelona', country: 'Spain' },
   { city: 'Santorini', country: 'Greece' },
-  { city: 'Marrakesh', country: 'Morocco' },
+  { city: 'Marrakech', country: 'Morocco' },
 ]
 
 const VIBES = [
@@ -66,7 +55,9 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
   const queryClient = useQueryClient()
   const [destination, setDestination] = useState('')
   const [country, setCountry] = useState('')
-  const [coverImage, setCoverImage] = useState(COVER_PHOTOS[0])
+  const [coverImage, setCoverImage] = useState('')
+  const [coverPhotos, setCoverPhotos] = useState<string[]>([])
+  const [photosLoading, setPhotosLoading] = useState(false)
   const [vibes, setVibes] = useState<string[]>([])
   const [pace, setPace] = useState('')
   const [budget, setBudget] = useState('')
@@ -86,6 +77,29 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [])
+
+  const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    const trimmed = destination.trim()
+    if (!trimmed) {
+      setCoverPhotos([])
+      setCoverImage('')
+      return
+    }
+    fetchTimerRef.current = setTimeout(async () => {
+      setPhotosLoading(true)
+      try {
+        const photos = await getDestinationPhotos(trimmed)
+        setCoverPhotos(photos)
+        if (photos.length > 0) setCoverImage(prev => prev && photos.includes(prev) ? prev : photos[0])
+        else setCoverImage('')
+      } finally {
+        setPhotosLoading(false)
+      }
+    }, 500)
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
+  }, [destination])
 
   const toggleVibe = (v: string) => {
     setVibes(prev =>
@@ -147,11 +161,14 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
 
           {/* Hero cover photo — header is overlaid on top */}
           <div className="relative shrink-0" style={{ height: '220px' }}>
-            <img
-              src={coverImage}
-              alt="cover"
-              className="w-full h-full object-cover"
-            />
+            {coverImage ? (
+              <img src={coverImage} alt="cover" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                <span className="text-4xl">🌍</span>
+                <p className="text-white/25 text-xs font-medium">Type a destination to load photos</p>
+              </div>
+            )}
             {/* gradient: dark top for header, dark bottom for text */}
             <div
               className="absolute inset-0"
@@ -227,29 +244,41 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
             {/* COVER PHOTO */}
             <div>
               <p className={label} style={{ marginBottom: '12px' }}>Cover Photo</p>
-              <div className="flex gap-2.5 overflow-x-auto pb-1">
-                {COVER_PHOTOS.map((photo, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCoverImage(photo)}
-                    className="relative rounded-2xl overflow-hidden shrink-0 active:scale-95 transition-transform"
-                    style={{
-                      width: '88px',
-                      height: '60px',
-                      border: coverImage === photo ? '2.5px solid white' : '2.5px solid transparent',
-                    }}
-                  >
-                    <img src={photo} alt="" className="w-full h-full object-cover" />
-                    {coverImage === photo && (
-                      <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.25)' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                          <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
+              {photosLoading ? (
+                <div className="flex items-center gap-2 py-2">
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                  <span className="text-white/35 text-xs">Loading photos...</span>
+                </div>
+              ) : coverPhotos.length > 0 ? (
+                <div className="flex gap-2.5 overflow-x-auto pb-1">
+                  {coverPhotos.map((photo, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setCoverImage(photo)}
+                      className="relative rounded-2xl overflow-hidden shrink-0 active:scale-95 transition-transform"
+                      style={{
+                        width: '88px',
+                        height: '60px',
+                        border: coverImage === photo ? '2.5px solid white' : '2.5px solid transparent',
+                      }}
+                    >
+                      <img src={photo} alt="" className="w-full h-full object-cover" />
+                      {coverImage === photo && (
+                        <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.25)' }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-white/25 text-xs py-2">
+                  {destination.trim() ? 'No photos found for this destination' : 'Enter a destination above to see photos'}
+                </p>
+              )}
             </div>
 
             {/* DATES */}
