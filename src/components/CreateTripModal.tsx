@@ -69,7 +69,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [anyAge, setAnyAge] = useState(true)
-  const [minAge, setMinAge] = useState(18)
+  const [minAge, setMinAge] = useState(16)
   const [maxAge, setMaxAge] = useState(45)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -490,7 +490,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
-                          onClick={() => setMinAge(v => Math.max(18, v - 1))}
+                          onClick={() => setMinAge(v => Math.max(16, v - 1))}
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
                           style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
                         >−</button>
