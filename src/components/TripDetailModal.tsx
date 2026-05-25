@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip } from '@/lib/queries'
+import { PublicProfileModal } from './PublicProfileModal'
 import type { TripWithDetails } from '@/lib/types'
 
 interface TripDetailModalProps {
@@ -33,6 +35,10 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
+  const [profileUserId, setProfileUserId] = useState<string | null>(null)
+  const [portalMounted, setPortalMounted] = useState(false)
+
+  useEffect(() => { setPortalMounted(true) }, [])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
@@ -223,7 +229,12 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
                 <p className="text-white font-bold" style={{ fontSize: 17 }}>Who's Going</p>
                 <div className="flex gap-3 overflow-x-auto mt-3 pb-1">
                   {members.map(m => (
-                    <div key={m.id} className="flex flex-col items-center gap-1.5 shrink-0">
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setProfileUserId(m.id)}
+                      className="flex flex-col items-center gap-1.5 shrink-0 active:opacity-75 transition-opacity"
+                    >
                       <div
                         className="overflow-hidden"
                         style={{
@@ -253,7 +264,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
                           Creator
                         </span>
                       )}
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -293,5 +304,10 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
         </div>
       </div>
     </div>
+
+    {profileUserId && portalMounted && createPortal(
+      <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />,
+      document.body
+    )}
   )
 }
