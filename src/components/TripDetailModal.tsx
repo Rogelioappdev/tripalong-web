@@ -161,7 +161,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
         </div>
 
         {/* ── Scrollable body ── */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
 
           {/* Info pills */}
           <div className="flex gap-2 px-4 pt-5">
@@ -228,9 +228,9 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => setProfileUserId(m.id)}
+                      onPointerDown={(e) => { e.stopPropagation(); setProfileUserId(m.id) }}
                       className="flex flex-col items-center gap-1.5 shrink-0 active:opacity-75 transition-opacity"
-                      style={{ touchAction: 'manipulation' }}
+                      style={{ touchAction: 'manipulation', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
                     >
                       <div
                         className="overflow-hidden"
