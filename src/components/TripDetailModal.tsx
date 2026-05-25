@@ -95,6 +95,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
   }))
 
   return (
+    <>
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -305,5 +306,6 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
     {profileUserId && (
       <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
     )}
+    </>
   )
 }
