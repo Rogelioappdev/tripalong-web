@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -36,9 +35,6 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
-  const [portalMounted, setPortalMounted] = useState(false)
-
-  useEffect(() => { setPortalMounted(true) }, [])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
@@ -165,7 +161,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
         </div>
 
         {/* ── Scrollable body ── */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto">
 
           {/* Info pills */}
           <div className="flex gap-2 px-4 pt-5">
@@ -305,9 +301,8 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
       </div>
     </div>
 
-    {profileUserId && portalMounted && createPortal(
-      <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />,
-      document.body
+    {profileUserId && (
+      <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
     )}
   )
 }
