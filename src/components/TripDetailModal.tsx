@@ -99,17 +99,17 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Sheet */}
+      {/* Sheet — no overflow-hidden here so nested scroll containers and portals work on iOS */}
       <div
-        className="relative w-full sm:max-w-lg flex flex-col overflow-hidden"
+        className="relative w-full sm:max-w-lg flex flex-col"
         style={{
           backgroundColor: '#000',
           borderRadius: '28px 28px 0 0',
           height: '92dvh',
         }}
       >
-        {/* ── Hero ── */}
-        <div className="relative shrink-0" style={{ height: '44dvh' }}>
+        {/* ── Hero — overflow-hidden scoped here for the rounded-corner image clip ── */}
+        <div className="relative shrink-0 overflow-hidden" style={{ height: '44dvh', borderRadius: '28px 28px 0 0' }}>
           {displayTrip.cover_image ? (
             <img
               src={displayTrip.cover_image}
@@ -230,6 +230,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
                       type="button"
                       onClick={() => setProfileUserId(m.id)}
                       className="flex flex-col items-center gap-1.5 shrink-0 active:opacity-75 transition-opacity"
+                      style={{ touchAction: 'manipulation' }}
                     >
                       <div
                         className="overflow-hidden"
