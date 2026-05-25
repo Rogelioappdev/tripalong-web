@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { joinTrip, getTripMembership, getTrip, getTripChat } from '@/lib/queries'
+import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip } from '@/lib/queries'
 import type { TripWithDetails } from '@/lib/types'
 
 interface TripDetailModalProps {
@@ -66,8 +66,18 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
   })
 
   const openChat = async () => {
-    const chat = await getTripChat(trip.id)
-    if (chat) router.push(`/chat/${chat.id}`)
+    if (!userId) return
+    try {
+      // Auto-save the trip and join the chat (SECURITY DEFINER bypasses RLS)
+      await Promise.all([
+        saveTrip(trip.id, userId).catch(() => {}),
+        joinTripChat(trip.id).then(chatId => {
+          router.push(`/chat/${chatId}`)
+        }),
+      ])
+    } catch (e) {
+      console.error('openChat error', e)
+    }
   }
 
   const displayTrip = tripDetail ?? trip
