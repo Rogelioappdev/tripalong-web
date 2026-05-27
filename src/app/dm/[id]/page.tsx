@@ -132,8 +132,7 @@ export default function DMPage() {
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Message..."
-              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 outline-none focus:border-white/25"
-              style={{ fontSize: 16 }}
+              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25"
             />
             <button
               type="submit"
