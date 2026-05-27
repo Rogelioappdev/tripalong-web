@@ -103,7 +103,7 @@ export default function MessagesPage() {
                         {trip.destination}{trip.country ? `, ${trip.country}` : ''}
                       </p>
                       <p className={`text-xs mt-0.5 truncate ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
-                        {item.last_message ?? 'Group chat'}
+                        {item.last_message?.startsWith('https://') ? '📷 Photo' : (item.last_message ?? 'Group chat')}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
