@@ -4,15 +4,18 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { NavBar } from '@/components/NavBar'
+import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
 import { supabase } from '@/lib/supabase'
-import { getChatMessages, sendMessage, markTripChatRead } from '@/lib/queries'
-import type { TripMessage } from '@/lib/types'
+import { getChatMessages, sendMessage, markTripChatRead, getTripInfoByChatId } from '@/lib/queries'
+import type { TripMessage, TripWithDetails } from '@/lib/types'
 
 export default function ChatPage() {
   const { id: chatId } = useParams<{ id: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
+  const [tripInfo, setTripInfo] = useState<TripWithDetails | null>(null)
+  const [showGroupInfo, setShowGroupInfo] = useState(false)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -21,7 +24,10 @@ export default function ChatPage() {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
 
-  // Mark as read on open and whenever new messages arrive
+  useEffect(() => {
+    if (chatId && userId) getTripInfoByChatId(chatId).then(setTripInfo)
+  }, [chatId, userId])
+
   useEffect(() => {
     if (userId && chatId) {
       markTripChatRead(chatId)
@@ -36,12 +42,10 @@ export default function ChatPage() {
     enabled: !!chatId,
   })
 
-  // Scroll to bottom when messages load or new message arrives
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Realtime subscription
   useEffect(() => {
     if (!chatId) return
     const channel = supabase
@@ -81,11 +85,45 @@ export default function ChatPage() {
       <NavBar />
       <main className="md:pt-14 bg-black flex flex-col" style={{ height: '100dvh' }}>
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
-          {/* Back button */}
-          <div className="py-3 border-b border-white/8">
-            <button onClick={() => router.back()} className="text-white/40 text-sm hover:text-white transition-colors">
-              ← Back
+
+          {/* Chat header */}
+          <div className="py-2.5 border-b border-white/8 flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => router.back()}
+              className="text-white/40 hover:text-white transition-colors shrink-0"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </button>
+
+            {tripInfo ? (
+              <button
+                type="button"
+                onClick={() => setShowGroupInfo(true)}
+                className="flex-1 flex items-center gap-3 min-w-0"
+              >
+                <div className="w-9 h-9 rounded-xl bg-white/10 overflow-hidden shrink-0">
+                  {tripInfo.cover_image ? (
+                    <img src={tripInfo.cover_image} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm">🌍</div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-white font-semibold text-sm truncate">
+                    {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}
+                  </p>
+                  <p className="text-white/40 text-xs">{tripInfo.member_count} members</p>
+                </div>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-white/30">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8"/>
+                  <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            ) : (
+              <div className="flex-1 h-8 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} />
+            )}
           </div>
 
           {/* Messages */}
@@ -122,8 +160,8 @@ export default function ChatPage() {
                     )}
                     <div className={`px-4 py-2.5 rounded-2xl text-sm ${
                       isMe
-                        ? 'bg-white text-black rounded-br-sm'
-                        : 'bg-white/10 text-white rounded-bl-sm'
+                        ? 'bg-[#E0DEDA] text-black rounded-br-sm'
+                        : 'bg-[#141414] text-white rounded-bl-sm'
                     }`}>
                       {msg.content}
                     </div>
@@ -157,6 +195,16 @@ export default function ChatPage() {
           </form>
         </div>
       </main>
+
+      {showGroupInfo && tripInfo && userId && (
+        <TripGroupInfoSheet
+          chatId={chatId}
+          tripInfo={tripInfo}
+          userId={userId}
+          onClose={() => setShowGroupInfo(false)}
+          onLeft={() => router.replace('/messages')}
+        />
+      )}
     </>
   )
 }

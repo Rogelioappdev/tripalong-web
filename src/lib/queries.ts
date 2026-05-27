@@ -321,6 +321,31 @@ export async function leaveTrip(tripId: string, userId: string) {
   if (error) throw error
 }
 
+export async function getTripInfoByChatId(chatId: string): Promise<TripWithDetails | null> {
+  try {
+    const { data, error } = await supabase
+      .from('trip_chats')
+      .select('trip_id')
+      .eq('id', chatId)
+      .single()
+    if (error || !data) {
+      console.error('[getTripInfoByChatId] trip_chats lookup failed:', error?.message)
+      return null
+    }
+    return await getTrip((data as any).trip_id)
+  } catch (e: any) {
+    console.error('[getTripInfoByChatId] error:', e?.message ?? e)
+    return null
+  }
+}
+
+export async function leaveTripFromChat(tripId: string, chatId: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase.from('trip_members').delete().eq('trip_id', tripId).eq('user_id', uid)
+  await supabase.from('trip_chat_members').delete().eq('trip_chat_id', chatId).eq('user_id', uid)
+}
+
 export async function updateTripMemberStatus(tripId: string, userId: string, status: 'in' | 'maybe') {
   const { error } = await supabase
     .from('trip_members')
