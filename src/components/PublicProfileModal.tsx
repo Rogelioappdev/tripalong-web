@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { getProfile } from '@/lib/queries'
 import type { UserProfile } from '@/lib/types'
@@ -27,6 +28,9 @@ const PLANNING_OPT    = [{ id: 'planner', label: 'Planner', emoji: '📋' }, { i
 const PERSONALITY_OPT = [{ id: 'introvert', label: 'Introvert', emoji: '🌙' }, { id: 'extrovert', label: 'Extrovert', emoji: '☀️' }, { id: 'ambivert', label: 'Ambivert', emoji: '🌗' }]
 const EXPERIENCE_OPT  = [{ id: 'beginner', label: 'Beginner', emoji: '🌱' }, { id: 'intermediate', label: 'Intermediate', emoji: '🌿' }, { id: 'experienced', label: 'Experienced', emoji: '🌳' }, { id: 'expert', label: 'Expert', emoji: '🌍' }]
 
+const SWIPE_THRESHOLD = 50
+const VELOCITY_THRESHOLD = 400
+
 function label(opts: { id: string; label: string; emoji: string }[], id: string | null | undefined) {
   if (!id) return null
   const o = opts.find(x => x.id === id)
@@ -42,10 +46,126 @@ function PrefTile({ title, value }: { title: string; value: string }) {
   )
 }
 
+// ── Full-screen photo lightbox ──────────────────────────────────────────────
+interface LightboxProps {
+  photos: string[]
+  initialIndex: number
+  onClose: () => void
+}
+
+function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
+  const [index, setIndex] = useState(initialIndex)
+  const [direction, setDirection] = useState(0)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft' && index > 0) navigate(index - 1, -1)
+      if (e.key === 'ArrowRight' && index < photos.length - 1) navigate(index + 1, 1)
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [index, photos.length, onClose])
+
+  const navigate = (next: number, dir: number) => {
+    setDirection(dir)
+    setIndex(next)
+  }
+
+  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
+      if (index < photos.length - 1) navigate(index + 1, 1)
+    } else if (info.offset.x > SWIPE_THRESHOLD || info.velocity.x > VELOCITY_THRESHOLD) {
+      if (index > 0) navigate(index - 1, -1)
+    }
+  }
+
+  if (!mounted) return null
+
+  const content = (
+    <div className="fixed inset-0 z-[80] bg-black flex flex-col">
+      {/* Top bar */}
+      <div
+        className="flex items-center justify-between shrink-0 px-4"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 12 }}
+      >
+        {photos.length > 1 ? (
+          <span className="text-white font-semibold text-sm" style={{ opacity: 0.6 }}>
+            {index + 1} / {photos.length}
+          </span>
+        ) : <span />}
+        <button
+          onClick={onClose}
+          className="flex items-center justify-center"
+          style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', border: '0.5px solid rgba(255,255,255,0.15)' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6l12 12" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Swipeable image area */}
+      <motion.div
+        className="flex-1 overflow-hidden relative"
+        drag={photos.length > 1 ? 'x' : false}
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.15}
+        onDragEnd={handleDragEnd}
+        style={{ touchAction: 'pan-y' } as React.CSSProperties}
+      >
+        <AnimatePresence initial={false} custom={direction} mode="popLayout">
+          <motion.div
+            key={index}
+            className="absolute inset-0 flex items-center justify-center"
+            custom={direction}
+            initial={{ x: direction * 80, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: direction * -80, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.8 }}
+          >
+            <img
+              src={photos[index]}
+              alt=""
+              className="w-full h-full object-contain"
+              draggable={false}
+            />
+          </motion.div>
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Dots */}
+      {photos.length > 1 && (
+        <div
+          className="flex justify-center gap-2 shrink-0"
+          style={{ paddingTop: 16, paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
+        >
+          {photos.map((_, i) => (
+            <button key={i} onClick={() => navigate(i, i > index ? 1 : -1)}>
+              <div
+                className="rounded-full transition-all duration-200"
+                style={{ width: i === index ? 24 : 8, height: 8, backgroundColor: i === index ? '#F0EBE3' : 'rgba(255,255,255,0.3)' }}
+              />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  return createPortal(content, document.body)
+}
+
+// ── Main modal ──────────────────────────────────────────────────────────────
 export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [photoIndex, setPhotoIndex] = useState(0)
+  const [photoDirection, setPhotoDirection] = useState(0)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const [savedTrips, setSavedTrips] = useState<any[]>([])
   const [mounted, setMounted] = useState(false)
 
@@ -73,6 +193,20 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
 
   if (!mounted) return null
 
+  const navigatePhoto = (next: number, dir: number) => {
+    setPhotoDirection(dir)
+    setPhotoIndex(next)
+  }
+
+  const handleHeroDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const allPhotos = profile?.photos?.length ? profile.photos : profile?.profile_photo ? [profile.profile_photo] : []
+    if (info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
+      if (photoIndex < allPhotos.length - 1) navigatePhoto(photoIndex + 1, 1)
+    } else if (info.offset.x > SWIPE_THRESHOLD || info.velocity.x > VELOCITY_THRESHOLD) {
+      if (photoIndex > 0) navigatePhoto(photoIndex - 1, -1)
+    }
+  }
+
   const content = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
@@ -97,39 +231,67 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
             <>
               {/* ── Hero ── */}
               <div className="relative shrink-0" style={{ height: '45dvh' }}>
-                {mainPhoto ? (
-                  <img src={mainPhoto} alt={profile.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: '#111' }}>
-                    <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
-                  </div>
-                )}
+
+                {/* Photo with slide animation */}
+                <AnimatePresence initial={false} custom={photoDirection} mode="popLayout">
+                  {mainPhoto ? (
+                    <motion.img
+                      key={photoIndex}
+                      src={mainPhoto}
+                      alt={profile.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      custom={photoDirection}
+                      initial={{ x: photoDirection * 60, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      exit={{ x: photoDirection * -60, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.8 }}
+                      draggable={false}
+                    />
+                  ) : (
+                    <motion.div
+                      key="placeholder"
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{ backgroundColor: '#111' }}
+                    >
+                      <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Gradient */}
                 <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 20%, rgba(0,0,0,0.95) 100%)' }} />
+
+                {/* Swipe + tap drag layer — sits above gradient, below close button */}
+                {allPhotos.length > 0 && (
+                  <motion.div
+                    className="absolute inset-0"
+                    drag={allPhotos.length > 1 ? 'x' : false}
+                    dragConstraints={{ left: 0, right: 0 }}
+                    dragElastic={0.12}
+                    onDragEnd={handleHeroDragEnd}
+                    onTap={() => setLightboxOpen(true)}
+                    style={{ touchAction: 'pan-y', cursor: 'pointer' } as React.CSSProperties}
+                  />
+                )}
 
                 {/* Photo dots */}
                 {allPhotos.length > 1 && (
                   <div className="absolute flex justify-center gap-1.5 pointer-events-none" style={{ bottom: 88, left: 0, right: 0 }}>
                     {allPhotos.map((_, i) => (
-                      <div key={i} className="rounded-full transition-all" style={{ width: i === photoIndex ? 24 : 8, height: 8, backgroundColor: i === photoIndex ? '#F0EBE3' : 'rgba(255,255,255,0.35)' }} />
+                      <div
+                        key={i}
+                        className="rounded-full transition-all duration-200"
+                        style={{ width: i === photoIndex ? 24 : 8, height: 8, backgroundColor: i === photoIndex ? '#F0EBE3' : 'rgba(255,255,255,0.35)' }}
+                      />
                     ))}
                   </div>
                 )}
 
-                {/* Tap zones for photo navigation */}
-                {allPhotos.length > 1 && photoIndex > 0 && (
-                  <button type="button" className="absolute left-0 top-0 h-full w-1/3" onClick={() => setPhotoIndex(i => i - 1)} />
-                )}
-                {allPhotos.length > 1 && photoIndex < allPhotos.length - 1 && (
-                  <button type="button" className="absolute right-0 top-0 h-full w-1/3" onClick={() => setPhotoIndex(i => i + 1)} />
-                )}
-
-                {/* Chevron-down close */}
+                {/* Chevron-down close — z-index keeps it above drag layer */}
                 <button
                   onClick={onClose}
                   className="absolute flex items-center justify-center"
-                  style={{ top: 16, left: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.5)', border: '0.5px solid rgba(255,255,255,0.15)' }}
+                  style={{ top: 16, left: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.5)', border: '0.5px solid rgba(255,255,255,0.15)', zIndex: 10 }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path d="M6 9l6 6 6-6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -138,14 +300,14 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
 
                 {/* Verified badge */}
                 {profile.is_verified && (
-                  <div className="absolute flex items-center gap-1 rounded-full px-3 py-1.5" style={{ top: 56, right: 16, backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.35)' }}>
+                  <div className="absolute flex items-center gap-1 rounded-full px-3 py-1.5" style={{ top: 56, right: 16, backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.35)', zIndex: 10 }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     <span className="text-white text-xs font-semibold">Verified</span>
                   </div>
                 )}
 
                 {/* Name / age / location */}
-                <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 pointer-events-none">
+                <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 pointer-events-none" style={{ zIndex: 5 }}>
                   <div className="flex items-baseline gap-3 mb-1">
                     <span className="text-white font-bold" style={{ fontSize: 36 }}>{profile.name}</span>
                     {profile.age && <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 28, fontWeight: 300 }}>{profile.age}</span>}
@@ -295,6 +457,15 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#F0EBE3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </button>
               </div>
+
+              {/* Lightbox */}
+              {lightboxOpen && (
+                <PhotoLightbox
+                  photos={allPhotos}
+                  initialIndex={photoIndex}
+                  onClose={() => setLightboxOpen(false)}
+                />
+              )}
             </>
           )
         })()}
