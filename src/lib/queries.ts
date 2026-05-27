@@ -202,22 +202,27 @@ export async function getLastTripMessage(chatId: string) {
   return data
 }
 
-export async function getDMConversations(userId: string) {
-  const { data, error } = await supabase
-    .from('direct_conversations')
-    .select(`
-      id, created_at,
-      participant1:users!participant1_id(id, name, profile_photo),
-      participant2:users!participant2_id(id, name, profile_photo)
-    `)
-    .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`)
-    .order('created_at', { ascending: false })
-
+export async function getDMConversations(_userId: string) {
+  const { data, error } = await supabase.rpc('get_my_dms')
   if (error) return []
-  return (data ?? []).map((conv: any) => ({
-    ...conv,
-    other_user: conv.participant1?.id === userId ? conv.participant2 : conv.participant1,
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    last_message: row.last_message ?? null,
+    last_message_at: row.last_message_at ?? null,
+    other_user: {
+      id: row.other_user_id,
+      name: row.other_user_name,
+      profile_photo: row.other_user_photo,
+    },
   }))
+}
+
+export async function getOrCreateDM(otherUserId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('get_or_create_dm', { other_user_id: otherUserId })
+  if (error) throw error
+  return data as string
 }
 
 export async function getDMMessages(conversationId: string) {

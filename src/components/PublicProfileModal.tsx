@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getProfile, getTrip } from '@/lib/queries'
+import { getProfile, getTrip, getOrCreateDM } from '@/lib/queries'
 import { TripDetailModal } from './TripDetailModal'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
@@ -169,10 +170,31 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [savedTrips, setSavedTrips] = useState<any[]>([])
   const [mounted, setMounted] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const router = useRouter()
   const heroPtrRef = useRef({ x: 0, y: 0 })
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
+  const [dmLoading, setDmLoading] = useState(false)
+
+  const handleSendMessage = async () => {
+    if (dmLoading || !currentUserId) return
+    setDmLoading(true)
+    try {
+      const convId = await getOrCreateDM(userId)
+      onClose()
+      router.push(`/dm/${convId}`)
+    } catch (e) {
+      console.error('DM error', e)
+    } finally {
+      setDmLoading(false)
+    }
+  }
 
   useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null))
+  }, [])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -464,11 +486,13 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
               >
                 <button
                   type="button"
-                  className="w-full font-semibold text-sm rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                  onClick={handleSendMessage}
+                  disabled={dmLoading || !currentUserId || currentUserId === userId}
+                  className="w-full font-semibold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
                   style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.15)', color: '#F0EBE3', padding: '13px' }}
                 >
-                  Send Message
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#F0EBE3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  {dmLoading ? 'Opening...' : 'Send Message'}
+                  {!dmLoading && <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#F0EBE3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                 </button>
               </div>
 

@@ -5,19 +5,29 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getDMMessages, sendDMMessage } from '@/lib/queries'
+import { getDMMessages, sendDMMessage, getDMConversations } from '@/lib/queries'
 
 export default function DMPage() {
   const { id: conversationId } = useParams<{ id: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
+  const [otherUser, setOtherUser] = useState<{ name: string; profile_photo: string | null } | null>(null)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id ?? null
+      setUserId(uid)
+      if (uid) {
+        getDMConversations(uid).then(convs => {
+          const conv = convs.find((c: any) => c.id === conversationId)
+          if (conv?.other_user) setOtherUser(conv.other_user)
+        })
+      }
+    })
   }, [])
 
   const { data: messages = [], isLoading } = useQuery({
@@ -66,10 +76,23 @@ export default function DMPage() {
       <NavBar />
       <main className="pt-14 h-screen flex flex-col bg-black">
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
-          <div className="py-3 border-b border-white/8">
-            <button onClick={() => router.back()} className="text-white/40 text-sm hover:text-white transition-colors">
-              ← Back
+          <div className="py-3 border-b border-white/8 flex items-center gap-3">
+            <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </button>
+            {otherUser && (
+              <>
+                <div className="w-9 h-9 rounded-full bg-white/10 overflow-hidden shrink-0">
+                  {otherUser.profile_photo
+                    ? <img src={otherUser.profile_photo} alt="" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white/50">{otherUser.name?.[0]?.toUpperCase()}</div>
+                  }
+                </div>
+                <span className="text-white font-semibold text-sm">{otherUser.name}</span>
+              </>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-3">
             {isLoading && <div className="text-white/30 text-sm text-center py-8">Loading...</div>}
