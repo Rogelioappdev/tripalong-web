@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
 import { supabase } from '@/lib/supabase'
@@ -196,15 +197,18 @@ export default function ChatPage() {
         </div>
       </main>
 
-      {showGroupInfo && tripInfo && userId && (
-        <TripGroupInfoSheet
-          chatId={chatId}
-          tripInfo={tripInfo}
-          userId={userId}
-          onClose={() => setShowGroupInfo(false)}
-          onLeft={() => router.replace('/messages')}
-        />
-      )}
+      <AnimatePresence>
+        {showGroupInfo && tripInfo && userId && (
+          <TripGroupInfoSheet
+            key="group-info"
+            chatId={chatId}
+            tripInfo={tripInfo}
+            userId={userId}
+            onClose={() => setShowGroupInfo(false)}
+            onLeft={() => router.replace('/messages')}
+          />
+        )}
+      </AnimatePresence>
     </>
   )
 }
