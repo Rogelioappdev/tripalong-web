@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getDMMessages, sendDMMessage, getDMConversations } from '@/lib/queries'
+import { getDMMessages, sendDMMessage, getDMConversations, markDMRead } from '@/lib/queries'
 
 export default function DMPage() {
   const { id: conversationId } = useParams<{ id: string }>()
@@ -26,9 +26,12 @@ export default function DMPage() {
           const conv = convs.find((c: any) => c.id === conversationId)
           if (conv?.other_user) setOtherUser(conv.other_user)
         })
+        markDMRead(conversationId)
+        queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
+        queryClient.invalidateQueries({ queryKey: ['dms'] })
       }
     })
-  }, [])
+  }, [conversationId, queryClient])
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ['dmMessages', conversationId],
@@ -51,6 +54,8 @@ export default function DMPage() {
         filter: `conversation_id=eq.${conversationId}`,
       }, () => {
         queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] })
+        markDMRead(conversationId)
+        queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }

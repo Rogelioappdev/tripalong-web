@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getChatMessages, sendMessage } from '@/lib/queries'
+import { getChatMessages, sendMessage, markTripChatRead } from '@/lib/queries'
 import type { TripMessage } from '@/lib/types'
 
 export default function ChatPage() {
@@ -20,6 +20,15 @@ export default function ChatPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
+
+  // Mark as read on open and whenever new messages arrive
+  useEffect(() => {
+    if (userId && chatId) {
+      markTripChatRead(chatId)
+      queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
+      queryClient.invalidateQueries({ queryKey: ['tripChats'] })
+    }
+  }, [userId, chatId, queryClient])
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ['messages', chatId],
@@ -44,6 +53,8 @@ export default function ChatPage() {
         filter: `trip_chat_id=eq.${chatId}`,
       }, () => {
         queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+        markTripChatRead(chatId)
+        queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
       })
       .subscribe()
 

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getUserTripChats, getLastTripMessage, getDMConversations } from '@/lib/queries'
+import { getUserTripChats, getDMConversations } from '@/lib/queries'
 
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -15,6 +15,24 @@ function timeAgo(dateStr: string) {
   if (diff < 3600) return `${Math.floor(diff / 60)}m`
   if (diff < 86400) return `${Math.floor(diff / 3600)}h`
   return `${Math.floor(diff / 86400)}d`
+}
+
+function UnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <div
+      className="shrink-0 flex items-center justify-center rounded-full font-bold text-black text-[10px]"
+      style={{
+        backgroundColor: '#F0EBE3',
+        minWidth: count > 9 ? 20 : 18,
+        height: 18,
+        paddingLeft: count > 9 ? 5 : 0,
+        paddingRight: count > 9 ? 5 : 0,
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </div>
+  )
 }
 
 export default function MessagesPage() {
@@ -32,18 +50,20 @@ export default function MessagesPage() {
     queryKey: ['tripChats', userId],
     queryFn: () => getUserTripChats(userId!),
     enabled: !!userId,
+    staleTime: 30_000,
   })
 
   const { data: dms = [] } = useQuery({
     queryKey: ['dms', userId],
     queryFn: () => getDMConversations(userId!),
     enabled: !!userId,
+    staleTime: 30_000,
   })
 
   return (
     <>
       <NavBar />
-      <main className="pt-14 min-h-screen bg-black pb-20 md:pb-8">
+      <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>
         <div className="max-w-2xl mx-auto">
           {/* Mobile header */}
           <div className="md:hidden px-5 pt-6 pb-4">
@@ -64,11 +84,12 @@ export default function MessagesPage() {
                 const chat = item.trip_chat
                 const trip = chat?.trip
                 if (!chat || !trip) return null
+                const hasUnread = item.unread_count > 0
                 return (
                   <button
                     key={chat.id}
                     onClick={() => router.push(`/chat/${chat.id}`)}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 transition-colors border-b border-white/6"
+                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 transition-colors border-b border-white/6"
                   >
                     <div className="w-12 h-12 rounded-2xl bg-white/8 overflow-hidden shrink-0">
                       {trip.cover_image ? (
@@ -78,14 +99,21 @@ export default function MessagesPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0 text-left">
-                      <p className="text-white font-semibold text-sm truncate">
+                      <p className={`text-sm truncate ${hasUnread ? 'text-white font-semibold' : 'text-white/70 font-medium'}`}>
                         {trip.destination}{trip.country ? `, ${trip.country}` : ''}
                       </p>
-                      <p className="text-white/30 text-xs mt-0.5">Group chat</p>
+                      <p className={`text-xs mt-0.5 truncate ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
+                        {item.last_message ?? 'Group chat'}
+                      </p>
                     </div>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M9 18l6-6-6-6" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      {item.last_message_at && (
+                        <span className={`text-xs ${hasUnread ? 'text-white/50' : 'text-white/20'}`}>
+                          {timeAgo(item.last_message_at)}
+                        </span>
+                      )}
+                      <UnreadBadge count={item.unread_count} />
+                    </div>
                   </button>
                 )
               })
@@ -104,11 +132,12 @@ export default function MessagesPage() {
             ) : (
               dms.map((dm: any) => {
                 const other = dm.other_user
+                const hasUnread = dm.unread_count > 0
                 return (
                   <button
                     key={dm.id}
                     onClick={() => router.push(`/dm/${dm.id}`)}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 transition-colors border-b border-white/6"
+                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 transition-colors border-b border-white/6"
                   >
                     <div className="w-12 h-12 rounded-full bg-white/8 overflow-hidden shrink-0">
                       {other?.profile_photo ? (
@@ -120,14 +149,23 @@ export default function MessagesPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0 text-left">
-                      <p className="text-white font-semibold text-sm truncate">{other?.name ?? 'Unknown'}</p>
+                      <p className={`text-sm truncate ${hasUnread ? 'text-white font-semibold' : 'text-white/70 font-medium'}`}>
+                        {other?.name ?? 'Unknown'}
+                      </p>
                       {dm.last_message && (
-                        <p className="text-white/30 text-xs mt-0.5 truncate">{dm.last_message}</p>
+                        <p className={`text-xs mt-0.5 truncate ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
+                          {dm.last_message}
+                        </p>
                       )}
                     </div>
-                    {dm.last_message_at && (
-                      <span className="text-white/20 text-xs shrink-0">{timeAgo(dm.last_message_at)}</span>
-                    )}
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      {dm.last_message_at && (
+                        <span className={`text-xs ${hasUnread ? 'text-white/50' : 'text-white/20'}`}>
+                          {timeAgo(dm.last_message_at)}
+                        </span>
+                      )}
+                      <UnreadBadge count={dm.unread_count} />
+                    </div>
                   </button>
                 )
               })

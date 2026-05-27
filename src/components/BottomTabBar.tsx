@@ -2,11 +2,28 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
+import { getUnreadCount } from '@/lib/queries'
 
 const HIDE_ON = ['/', '/onboarding', '/travel-dna']
 
 export function BottomTabBar() {
   const pathname = usePathname()
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
+
+  const { data: unread = 0 } = useQuery({
+    queryKey: ['unreadCount', userId],
+    queryFn: getUnreadCount,
+    enabled: !!userId,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  })
 
   if (HIDE_ON.some(p => pathname === p) || pathname.startsWith('/auth')) return null
 
@@ -14,6 +31,7 @@ export function BottomTabBar() {
     {
       href: '/messages',
       label: 'Messages',
+      showBadge: unread > 0,
       icon: (active: boolean) => (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
@@ -71,8 +89,14 @@ export function BottomTabBar() {
               href={tab.href}
               className="flex flex-col items-center justify-center gap-1 flex-1 h-full"
             >
-              <div className="flex items-center justify-center" style={{ height: tab.isCenter ? 38 : 22 }}>
+              <div className="relative flex items-center justify-center" style={{ height: tab.isCenter ? 38 : 22 }}>
                 {tab.icon(active)}
+                {tab.showBadge && (
+                  <span
+                    className="absolute top-0 right-0 block rounded-full"
+                    style={{ width: 8, height: 8, backgroundColor: '#F0EBE3', transform: 'translate(2px, -2px)' }}
+                  />
+                )}
               </div>
               <span
                 className="text-[9px] font-semibold tracking-wide"

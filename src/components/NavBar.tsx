@@ -15,6 +15,7 @@ export function NavBar() {
 
   const links = [
     { href: '/feed', label: 'Explore' },
+    { href: '/messages', label: 'Messages' },
     { href: '/profile', label: 'Profile' },
   ]
 

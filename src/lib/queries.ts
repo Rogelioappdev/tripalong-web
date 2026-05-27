@@ -175,31 +175,46 @@ export async function createTrip(data: {
   if (error) throw error
 }
 
-export async function getUserTripChats(userId: string) {
-  const { data, error } = await supabase
-    .from('trip_chat_members')
-    .select(`
-      trip_chat_id,
-      trip_chat:trip_chats(
-        id,
-        trip:trips(id, destination, country, cover_image)
-      )
-    `)
-    .eq('user_id', userId)
-
-  if (error) throw error
-  return data ?? []
+export async function getUserTripChats(_userId: string) {
+  const { data, error } = await supabase.rpc('get_my_trip_chats')
+  if (error) return []
+  return (data ?? []).map((row: any) => ({
+    trip_chat_id: row.trip_chat_id,
+    trip_chat: {
+      id: row.trip_chat_id,
+      trip: {
+        id: row.trip_id,
+        destination: row.destination,
+        country: row.country,
+        cover_image: row.cover_image,
+      },
+    },
+    last_message: row.last_message ?? null,
+    last_message_at: row.last_message_at ?? null,
+    unread_count: Number(row.unread_count ?? 0),
+  }))
 }
 
-export async function getLastTripMessage(chatId: string) {
-  const { data } = await supabase
-    .from('trip_messages')
-    .select('content, created_at')
+export async function markTripChatRead(chatId: string) {
+  await supabase
+    .from('trip_chat_members')
+    .update({ last_read_at: new Date().toISOString() })
     .eq('trip_chat_id', chatId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-  return data
+    .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '')
+}
+
+export async function markDMRead(conversationId: string) {
+  await supabase
+    .from('conversation_members')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '')
+}
+
+export async function getUnreadCount(): Promise<number> {
+  const { data, error } = await supabase.rpc('get_total_unread_count')
+  if (error) return 0
+  return Number(data ?? 0)
 }
 
 export async function getDMConversations(_userId: string) {
@@ -211,6 +226,7 @@ export async function getDMConversations(_userId: string) {
     updated_at: row.updated_at,
     last_message: row.last_message ?? null,
     last_message_at: row.last_message_at ?? null,
+    unread_count: Number(row.unread_count ?? 0),
     other_user: {
       id: row.other_user_id,
       name: row.other_user_name,
