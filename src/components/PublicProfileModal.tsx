@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
@@ -168,6 +168,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [savedTrips, setSavedTrips] = useState<any[]>([])
   const [mounted, setMounted] = useState(false)
+  const heroPtrRef = useRef({ x: 0, y: 0 })
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -269,7 +270,12 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                     dragConstraints={{ left: 0, right: 0 }}
                     dragElastic={0.12}
                     onDragEnd={handleHeroDragEnd}
-                    onTap={() => setLightboxOpen(true)}
+                    onPointerDown={(e) => { heroPtrRef.current = { x: e.clientX, y: e.clientY } }}
+                    onPointerUp={(e) => {
+                      const dx = Math.abs(e.clientX - heroPtrRef.current.x)
+                      const dy = Math.abs(e.clientY - heroPtrRef.current.y)
+                      if (dx < 6 && dy < 6) setLightboxOpen(true)
+                    }}
                     style={{ touchAction: 'pan-y', cursor: 'pointer' } as React.CSSProperties}
                   />
                 )}
