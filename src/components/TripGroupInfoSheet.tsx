@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { leaveTripFromChat, getTripChatMuted, setTripChatMuted } from '@/lib/queries'
+import { useOnlineUsers } from '@/lib/presence'
 import { PublicProfileModal } from './PublicProfileModal'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -27,6 +28,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [muted, setMuted] = useState(false)
+  const onlineUsers = useOnlineUsers()
 
   useEffect(() => {
     getTripChatMuted(chatId).then(setMuted)
@@ -205,19 +207,27 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                   className="w-full flex items-center gap-4 py-3.5"
                   style={{ borderBottom: '0.5px solid rgba(255,255,255,0.05)', cursor: isMe ? 'default' : 'pointer' }}
                 >
-                  <div className="w-11 h-11 rounded-full bg-white/10 overflow-hidden shrink-0">
-                    {u.profile_photo ? (
-                      <img src={u.profile_photo} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center font-bold" style={{ color: 'rgba(255,255,255,0.45)', fontSize: 16 }}>
-                        {u.name?.[0]?.toUpperCase() ?? '?'}
-                      </div>
+                  <div className="relative shrink-0">
+                    <div className="w-11 h-11 rounded-full bg-white/10 overflow-hidden">
+                      {u.profile_photo ? (
+                        <img src={u.profile_photo} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center font-bold" style={{ color: 'rgba(255,255,255,0.45)', fontSize: 16 }}>
+                          {u.name?.[0]?.toUpperCase() ?? '?'}
+                        </div>
+                      )}
+                    </div>
+                    {onlineUsers.has(u.id) && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full" style={{ backgroundColor: '#30D158', border: '2px solid #000' }} />
                     )}
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-white text-sm font-semibold truncate">{isMe ? 'You' : u.name}</p>
-                    {isCreator && (
+                    {isCreator && !onlineUsers.has(u.id) && (
                       <p className="text-xs mt-0.5" style={{ color: '#F0EBE3', opacity: 0.5 }}>Creator</p>
+                    )}
+                    {onlineUsers.has(u.id) && (
+                      <p className="text-xs mt-0.5" style={{ color: '#30D158' }}>Online</p>
                     )}
                   </div>
                   {!isMe && (

@@ -10,6 +10,7 @@ import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
 import { supabase } from '@/lib/supabase'
 import { registerPush, sendPushNotification } from '@/lib/push'
+import { initPresence, useOnlineUsers } from '@/lib/presence'
 import {
   getChatMessages,
   getOlderChatMessages,
@@ -109,6 +110,9 @@ export default function ChatPage() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const userIdRef = useRef<string | null>(null)
 
+  // ── Presence ──────────────────────────────────────────────────────────────
+  const onlineUsers = useOnlineUsers()
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -116,6 +120,7 @@ export default function ChatPage() {
       setUserId(uid)
       userIdRef.current = uid
       if (uid) {
+        initPresence(uid)
         supabase.from('users').select('name').eq('id', uid).single()
           .then(({ data: u }) => { if (u) setUserName((u as any).name ?? '') })
       }
@@ -458,7 +463,17 @@ export default function ChatPage() {
                   <p className="text-white font-semibold text-sm truncate">
                     {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}
                   </p>
-                  <p className="text-white/40 text-xs">{tripInfo.member_count} members</p>
+                  {(() => {
+                    const memberIds = (tripInfo.members ?? []).map((m: any) => m.user?.id).filter(Boolean) as string[]
+                    const othersOnline = memberIds.filter(id => id !== userId && onlineUsers.has(id)).length
+                    return (
+                      <p className="text-white/40 text-xs">
+                        {othersOnline > 0
+                          ? <><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#30D158] mr-1 mb-px" />{othersOnline} online</>
+                          : `${tripInfo.member_count} members`}
+                      </p>
+                    )
+                  })()}
                 </div>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-white/30">
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8"/>

@@ -9,6 +9,7 @@ import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getUserTripChats, getDMConversations } from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
+import { initPresence, useOnlineUsers } from '@/lib/presence'
 
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -41,6 +42,7 @@ export default function MessagesPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [pushState, setPushState] = useState<'unsupported' | 'granted' | 'denied' | 'default' | null>(null)
   const [pushLoading, setPushLoading] = useState(false)
+  const onlineUsers = useOnlineUsers()
 
   useEffect(() => {
     setPushState(getPushState())
@@ -58,6 +60,7 @@ export default function MessagesPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/'); return }
       setUserId(session.user.id)
+      initPresence(session.user.id)
     })
   }, [router])
 
@@ -184,13 +187,18 @@ export default function MessagesPage() {
                     onClick={() => router.push(`/dm/${dm.id}`)}
                     className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 transition-colors border-b border-white/6"
                   >
-                    <div className="w-12 h-12 rounded-full bg-white/8 overflow-hidden shrink-0">
-                      {other?.profile_photo ? (
-                        <img src={other.profile_photo} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/50">
-                          {other?.name?.[0]?.toUpperCase() ?? '?'}
-                        </div>
+                    <div className="relative shrink-0">
+                      <div className="w-12 h-12 rounded-full bg-white/8 overflow-hidden">
+                        {other?.profile_photo ? (
+                          <img src={other.profile_photo} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/50">
+                            {other?.name?.[0]?.toUpperCase() ?? '?'}
+                          </div>
+                        )}
+                      </div>
+                      {other?.id && onlineUsers.has(other.id) && (
+                        <div className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full" style={{ backgroundColor: '#30D158', border: '2.5px solid #000' }} />
                       )}
                     </div>
                     <div className="flex-1 min-w-0 text-left">

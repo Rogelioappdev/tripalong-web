@@ -6,25 +6,41 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getDMMessages, sendDMMessage, getDMConversations, markDMRead } from '@/lib/queries'
+import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 
 export default function DMPage() {
   const { id: conversationId } = useParams<{ id: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
-  const [otherUser, setOtherUser] = useState<{ name: string; profile_photo: string | null } | null>(null)
+  const [otherUser, setOtherUser] = useState<{
+    id: string
+    name: string
+    profile_photo: string | null
+    last_seen_at?: string | null
+  } | null>(null)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const onlineUsers = useOnlineUsers()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       const uid = data.user?.id ?? null
       setUserId(uid)
       if (uid) {
+        initPresence(uid)
         getDMConversations(uid).then(convs => {
           const conv = convs.find((c: any) => c.id === conversationId)
-          if (conv?.other_user) setOtherUser(conv.other_user)
+          if (conv?.other_user) {
+            const ou = conv.other_user
+            setOtherUser({ id: ou.id, name: ou.name, profile_photo: ou.profile_photo })
+            // Fetch last_seen_at separately
+            supabase.from('users').select('last_seen_at').eq('id', ou.id).single()
+              .then(({ data: u }) => {
+                if (u) setOtherUser(prev => prev ? { ...prev, last_seen_at: (u as any).last_seen_at } : null)
+              })
+          }
         })
         markDMRead(conversationId)
         queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
@@ -67,7 +83,6 @@ export default function DMPage() {
     setSending(true)
     const content = input.trim()
 
-    // Optimistic update — message appears instantly
     const optimistic = {
       id: `optimistic-${Date.now()}`,
       conversation_id: conversationId,
@@ -95,11 +110,18 @@ export default function DMPage() {
   const formatTime = (d: string) =>
     new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 
+  const isOtherOnline = otherUser ? onlineUsers.has(otherUser.id) : false
+  const presenceText = otherUser
+    ? formatLastSeen(otherUser.last_seen_at, isOtherOnline)
+    : ''
+
   return (
     <>
       <NavBar />
       <main className="md:pt-14 bg-black flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
+
+          {/* Header */}
           <div className="py-3 border-b border-white/8 flex items-center gap-3">
             <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors shrink-0">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -108,16 +130,30 @@ export default function DMPage() {
             </button>
             {otherUser && (
               <>
-                <div className="w-9 h-9 rounded-full bg-white/10 overflow-hidden shrink-0">
-                  {otherUser.profile_photo
-                    ? <img src={otherUser.profile_photo} alt="" className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white/50">{otherUser.name?.[0]?.toUpperCase()}</div>
-                  }
+                <div className="relative shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-white/10 overflow-hidden">
+                    {otherUser.profile_photo
+                      ? <img src={otherUser.profile_photo} alt="" className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white/50">{otherUser.name?.[0]?.toUpperCase()}</div>
+                    }
+                  </div>
+                  {isOtherOnline && (
+                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#30D158', border: '2px solid #000' }} />
+                  )}
                 </div>
-                <span className="text-white font-semibold text-sm">{otherUser.name}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-sm truncate">{otherUser.name}</p>
+                  {presenceText && (
+                    <p className="text-xs truncate" style={{ color: isOtherOnline ? '#30D158' : 'rgba(255,255,255,0.35)' }}>
+                      {presenceText}
+                    </p>
+                  )}
+                </div>
               </>
             )}
           </div>
+
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-3">
             {isLoading && <div className="text-white/30 text-sm text-center py-8">Loading...</div>}
             {messages.map((msg: any) => {
@@ -125,10 +161,15 @@ export default function DMPage() {
               return (
                 <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
                   {!isMe && (
-                    <div className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs">
-                      {msg.sender?.profile_photo
-                        ? <img src={msg.sender.profile_photo} alt="" className="w-full h-full object-cover" />
-                        : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
+                    <div className="relative shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden flex items-center justify-center text-xs">
+                        {msg.sender?.profile_photo
+                          ? <img src={msg.sender.profile_photo} alt="" className="w-full h-full object-cover" />
+                          : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
+                      </div>
+                      {isOtherOnline && (
+                        <div className="absolute bottom-0 right-0 w-2 h-2 rounded-full" style={{ backgroundColor: '#30D158', border: '1.5px solid #000' }} />
+                      )}
                     </div>
                   )}
                   <div className={`max-w-[70%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
@@ -142,6 +183,8 @@ export default function DMPage() {
             })}
             <div ref={bottomRef} />
           </div>
+
+          {/* Input */}
           <form
             onSubmit={handleSend}
             className="shrink-0 pt-3 border-t border-white/8 flex gap-3 md:pb-4"
@@ -152,6 +195,7 @@ export default function DMPage() {
               onChange={e => setInput(e.target.value)}
               placeholder="Message..."
               className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25"
+              style={{ fontSize: 16 }}
             />
             <button
               type="submit"
