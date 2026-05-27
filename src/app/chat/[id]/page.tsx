@@ -68,7 +68,7 @@ export default function ChatPage() {
   return (
     <>
       <NavBar />
-      <main className="pt-14 h-screen flex flex-col bg-black">
+      <main className="md:pt-14 bg-black flex flex-col" style={{ height: '100dvh' }}>
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
           {/* Back button */}
           <div className="py-3 border-b border-white/8">
@@ -125,7 +125,11 @@ export default function ChatPage() {
           </div>
 
           {/* Input */}
-          <form onSubmit={handleSend} className="py-4 border-t border-white/8 flex gap-3">
+          <form
+            onSubmit={handleSend}
+            className="shrink-0 pt-3 border-t border-white/8 flex gap-3 md:pb-4"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
+          >
             <input
               value={input}
               onChange={e => setInput(e.target.value)}

@@ -74,7 +74,7 @@ export default function DMPage() {
   return (
     <>
       <NavBar />
-      <main className="pt-14 h-screen flex flex-col bg-black">
+      <main className="md:pt-14 bg-black flex flex-col" style={{ height: '100dvh' }}>
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
           <div className="py-3 border-b border-white/8 flex items-center gap-3">
             <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors shrink-0">
@@ -118,7 +118,11 @@ export default function DMPage() {
             })}
             <div ref={bottomRef} />
           </div>
-          <form onSubmit={handleSend} className="py-4 border-t border-white/8 flex gap-3 pb-20 md:pb-4">
+          <form
+            onSubmit={handleSend}
+            className="shrink-0 pt-3 border-t border-white/8 flex gap-3 md:pb-4"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
+          >
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
