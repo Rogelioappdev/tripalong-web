@@ -9,6 +9,7 @@ import { NavBar } from '@/components/NavBar'
 import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
 import { supabase } from '@/lib/supabase'
+import { registerPush, sendPushNotification } from '@/lib/push'
 import {
   getChatMessages,
   getOlderChatMessages,
@@ -95,6 +96,7 @@ export default function ChatPage() {
       if (uid) {
         supabase.from('users').select('name').eq('id', uid).single()
           .then(({ data: u }) => { if (u) setUserName((u as any).name ?? '') })
+        registerPush(uid)
       }
     })
   }, [])
@@ -233,8 +235,8 @@ export default function ChatPage() {
 
     try {
       await sendMessage(chatId, userId, content, replyId)
-      // Replace optimistic with real data from DB
       queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+      sendPushNotification({ chatId, senderId: userId, senderName: userName, content, type: 'text', url: `/chat/${chatId}` })
     } catch {
       // Roll back optimistic on failure and restore input
       queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
@@ -279,6 +281,7 @@ export default function ChatPage() {
       const publicUrl = await uploadChatImage(chatId, file)
       await sendMessage(chatId, userId, publicUrl, null, 'image')
       queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+      sendPushNotification({ chatId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/chat/${chatId}` })
     } catch {
       queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
         (old ?? []).filter(m => m.id !== optimisticId)
