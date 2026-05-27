@@ -416,6 +416,20 @@ export async function leaveTrip(tripId: string, userId: string) {
   if (error) throw error
 }
 
+export async function searchChatMessages(chatId: string, query: string): Promise<TripMessage[]> {
+  if (!query.trim()) return []
+  const { data, error } = await supabase
+    .from('trip_messages')
+    .select(MSG_SELECT)
+    .eq('trip_chat_id', chatId)
+    .eq('type', 'text')
+    .ilike('content', `%${query.trim()}%`)
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) return []
+  return ((data ?? []) as TripMessage[]).reverse()
+}
+
 export async function getTripInfoByChatId(chatId: string): Promise<TripWithDetails | null> {
   try {
     const { data, error } = await supabase

@@ -20,10 +20,26 @@ import {
   markTripChatRead,
   getTripInfoByChatId,
   getChatMemberReadPositions,
+  searchChatMessages,
 } from '@/lib/queries'
 import type { TripMessage, TripWithDetails } from '@/lib/types'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+function highlightText(text: string, query: string) {
+  if (!query) return <>{text}</>
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase()
+          ? <mark key={i} style={{ backgroundColor: 'rgba(240,235,227,0.3)', color: 'inherit', borderRadius: 2, padding: '0 1px' }}>{part}</mark>
+          : part
+      )}
+    </>
+  )
+}
+
 function formatTime(d: string) {
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
@@ -81,6 +97,12 @@ export default function ChatPage() {
   const [viewingImage, setViewingImage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Search
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
   // Scroll
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -114,6 +136,23 @@ export default function ChatPage() {
     }
   }, [userId, chatId, queryClient])
 
+  // ── Search helpers ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  const handleOpenSearch = () => {
+    setSearchOpen(true)
+    setTimeout(() => searchInputRef.current?.focus(), 50)
+  }
+
+  const handleCloseSearch = () => {
+    setSearchOpen(false)
+    setSearchQuery('')
+    setDebouncedQuery('')
+  }
+
   // ── Messages query ────────────────────────────────────────────────────────
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ['messages', chatId],
@@ -134,10 +173,18 @@ export default function ChatPage() {
     refetchInterval: 30_000,
   })
 
+  // ── Search results query ──────────────────────────────────────────────────
+  const { data: searchResults = [], isFetching: searchFetching } = useQuery({
+    queryKey: ['chatSearch', chatId, debouncedQuery],
+    queryFn: () => searchChatMessages(chatId, debouncedQuery),
+    enabled: searchOpen && debouncedQuery.length >= 2,
+    staleTime: 60_000,
+  })
+
   // ── Scroll to bottom on new messages ─────────────────────────────────────
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (!searchOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, searchOpen])
 
   // ── Realtime channel ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -370,6 +417,8 @@ export default function ChatPage() {
   })()
 
   const typingNames = Object.values(typingUsers)
+  const isSearchMode = searchOpen && debouncedQuery.length >= 2
+  const displayMessages = isSearchMode ? searchResults : allMessages
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -380,12 +429,25 @@ export default function ChatPage() {
 
           {/* Chat header */}
           <div className="py-2.5 border-b border-white/8 flex items-center gap-3 shrink-0">
-            <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors shrink-0">
+            <button
+              onClick={searchOpen ? handleCloseSearch : () => router.back()}
+              className="text-white/40 hover:text-white transition-colors shrink-0"
+            >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
-            {tripInfo ? (
+
+            {searchOpen ? (
+              <input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search messages…"
+                className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-2 text-white placeholder-white/30 outline-none focus:border-white/25"
+                style={{ fontSize: 16 }}
+              />
+            ) : tripInfo ? (
               <button type="button" onClick={() => setShowGroupInfo(true)} className="flex-1 flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-white/10 overflow-hidden shrink-0">
                   {tripInfo.cover_image
@@ -406,13 +468,51 @@ export default function ChatPage() {
             ) : (
               <div className="flex-1 h-8 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} />
             )}
+
+            {searchOpen ? (
+              searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="shrink-0 text-white/40 hover:text-white transition-colors"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              ) : <div className="w-[18px] shrink-0" />
+            ) : (
+              <button
+                type="button"
+                onClick={handleOpenSearch}
+                className="shrink-0 text-white/40 hover:text-white transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5">
 
+            {/* Search results count */}
+            {searchOpen && (
+              <div className="text-center text-white/30 text-xs py-1 shrink-0">
+                {debouncedQuery.length < 2
+                  ? 'Type at least 2 characters…'
+                  : searchFetching
+                  ? 'Searching…'
+                  : searchResults.length === 0
+                  ? `No results for "${debouncedQuery}"`
+                  : `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''} for "${debouncedQuery}"`}
+              </div>
+            )}
+
             {/* Trip info banner */}
-            {tripInfo && (() => {
+            {!searchOpen && tripInfo && (() => {
               const dateStr = formatDates(tripInfo.start_date, tripInfo.end_date)
               const subtitle = [dateStr, tripInfo.member_count > 0 ? `${tripInfo.member_count} members` : ''].filter(Boolean).join(' · ')
               return (
@@ -437,7 +537,7 @@ export default function ChatPage() {
             })()}
 
             {/* Load more */}
-            {hasMore && (
+            {!searchOpen && hasMore && (
               <button
                 type="button"
                 onClick={handleLoadMore}
@@ -451,11 +551,11 @@ export default function ChatPage() {
 
             {isLoading && <div className="text-white/30 text-sm text-center py-8">Loading messages…</div>}
 
-            {allMessages.map((msg, idx) => {
+            {displayMessages.map((msg, idx) => {
               const isMe = msg.sender_id === userId
               const isSystem = msg.type === 'system'
               const reactionGroups = groupReactions(msg.reactions)
-              const isLastInGroup = idx === allMessages.length - 1 || allMessages[idx + 1].sender_id !== msg.sender_id
+              const isLastInGroup = idx === displayMessages.length - 1 || displayMessages[idx + 1].sender_id !== msg.sender_id
               const seenBy = msg.id === myLastSeenMsgId ? getSeenBy(msg) : []
 
               if (isSystem) {
@@ -486,7 +586,7 @@ export default function ChatPage() {
 
                   {/* Bubble column */}
                   <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-                    {!isMe && idx > 0 && allMessages[idx - 1].sender_id !== msg.sender_id && (
+                    {!isMe && idx > 0 && displayMessages[idx - 1].sender_id !== msg.sender_id && (
                       <span className="text-white/30 text-xs px-1">{msg.sender?.name}</span>
                     )}
                     {!isMe && idx === 0 && (
@@ -523,7 +623,7 @@ export default function ChatPage() {
                       <div className={`px-4 py-2.5 rounded-2xl text-sm ${
                         isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'
                       }`}>
-                        {msg.content}
+                        {isSearchMode ? highlightText(msg.content, debouncedQuery) : msg.content}
                       </div>
                     )}
 
@@ -578,7 +678,7 @@ export default function ChatPage() {
             })}
 
             {/* Typing indicator */}
-            {typingNames.length > 0 && (
+            {!searchOpen && typingNames.length > 0 && (
               <div className="flex items-center gap-2 px-1">
                 <div className="flex gap-1 px-4 py-2.5 rounded-2xl rounded-bl-sm" style={{ backgroundColor: '#141414' }}>
                   {[0, 1, 2].map(i => (
