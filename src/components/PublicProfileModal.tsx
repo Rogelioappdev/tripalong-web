@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { getProfile } from '@/lib/queries'
-import type { UserProfile } from '@/lib/types'
+import { getProfile, getTrip } from '@/lib/queries'
+import { TripDetailModal } from './TripDetailModal'
+import type { UserProfile, TripWithDetails } from '@/lib/types'
 
 interface PublicProfileModalProps {
   userId: string
@@ -169,6 +170,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
   const [savedTrips, setSavedTrips] = useState<any[]>([])
   const [mounted, setMounted] = useState(false)
   const heroPtrRef = useRef({ x: 0, y: 0 })
+  const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -437,11 +439,17 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                       <p className="uppercase font-semibold mb-3" style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, letterSpacing: '1.4px' }}>Saved Adventures</p>
                       <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-6 px-6">
                         {savedTrips.map((t: any, i: number) => (
-                          <div key={i} className="relative rounded-2xl overflow-hidden shrink-0 flex items-end" style={{ width: 110, height: 150, backgroundColor: '#111' }}>
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => getTrip(t.id).then(trip => { if (trip) setSelectedTrip(trip) })}
+                            className="relative rounded-2xl overflow-hidden shrink-0 flex items-end active:scale-[0.97] transition-transform"
+                            style={{ width: 110, height: 150, backgroundColor: '#111' }}
+                          >
                             {t.cover_image && <img src={t.cover_image} alt={t.destination} className="absolute inset-0 w-full h-full object-cover" />}
                             <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.85) 100%)' }} />
                             <p className="relative text-white font-bold text-xs p-2.5 leading-tight" style={{ letterSpacing: -0.2 }}>{t.destination}</p>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -471,6 +479,13 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                   initialIndex={photoIndex}
                   onClose={() => setLightboxOpen(false)}
                 />
+              )}
+
+              {/* Trip detail — z-[90] wrapper elevates it above this modal's z-[70] */}
+              {selectedTrip && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 90 }}>
+                  <TripDetailModal trip={selectedTrip} onClose={() => setSelectedTrip(null)} />
+                </div>
               )}
             </>
           )
