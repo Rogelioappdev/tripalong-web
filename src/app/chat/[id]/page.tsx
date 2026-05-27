@@ -286,7 +286,7 @@ export default function ChatPage() {
   return (
     <>
       <NavBar />
-      <main className="md:pt-14 bg-black flex flex-col" style={{ height: '100dvh' }}>
+      <main className="md:pt-14 bg-black flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
 
           {/* Chat header */}
@@ -320,7 +320,7 @@ export default function ChatPage() {
           </div>
 
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto py-4 flex flex-col gap-1.5">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5">
 
             {/* Load more */}
             {hasMore && (

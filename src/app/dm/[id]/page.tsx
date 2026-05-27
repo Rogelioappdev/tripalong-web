@@ -79,7 +79,7 @@ export default function DMPage() {
   return (
     <>
       <NavBar />
-      <main className="md:pt-14 bg-black flex flex-col" style={{ height: '100dvh' }}>
+      <main className="md:pt-14 bg-black flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
           <div className="py-3 border-b border-white/8 flex items-center gap-3">
             <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors shrink-0">
@@ -99,7 +99,7 @@ export default function DMPage() {
               </>
             )}
           </div>
-          <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-3">
+          <div className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-3">
             {isLoading && <div className="text-white/30 text-sm text-center py-8">Loading...</div>}
             {messages.map((msg: any) => {
               const isMe = msg.sender_id === userId
