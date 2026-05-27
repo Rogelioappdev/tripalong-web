@@ -248,7 +248,30 @@ export async function getUserTripChats(_userId: string) {
     last_message: row.last_message ?? null,
     last_message_at: row.last_message_at ?? null,
     unread_count: Number(row.unread_count ?? 0),
+    is_muted: row.is_muted ?? false,
   }))
+}
+
+export async function getTripChatMuted(chatId: string): Promise<boolean> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return false
+  const { data } = await supabase
+    .from('trip_chat_members')
+    .select('is_muted')
+    .eq('trip_chat_id', chatId)
+    .eq('user_id', uid)
+    .single()
+  return (data as any)?.is_muted ?? false
+}
+
+export async function setTripChatMuted(chatId: string, muted: boolean) {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase
+    .from('trip_chat_members')
+    .update({ is_muted: muted })
+    .eq('trip_chat_id', chatId)
+    .eq('user_id', uid)
 }
 
 export async function markTripChatRead(chatId: string) {

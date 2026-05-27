@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { leaveTripFromChat } from '@/lib/queries'
+import { leaveTripFromChat, getTripChatMuted, setTripChatMuted } from '@/lib/queries'
 import { PublicProfileModal } from './PublicProfileModal'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -26,12 +26,23 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
   const [leaving, setLeaving] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
+  const [muted, setMuted] = useState(false)
+
+  useEffect(() => {
+    getTripChatMuted(chatId).then(setMuted)
+  }, [chatId])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose])
+
+  const handleToggleMute = async () => {
+    const next = !muted
+    setMuted(next)
+    await setTripChatMuted(chatId, next)
+  }
 
   const handleLeave = async () => {
     setLeaving(true)
@@ -138,6 +149,39 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
               )}
             </div>
           )}
+
+          {/* Mute toggle row */}
+          <button
+            type="button"
+            onClick={handleToggleMute}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 active:bg-white/4 transition-colors"
+            style={{ borderBottom: '0.5px solid rgba(255,255,255,0.07)' }}
+          >
+            <span className="text-white text-sm font-medium">Mute Notifications</span>
+            <div
+              className="relative transition-colors"
+              style={{
+                width: 44,
+                height: 26,
+                borderRadius: 13,
+                backgroundColor: muted ? '#30D158' : 'rgba(255,255,255,0.15)',
+                flexShrink: 0,
+              }}
+            >
+              <div
+                className="absolute top-0.5 transition-transform"
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  backgroundColor: '#fff',
+                  left: 2,
+                  transform: muted ? 'translateX(18px)' : 'translateX(0px)',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                }}
+              />
+            </div>
+          </button>
 
           {/* Members header */}
           <div className="px-5 pt-5 pb-1">

@@ -25,6 +25,14 @@ function formatTime(d: string) {
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
+function formatDates(start: string | null, end: string | null): string {
+  if (!start && !end) return ''
+  const fmt = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (start && end) return `${fmt(start)} – ${fmt(end)}`
+  if (start) return `From ${fmt(start)}`
+  return `Until ${fmt(end!)}`
+}
+
 function groupReactions(reactions: TripMessage['reactions']) {
   const map: Record<string, string[]> = {}
   for (const r of reactions ?? []) {
@@ -350,6 +358,31 @@ export default function ChatPage() {
 
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5">
+
+            {/* Trip info banner */}
+            {tripInfo && (() => {
+              const dateStr = formatDates(tripInfo.start_date, tripInfo.end_date)
+              const subtitle = [dateStr, tripInfo.member_count > 0 ? `${tripInfo.member_count} members` : ''].filter(Boolean).join(' · ')
+              return (
+                <button
+                  type="button"
+                  onClick={() => setShowGroupInfo(true)}
+                  className="w-full rounded-2xl overflow-hidden mb-3 text-left relative shrink-0"
+                  style={{ height: 110 }}
+                >
+                  {tripInfo.cover_image
+                    ? <img src={tripInfo.cover_image} alt="" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-4xl" style={{ backgroundColor: '#111' }}>🌍</div>}
+                  <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.88) 100%)' }} />
+                  <div className="absolute bottom-0 left-0 px-4 pb-3">
+                    <p className="text-white font-bold text-sm leading-tight">
+                      {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}
+                    </p>
+                    {subtitle && <p className="text-white/45 text-xs mt-0.5">{subtitle}</p>}
+                  </div>
+                </button>
+              )
+            })()}
 
             {/* Load more */}
             {hasMore && (

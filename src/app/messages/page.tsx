@@ -84,7 +84,7 @@ export default function MessagesPage() {
                 const chat = item.trip_chat
                 const trip = chat?.trip
                 if (!chat || !trip) return null
-                const hasUnread = item.unread_count > 0
+                const hasUnread = item.unread_count > 0 && !item.is_muted
                 return (
                   <button
                     key={chat.id}
@@ -108,11 +108,15 @@ export default function MessagesPage() {
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       {item.last_message_at && (
-                        <span className={`text-xs ${hasUnread ? 'text-white/50' : 'text-white/20'}`}>
+                        <span className={`text-xs ${hasUnread && !item.is_muted ? 'text-white/50' : 'text-white/20'}`}>
                           {timeAgo(item.last_message_at)}
                         </span>
                       )}
-                      <UnreadBadge count={item.unread_count} />
+                      {item.is_muted ? (
+                        <span className="text-white/25 text-xs">🔕</span>
+                      ) : (
+                        <UnreadBadge count={item.unread_count} />
+                      )}
                     </div>
                   </button>
                 )
