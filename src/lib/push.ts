@@ -2,18 +2,24 @@
 
 import { supabase } from './supabase'
 
-export async function registerPush(userId: string): Promise<void> {
-  if (typeof window === 'undefined') return
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
-  if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return
-  if (localStorage.getItem('push_registered') === '1') return
+export function getPushState(): 'unsupported' | 'granted' | 'denied' | 'default' {
+  if (typeof window === 'undefined') return 'unsupported'
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'unsupported'
+  if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return 'unsupported'
+  return (Notification.permission as 'granted' | 'denied' | 'default')
+}
+
+export async function registerPush(userId: string): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+  if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return false
 
   try {
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
     await navigator.serviceWorker.ready
 
     const permission = await Notification.requestPermission()
-    if (permission !== 'granted') return
+    if (permission !== 'granted') return false
 
     const existing = await reg.pushManager.getSubscription()
     const subscription = existing ?? await reg.pushManager.subscribe({
@@ -22,7 +28,7 @@ export async function registerPush(userId: string): Promise<void> {
     })
 
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
+    if (!session) return false
 
     const sub = subscription.toJSON()
     await fetch('/api/push/subscribe', {
@@ -40,7 +46,10 @@ export async function registerPush(userId: string): Promise<void> {
     })
 
     localStorage.setItem('push_registered', '1')
-  } catch {}
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function sendPushNotification(params: {
@@ -64,4 +73,3 @@ export async function sendPushNotification(params: {
     })
   } catch {}
 }
-

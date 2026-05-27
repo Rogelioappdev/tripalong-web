@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getUserTripChats, getDMConversations } from '@/lib/queries'
+import { getPushState, registerPush } from '@/lib/push'
 
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -38,6 +39,20 @@ function UnreadBadge({ count }: { count: number }) {
 export default function MessagesPage() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
+  const [pushState, setPushState] = useState<'unsupported' | 'granted' | 'denied' | 'default' | null>(null)
+  const [pushLoading, setPushLoading] = useState(false)
+
+  useEffect(() => {
+    setPushState(getPushState())
+  }, [])
+
+  const handleEnableNotifications = async () => {
+    if (!userId) return
+    setPushLoading(true)
+    const ok = await registerPush(userId)
+    setPushState(ok ? 'granted' : (Notification.permission as any))
+    setPushLoading(false)
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -69,6 +84,32 @@ export default function MessagesPage() {
           <div className="md:hidden px-5 pt-6 pb-4">
             <h1 className="text-white font-extrabold text-2xl">Messages</h1>
           </div>
+
+          {/* Push notification banner */}
+          {pushState === 'default' && (
+            <div className="mx-5 mt-3 mb-1 flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}>
+              <span className="text-xl shrink-0">🔔</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-semibold">Enable Notifications</p>
+                <p className="text-white/40 text-xs">Get notified when someone messages you</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleEnableNotifications}
+                disabled={pushLoading}
+                className="shrink-0 font-semibold text-xs px-3 py-1.5 rounded-xl transition-opacity disabled:opacity-50"
+                style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+              >
+                {pushLoading ? 'Enabling…' : 'Enable'}
+              </button>
+            </div>
+          )}
+          {pushState === 'denied' && (
+            <div className="mx-5 mt-3 mb-1 flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
+              <span className="text-xl shrink-0">🔕</span>
+              <p className="text-white/35 text-xs">Notifications blocked — enable in browser settings</p>
+            </div>
+          )}
 
           {/* Trip Chats */}
           <section>

@@ -96,7 +96,6 @@ export default function ChatPage() {
       if (uid) {
         supabase.from('users').select('name').eq('id', uid).single()
           .then(({ data: u }) => { if (u) setUserName((u as any).name ?? '') })
-        registerPush(uid)
       }
     })
   }, [])
