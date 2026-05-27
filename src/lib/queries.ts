@@ -146,11 +146,27 @@ export async function getOlderChatMessages(chatId: string, before: string, limit
   return ((data ?? []) as TripMessage[]).reverse()
 }
 
-export async function sendMessage(chatId: string, senderId: string, content: string, replyToId?: string | null) {
-  const payload: Record<string, unknown> = { trip_chat_id: chatId, sender_id: senderId, content, type: 'text' }
+export async function sendMessage(
+  chatId: string,
+  senderId: string,
+  content: string,
+  replyToId?: string | null,
+  type: 'text' | 'image' = 'text',
+) {
+  const payload: Record<string, unknown> = { trip_chat_id: chatId, sender_id: senderId, content, type }
   if (replyToId) payload.reply_to_id = replyToId
   const { error } = await supabase.from('trip_messages').insert(payload)
   if (error) throw error
+}
+
+const CHAT_IMAGES_BASE = 'https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/chat-images'
+
+export async function uploadChatImage(chatId: string, file: File): Promise<string> {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `${chatId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from('chat-images').upload(path, file, { upsert: false })
+  if (error) throw error
+  return `${CHAT_IMAGES_BASE}/${path}`
 }
 
 export async function deleteMessage(messageId: string): Promise<void> {

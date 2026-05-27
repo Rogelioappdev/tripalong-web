@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
@@ -12,6 +13,7 @@ import {
   getChatMessages,
   getOlderChatMessages,
   sendMessage,
+  uploadChatImage,
   deleteMessage,
   toggleReaction,
   markTripChatRead,
@@ -72,6 +74,11 @@ export default function ChatPage() {
   const [actionMsg, setActionMsg] = useState<TripMessage | null>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdFired = useRef(false)
+
+  // Image
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [viewingImage, setViewingImage] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Scroll
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -236,6 +243,49 @@ export default function ChatPage() {
       setInput(content)
     } finally {
       setSending(false)
+    }
+  }
+
+  // ── Image pick & upload ───────────────────────────────────────────────────
+  const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !userId) return
+    e.target.value = ''
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image must be under 10 MB')
+      return
+    }
+
+    setUploadingImage(true)
+    const localUrl = URL.createObjectURL(file)
+    const optimisticId = `optimistic-img-${Date.now()}`
+    const optimistic: TripMessage = {
+      id: optimisticId,
+      trip_chat_id: chatId,
+      sender_id: userId,
+      content: localUrl,
+      type: 'image',
+      reply_to_id: null,
+      is_edited: false,
+      created_at: new Date().toISOString(),
+      sender: { id: userId, name: userName, profile_photo: null },
+      reply_to: null,
+      reactions: [],
+    }
+    queryClient.setQueryData<TripMessage[]>(['messages', chatId], old => [...(old ?? []), optimistic])
+
+    try {
+      const publicUrl = await uploadChatImage(chatId, file)
+      await sendMessage(chatId, userId, publicUrl, null, 'image')
+      queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+    } catch {
+      queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
+        (old ?? []).filter(m => m.id !== optimisticId)
+      )
+    } finally {
+      setUploadingImage(false)
+      URL.revokeObjectURL(localUrl)
     }
   }
 
@@ -453,11 +503,28 @@ export default function ChatPage() {
                     )}
 
                     {/* Bubble */}
-                    <div className={`px-4 py-2.5 rounded-2xl text-sm ${
-                      isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'
-                    }`}>
-                      {msg.content}
-                    </div>
+                    {msg.type === 'image' ? (
+                      <button
+                        type="button"
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); setViewingImage(msg.content) }}
+                        className={`overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
+                        style={{ maxWidth: 220, display: 'block' }}
+                      >
+                        <img
+                          src={msg.content}
+                          alt="Image"
+                          className="w-full h-auto block"
+                          style={{ maxHeight: 280, objectFit: 'cover' }}
+                        />
+                      </button>
+                    ) : (
+                      <div className={`px-4 py-2.5 rounded-2xl text-sm ${
+                        isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'
+                      }`}>
+                        {msg.content}
+                      </div>
+                    )}
 
                     {/* Reactions */}
                     {reactionGroups.length > 0 && (
@@ -561,9 +628,38 @@ export default function ChatPage() {
           {/* Input */}
           <form
             onSubmit={handleSend}
-            className="shrink-0 pt-3 border-t border-white/8 flex gap-3 md:pb-4"
+            className="shrink-0 pt-3 border-t border-white/8 flex gap-2 md:pb-4"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
           >
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={handleImagePick}
+            />
+            {/* Image pick button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingImage}
+              className="shrink-0 w-11 h-11 flex items-center justify-center rounded-2xl transition-colors disabled:opacity-30"
+              style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+            >
+              {uploadingImage ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="animate-spin">
+                  <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5"/>
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round"/>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="3" width="18" height="18" rx="3" stroke="rgba(255,255,255,0.5)" strokeWidth="1.8"/>
+                  <circle cx="8.5" cy="8.5" r="1.5" fill="rgba(255,255,255,0.5)"/>
+                  <path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.5)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </button>
             <input
               value={input}
               onChange={handleInputChange}
@@ -612,6 +708,34 @@ export default function ChatPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* Full-screen image viewer */}
+      {viewingImage && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.96)' }}
+          onClick={() => setViewingImage(null)}
+        >
+          <img
+            src={viewingImage}
+            alt=""
+            className="max-w-full max-h-full object-contain"
+            style={{ maxWidth: '100vw', maxHeight: '100dvh', padding: 16 }}
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setViewingImage(null)}
+            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full"
+            style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>,
+        document.body
+      )}
 
       <style>{`
         @keyframes bounce {
