@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { TripWithDetails, TripMessage, UserProfile } from './types'
+import type { TripWithDetails, TripMessage, UserProfile, ChatMemberReadPosition } from './types'
 
 export async function getTrips(): Promise<TripWithDetails[]> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -114,23 +114,79 @@ export async function joinTripChat(tripId: string): Promise<string> {
   return data.chat_id as string
 }
 
-export async function getChatMessages(chatId: string): Promise<TripMessage[]> {
+const MSG_SELECT = `
+  *,
+  sender:users(id, name, profile_photo),
+  reply_to:trip_messages!reply_to_id(id, content, sender:users(name)),
+  reactions:message_reactions(id, user_id, emoji)
+`
+
+export async function getChatMessages(chatId: string, limit = 50): Promise<TripMessage[]> {
   const { data, error } = await supabase
     .from('trip_messages')
-    .select('*, sender:users(id, name, profile_photo)')
+    .select(MSG_SELECT)
     .eq('trip_chat_id', chatId)
-    .order('created_at', { ascending: true })
-    .limit(100)
+    .order('created_at', { ascending: false })
+    .limit(limit)
 
   if (error) throw error
-  return (data as TripMessage[]) ?? []
+  return ((data ?? []) as TripMessage[]).reverse()
 }
 
-export async function sendMessage(chatId: string, senderId: string, content: string) {
-  const { error } = await supabase
+export async function getOlderChatMessages(chatId: string, before: string, limit = 30): Promise<TripMessage[]> {
+  const { data, error } = await supabase
     .from('trip_messages')
-    .insert({ trip_chat_id: chatId, sender_id: senderId, content, type: 'text' })
+    .select(MSG_SELECT)
+    .eq('trip_chat_id', chatId)
+    .lt('created_at', before)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
   if (error) throw error
+  return ((data ?? []) as TripMessage[]).reverse()
+}
+
+export async function sendMessage(chatId: string, senderId: string, content: string, replyToId?: string | null) {
+  const payload: Record<string, unknown> = { trip_chat_id: chatId, sender_id: senderId, content, type: 'text' }
+  if (replyToId) payload.reply_to_id = replyToId
+  const { error } = await supabase.from('trip_messages').insert(payload)
+  if (error) throw error
+}
+
+export async function deleteMessage(messageId: string): Promise<void> {
+  const { error } = await supabase.from('trip_messages').delete().eq('id', messageId)
+  if (error) throw error
+}
+
+export async function toggleReaction(messageId: string, emoji: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  // upsert: if row exists the unique constraint fires, so we check first
+  const { data: existing } = await supabase
+    .from('message_reactions')
+    .select('id')
+    .eq('message_id', messageId)
+    .eq('user_id', uid)
+    .eq('emoji', emoji)
+    .maybeSingle()
+  if (existing) {
+    await supabase.from('message_reactions').delete().eq('id', existing.id)
+  } else {
+    await supabase.from('message_reactions').insert({ message_id: messageId, user_id: uid, emoji })
+  }
+}
+
+export async function getChatMemberReadPositions(chatId: string): Promise<ChatMemberReadPosition[]> {
+  const { data, error } = await supabase
+    .from('trip_chat_members')
+    .select('user_id, last_read_at, user:users(name, profile_photo)')
+    .eq('trip_chat_id', chatId)
+  if (error) return []
+  return (data ?? []).map((row: any) => ({
+    user_id: row.user_id,
+    last_read_at: row.last_read_at,
+    user: row.user,
+  })) as ChatMemberReadPosition[]
 }
 
 export async function getProfile(userId: string): Promise<UserProfile | null> {

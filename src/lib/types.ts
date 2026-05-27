@@ -98,6 +98,12 @@ export type DMMessage = {
   sender?: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
 }
 
+export type MessageReaction = {
+  id: string
+  user_id: string
+  emoji: string
+}
+
 export type TripMessage = {
   id: string
   trip_chat_id: string
@@ -105,6 +111,15 @@ export type TripMessage = {
   content: string
   type: 'text' | 'image' | 'system'
   reply_to_id: string | null
+  is_edited: boolean
   created_at: string
   sender?: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
+  reply_to?: { id: string; content: string; sender?: { name: string } } | null
+  reactions?: MessageReaction[]
+}
+
+export type ChatMemberReadPosition = {
+  user_id: string
+  last_read_at: string | null
+  user: Pick<UserProfile, 'name' | 'profile_photo'>
 }
