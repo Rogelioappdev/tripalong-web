@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
 
-webpush.setVapidDetails(
-  `mailto:${process.env.VAPID_EMAIL}`,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const vapidPrivate = process.env.VAPID_PRIVATE_KEY
+  const vapidEmail = process.env.VAPID_EMAIL
+  if (!vapidPublic || !vapidPrivate || !vapidEmail) return NextResponse.json({ ok: true })
+
+  webpush.setVapidDetails(`mailto:${vapidEmail}`, vapidPublic, vapidPrivate)
+
   const authHeader = req.headers.get('authorization') ?? ''
   const token = authHeader.replace('Bearer ', '').trim()
   if (!token) return NextResponse.json({ ok: true })
