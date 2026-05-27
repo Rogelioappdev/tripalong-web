@@ -192,11 +192,40 @@ export default function ChatPage() {
     e.preventDefault()
     if (!input.trim() || !userId || sending) return
     setSending(true)
+    const content = input.trim()
     const replyId = replyTo?.id ?? null
+    const currentReplyTo = replyTo
+
+    // Optimistic update — message appears instantly
+    const optimistic: TripMessage = {
+      id: `optimistic-${Date.now()}`,
+      trip_chat_id: chatId,
+      sender_id: userId,
+      content,
+      type: 'text',
+      reply_to_id: replyId,
+      is_edited: false,
+      created_at: new Date().toISOString(),
+      sender: { id: userId, name: userName, profile_photo: null },
+      reply_to: currentReplyTo
+        ? { id: currentReplyTo.id, content: currentReplyTo.content, sender: currentReplyTo.sender }
+        : null,
+      reactions: [],
+    }
+    setInput('')
     setReplyTo(null)
+    queryClient.setQueryData<TripMessage[]>(['messages', chatId], old => [...(old ?? []), optimistic])
+
     try {
-      await sendMessage(chatId, userId, input.trim(), replyId)
-      setInput('')
+      await sendMessage(chatId, userId, content, replyId)
+      // Replace optimistic with real data from DB
+      queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+    } catch {
+      // Roll back optimistic on failure and restore input
+      queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
+        (old ?? []).filter(m => m.id !== optimistic.id)
+      )
+      setInput(content)
     } finally {
       setSending(false)
     }

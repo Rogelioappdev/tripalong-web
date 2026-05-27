@@ -65,9 +65,28 @@ export default function DMPage() {
     e.preventDefault()
     if (!input.trim() || !userId || sending) return
     setSending(true)
+    const content = input.trim()
+
+    // Optimistic update — message appears instantly
+    const optimistic = {
+      id: `optimistic-${Date.now()}`,
+      conversation_id: conversationId,
+      sender_id: userId,
+      content,
+      created_at: new Date().toISOString(),
+      sender: { id: userId, name: '', profile_photo: null },
+    }
+    setInput('')
+    queryClient.setQueryData<any[]>(['dmMessages', conversationId], old => [...(old ?? []), optimistic])
+
     try {
-      await sendDMMessage(conversationId, userId, input.trim())
-      setInput('')
+      await sendDMMessage(conversationId, userId, content)
+      queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] })
+    } catch {
+      queryClient.setQueryData<any[]>(['dmMessages', conversationId], old =>
+        (old ?? []).filter((m: any) => m.id !== optimistic.id)
+      )
+      setInput(content)
     } finally {
       setSending(false)
     }
