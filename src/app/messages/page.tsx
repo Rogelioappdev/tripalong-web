@@ -9,7 +9,7 @@ import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getUserTripChats, getDMConversations } from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
-import { initPresence, useOnlineUsers } from '@/lib/presence'
+import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -42,6 +42,7 @@ export default function MessagesPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [pushState, setPushState] = useState<'unsupported' | 'granted' | 'denied' | 'default' | null>(null)
   const [pushLoading, setPushLoading] = useState(false)
+  const [lastSeenMap, setLastSeenMap] = useState<Record<string, string | null>>({})
   const onlineUsers = useOnlineUsers()
 
   useEffect(() => {
@@ -77,6 +78,19 @@ export default function MessagesPage() {
     enabled: !!userId,
     staleTime: 30_000,
   })
+
+  // Fetch last_seen_at for all DM contacts
+  useEffect(() => {
+    if (!dms.length) return
+    const ids = (dms as any[]).map(dm => dm.other_user?.id).filter(Boolean)
+    if (!ids.length) return
+    supabase.from('users').select('id, last_seen_at').in('id', ids).then(({ data }) => {
+      if (!data) return
+      const map: Record<string, string | null> = {}
+      ;(data as any[]).forEach(u => { map[u.id] = u.last_seen_at ?? null })
+      setLastSeenMap(map)
+    })
+  }, [dms])
 
   return (
     <>
@@ -181,6 +195,9 @@ export default function MessagesPage() {
               dms.map((dm: any) => {
                 const other = dm.other_user
                 const hasUnread = dm.unread_count > 0
+                const isOnline = other?.id ? onlineUsers.has(other.id) : false
+                const lastSeen = other?.id ? lastSeenMap[other.id] : null
+                const presenceText = formatLastSeen(lastSeen, isOnline)
                 return (
                   <button
                     key={dm.id}
@@ -197,7 +214,7 @@ export default function MessagesPage() {
                           </div>
                         )}
                       </div>
-                      {other?.id && onlineUsers.has(other.id) && (
+                      {isOnline && (
                         <div className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full" style={{ backgroundColor: '#30D158', border: '2.5px solid #000' }} />
                       )}
                     </div>
@@ -205,11 +222,16 @@ export default function MessagesPage() {
                       <p className={`text-sm truncate ${hasUnread ? 'text-white font-semibold' : 'text-white/70 font-medium'}`}>
                         {other?.name ?? 'Unknown'}
                       </p>
-                      {dm.last_message && (
+                      {/* Presence line — always shown when available; falls back to last message */}
+                      {presenceText ? (
+                        <p className="text-xs mt-0.5 truncate" style={{ color: isOnline ? '#30D158' : 'rgba(255,255,255,0.28)' }}>
+                          {presenceText}
+                        </p>
+                      ) : dm.last_message ? (
                         <p className={`text-xs mt-0.5 truncate ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
                           {dm.last_message}
                         </p>
-                      )}
+                      ) : null}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       {dm.last_message_at && (

@@ -63,14 +63,14 @@ export function useOnlineUsers(): Set<string> {
   return users
 }
 
-// Format presence status for display
+// Format presence status — Instagram style
 export function formatLastSeen(dateStr: string | null | undefined, isOnline: boolean): string {
-  if (isOnline) return 'Online'
+  if (isOnline) return 'Active now'
   if (!dateStr) return ''
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
-  if (diff < 120) return 'Last seen just now'
-  if (diff < 3600) return `Last seen ${Math.floor(diff / 60)}m ago`
-  if (diff < 86400) return `Last seen ${Math.floor(diff / 3600)}h ago`
-  if (diff < 7 * 86400) return `Last seen ${Math.floor(diff / 86400)}d ago`
-  return `Last seen ${new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+  if (diff < 120) return 'Active just now'
+  if (diff < 3600) return `Active ${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `Active ${Math.floor(diff / 3600)}h ago`
+  if (diff < 7 * 86400) return `Active ${Math.floor(diff / 86400)}d ago`
+  return `Active ${new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
 }
