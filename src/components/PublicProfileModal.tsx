@@ -79,7 +79,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
 
       <div
         className="relative w-full sm:max-w-lg flex flex-col overflow-hidden"
-        style={{ backgroundColor: '#000', borderRadius: '28px 28px 0 0', height: '92dvh' }}
+        style={{ backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh' }}
       >
         {loading || !profile ? (
           <div className="flex-1 flex items-center justify-center">
@@ -112,7 +112,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                 {allPhotos.length > 1 && (
                   <div className="absolute flex justify-center gap-1.5 pointer-events-none" style={{ bottom: 88, left: 0, right: 0 }}>
                     {allPhotos.map((_, i) => (
-                      <div key={i} className="rounded-full transition-all" style={{ width: i === photoIndex ? 24 : 8, height: 8, backgroundColor: i === photoIndex ? '#10b981' : 'rgba(255,255,255,0.45)' }} />
+                      <div key={i} className="rounded-full transition-all" style={{ width: i === photoIndex ? 24 : 8, height: 8, backgroundColor: i === photoIndex ? '#F0EBE3' : 'rgba(255,255,255,0.35)' }} />
                     ))}
                   </div>
                 )}
@@ -138,7 +138,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
 
                 {/* Verified badge */}
                 {profile.is_verified && (
-                  <div className="absolute flex items-center gap-1 rounded-full px-3 py-1.5" style={{ top: 56, right: 16, backgroundColor: '#10b981' }}>
+                  <div className="absolute flex items-center gap-1 rounded-full px-3 py-1.5" style={{ top: 56, right: 16, backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.35)' }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     <span className="text-white text-xs font-semibold">Verified</span>
                   </div>
@@ -152,7 +152,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                   </div>
                   {(profile.city || profile.country) && (
                     <div className="flex items-center gap-1">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="#10b981" strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke="#10b981" strokeWidth="2"/></svg>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="#F0EBE3" strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke="#F0EBE3" strokeWidth="2"/></svg>
                       <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14 }}>{[profile.city, profile.country].filter(Boolean).join(', ')}</span>
                     </div>
                   )}
@@ -182,7 +182,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                         {travelStyles.map((s, i) => {
                           const st = TRAVEL_STYLES.find(x => x.id === s)
                           return (
-                            <span key={i} className="font-medium rounded-full px-4 py-2" style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#34d399', fontSize: 14 }}>
+                            <span key={i} className="font-medium rounded-full px-4 py-2" style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.22)', color: '#F0EBE3', fontSize: 14 }}>
                               {st ? `${st.icon} ${st.label}` : s}
                             </span>
                           )
@@ -220,7 +220,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                       <div className="flex items-center gap-2 mb-3">
                         <span>🗺️</span>
                         <p className="text-white font-semibold text-lg">Places Visited</p>
-                        <span className="text-emerald-400 font-semibold ml-auto">{placesVisited.length}</span>
+                        <span className="font-semibold ml-auto" style={{ color: 'rgba(255,255,255,0.5)' }}>{placesVisited.length}</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {placesVisited.slice(0, 8).map((p, i) => (
@@ -250,7 +250,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                       <div className="flex items-center gap-2 mb-3">
                         <span>✨</span>
                         <p className="text-white font-semibold text-lg">Dream Bucket List</p>
-                        <span className="text-emerald-400 font-semibold ml-auto">{bucketList.length}</span>
+                        <span className="font-semibold ml-auto" style={{ color: 'rgba(255,255,255,0.5)' }}>{bucketList.length}</span>
                       </div>
                       <div className="flex gap-3 overflow-x-auto pb-1 -mx-6 px-6">
                         {bucketList.map((country, i) => (
