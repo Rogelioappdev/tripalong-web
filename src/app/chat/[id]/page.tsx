@@ -498,7 +498,7 @@ export default function ChatPage() {
                         style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
                       >
                         <p className="text-white/50 font-medium truncate">{msg.reply_to.sender?.name ?? 'Unknown'}</p>
-                        <p className="text-white/35 truncate">{msg.reply_to.content}</p>
+                        <p className="text-white/35 truncate">{msg.reply_to.content?.startsWith('https://') ? '📷 Photo' : msg.reply_to.content}</p>
                       </div>
                     )}
 
@@ -506,8 +506,7 @@ export default function ChatPage() {
                     {msg.type === 'image' ? (
                       <button
                         type="button"
-                        onPointerDown={e => e.stopPropagation()}
-                        onClick={e => { e.stopPropagation(); setViewingImage(msg.content) }}
+                        onClick={e => { e.stopPropagation(); if (!holdFired.current) setViewingImage(msg.content) }}
                         className={`overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
                         style={{ maxWidth: 220, display: 'block' }}
                       >
@@ -611,7 +610,7 @@ export default function ChatPage() {
             >
               <div className="flex-1 min-w-0" style={{ borderLeft: '2px solid rgba(255,255,255,0.3)', paddingLeft: 10 }}>
                 <p className="text-white/50 text-xs font-medium truncate">{replyTo.sender?.name ?? 'Unknown'}</p>
-                <p className="text-white/35 text-xs truncate">{replyTo.content}</p>
+                <p className="text-white/35 text-xs truncate">{replyTo.content?.startsWith('https://') ? '📷 Photo' : replyTo.content}</p>
               </div>
               <button
                 type="button"
