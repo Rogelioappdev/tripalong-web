@@ -331,15 +331,16 @@ export default function ChatPage() {
     try {
       const publicUrl = await uploadChatImage(chatId, file)
       await sendMessage(chatId, userId, publicUrl, null, 'image')
-      queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+      await queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+      URL.revokeObjectURL(localUrl)
       sendPushNotification({ chatId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/chat/${chatId}` })
     } catch {
       queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
         (old ?? []).filter(m => m.id !== optimisticId)
       )
+      URL.revokeObjectURL(localUrl)
     } finally {
       setUploadingImage(false)
-      URL.revokeObjectURL(localUrl)
     }
   }
 
