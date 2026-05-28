@@ -58,7 +58,17 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
     }
   }
 
-  const members = tripInfo.members ?? []
+  // Sort: "You" first, creator second, rest alphabetically
+  const rawMembers = tripInfo.members ?? []
+  const members = [...rawMembers].sort((a: any, b: any) => {
+    const aId = a.user?.id
+    const bId = b.user?.id
+    if (aId === userId) return -1
+    if (bId === userId) return 1
+    if (aId === tripInfo.creator_id) return -1
+    if (bId === tripInfo.creator_id) return 1
+    return (a.user?.name ?? '').localeCompare(b.user?.name ?? '')
+  })
   const dateStr = formatDates(tripInfo.start_date, tripInfo.end_date)
 
   return (
@@ -121,7 +131,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
           </div>
 
           {/* Info pills */}
-          {(dateStr || tripInfo.budget_level || tripInfo.max_group_size > 0) && (
+          {(dateStr || tripInfo.budget_level || tripInfo.max_group_size > 0 || tripInfo.pace) && (
             <div className="flex gap-3 px-5 py-4 overflow-x-auto" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
               {dateStr && (
                 <div className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-2.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
@@ -130,6 +140,14 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                     <path d="M16 2v4M8 2v4M3 10h18" stroke="rgba(255,255,255,0.4)" strokeWidth="1.8" strokeLinecap="round"/>
                   </svg>
                   <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>{dateStr}</span>
+                </div>
+              )}
+              {tripInfo.pace && (
+                <div className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-2.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
+                  <span style={{ fontSize: 14 }}>
+                    {tripInfo.pace === 'slow' ? '🐢' : tripInfo.pace === 'fast' ? '⚡️' : '⚖️'}
+                  </span>
+                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, textTransform: 'capitalize' }}>{tripInfo.pace}</span>
                 </div>
               )}
               {tripInfo.budget_level && (
@@ -223,12 +241,17 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-white text-sm font-semibold truncate">{isMe ? 'You' : u.name}</p>
-                    {isCreator && !onlineUsers.has(u.id) && (
-                      <p className="text-xs mt-0.5" style={{ color: '#F0EBE3', opacity: 0.5 }}>Creator</p>
-                    )}
-                    {onlineUsers.has(u.id) && (
-                      <p className="text-xs mt-0.5" style={{ color: '#30D158' }}>Online</p>
-                    )}
+                    <p className="text-xs mt-0.5 flex items-center gap-1.5">
+                      {isCreator && (
+                        <span style={{ color: '#F0EBE3', opacity: 0.5 }}>Creator</span>
+                      )}
+                      {isCreator && onlineUsers.has(u.id) && (
+                        <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
+                      )}
+                      {onlineUsers.has(u.id) && (
+                        <span style={{ color: '#30D158' }}>Online</span>
+                      )}
+                    </p>
                   </div>
                   {!isMe && (
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.18)', flexShrink: 0 }}>
