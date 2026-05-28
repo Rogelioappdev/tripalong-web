@@ -154,94 +154,88 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
             </div>
           </div>
 
-          {/* ── Description ─────────────────────────────────────────────────── */}
-          {hasDescription && (
+          {/* ── About: description + vibes together ─────────────────────────── */}
+          {(hasDescription || hasVibes) && (
             <div className="px-5 py-4" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
               <p className="text-white/35 text-xs font-semibold uppercase tracking-widest mb-2">About</p>
-              <p
-                className="text-white/70 text-sm leading-relaxed"
-                style={!descExpanded ? {
-                  display: '-webkit-box',
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                } as React.CSSProperties : undefined}
-              >
-                {tripInfo.description}
-              </p>
-              {descLong && (
-                <button
-                  type="button"
-                  onClick={() => setDescExpanded(p => !p)}
-                  className="text-xs mt-2 font-semibold transition-opacity hover:opacity-70"
-                  style={{ color: '#F0EBE3', opacity: 0.55 }}
-                >
-                  {descExpanded ? 'Show less' : 'Read more'}
-                </button>
+              {hasDescription && (
+                <>
+                  <p
+                    className="text-white/70 text-sm leading-relaxed"
+                    style={!descExpanded ? {
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    } as React.CSSProperties : undefined}
+                  >
+                    {tripInfo.description}
+                  </p>
+                  {descLong && (
+                    <button
+                      type="button"
+                      onClick={() => setDescExpanded(p => !p)}
+                      className="text-xs mt-1.5 font-semibold transition-opacity hover:opacity-70"
+                      style={{ color: '#F0EBE3', opacity: 0.5 }}
+                    >
+                      {descExpanded ? 'Show less' : 'Read more'}
+                    </button>
+                  )}
+                </>
+              )}
+              {hasVibes && (
+                <div className={`flex flex-wrap gap-2 ${hasDescription ? 'mt-3' : ''}`}>
+                  {tripInfo.vibes.map(vibe => (
+                    <div
+                      key={vibe}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
+                      style={{
+                        backgroundColor: 'rgba(240,235,227,0.07)',
+                        border: '0.5px solid rgba(240,235,227,0.14)',
+                        color: 'rgba(240,235,227,0.72)',
+                      }}
+                    >
+                      <span>{VIBE_ICONS[vibe.toLowerCase()] ?? '🏷️'}</span>
+                      <span style={{ textTransform: 'capitalize' }}>{vibe}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
 
-          {/* Info pills */}
+          {/* ── Info cards (labeled 2×2 grid) ────────────────────────────────── */}
           {(dateStr || tripInfo.pace || tripInfo.budget_level || tripInfo.max_group_size > 0) && (
-            <div className="flex gap-3 px-5 py-4 overflow-x-auto" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
+            <div
+              className="grid grid-cols-2 gap-2.5 px-5 py-4"
+              style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}
+            >
               {dateStr && (
-                <div className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-2.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="4" width="18" height="18" rx="2" stroke="rgba(255,255,255,0.4)" strokeWidth="1.8"/>
-                    <path d="M16 2v4M8 2v4M3 10h18" stroke="rgba(255,255,255,0.4)" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
-                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>{dateStr}</span>
+                <div className="rounded-2xl p-3.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-white/35 text-xs mb-1">Dates</p>
+                  <p className="text-white/80 text-sm font-semibold">📅 {dateStr}</p>
                 </div>
               )}
               {tripInfo.pace && (
-                <div className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-2.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
-                  <span style={{ fontSize: 14 }}>
-                    {tripInfo.pace === 'slow' ? '🐢' : tripInfo.pace === 'fast' ? '⚡️' : '⚖️'}
-                  </span>
-                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, textTransform: 'capitalize' }}>{tripInfo.pace}</span>
+                <div className="rounded-2xl p-3.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-white/35 text-xs mb-1">Pace</p>
+                  <p className="text-white/80 text-sm font-semibold capitalize">
+                    {tripInfo.pace === 'slow' ? '🐢' : tripInfo.pace === 'fast' ? '⚡️' : '⚖️'} {tripInfo.pace}
+                  </p>
                 </div>
               )}
               {tripInfo.budget_level && (
-                <div className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-2.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
-                  <span style={{ fontSize: 14 }}>💰</span>
-                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, textTransform: 'capitalize' }}>{tripInfo.budget_level}</span>
+                <div className="rounded-2xl p-3.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-white/35 text-xs mb-1">Budget</p>
+                  <p className="text-white/80 text-sm font-semibold capitalize">💰 {tripInfo.budget_level}</p>
                 </div>
               )}
               {tripInfo.max_group_size > 0 && (
-                <div className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-2.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <circle cx="9" cy="8" r="4" stroke="rgba(255,255,255,0.4)" strokeWidth="1.8"/>
-                    <path d="M2 20c0-3.3 3.1-6 7-6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.8" strokeLinecap="round"/>
-                    <circle cx="17" cy="9" r="3" stroke="rgba(255,255,255,0.4)" strokeWidth="1.8"/>
-                    <path d="M15 19c0-2.5 2-4 4-4" stroke="rgba(255,255,255,0.4)" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
-                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>Up to {tripInfo.max_group_size}</span>
+                <div className="rounded-2xl p-3.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-white/35 text-xs mb-1">Group size</p>
+                  <p className="text-white/80 text-sm font-semibold">👥 Up to {tripInfo.max_group_size}</p>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* ── Vibes ────────────────────────────────────────────────────────── */}
-          {hasVibes && (
-            <div className="px-5 py-4" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-white/35 text-xs font-semibold uppercase tracking-widest mb-3">Vibes</p>
-              <div className="flex flex-wrap gap-2">
-                {tripInfo.vibes.map(vibe => (
-                  <div
-                    key={vibe}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
-                    style={{
-                      backgroundColor: 'rgba(240,235,227,0.07)',
-                      border: '0.5px solid rgba(240,235,227,0.14)',
-                      color: 'rgba(240,235,227,0.72)',
-                    }}
-                  >
-                    <span>{VIBE_ICONS[vibe.toLowerCase()] ?? '🏷️'}</span>
-                    <span style={{ textTransform: 'capitalize' }}>{vibe}</span>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
@@ -273,30 +267,26 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
             </div>
           </button>
 
-          {/* ── Shared media grid ─────────────────────────────────────────────── */}
+          {/* ── Shared photos strip ──────────────────────────────────────────── */}
           {images.length > 0 && (
-            <div style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
-              <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+            <div className="py-4" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
+              <div className="px-5 mb-3 flex items-center justify-between">
                 <p className="text-white/35 text-xs font-semibold uppercase tracking-widest">Photos</p>
                 <p className="text-white/25 text-xs">
                   {images.length >= 30 ? '30+' : images.length} {images.length === 1 ? 'photo' : 'photos'}
                 </p>
               </div>
               <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: 2,
-                  paddingBottom: 16,
-                }}
+                className="flex gap-2 overflow-x-auto px-5"
+                style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
               >
                 {images.map(img => (
                   <button
                     key={img.id}
                     type="button"
                     onClick={() => setViewingImage(img.content)}
-                    className="overflow-hidden active:opacity-75 transition-opacity"
-                    style={{ aspectRatio: '1 / 1', display: 'block' }}
+                    className="shrink-0 rounded-2xl overflow-hidden active:opacity-75 transition-opacity"
+                    style={{ width: 120, height: 160 }}
                   >
                     <img
                       src={img.content}
