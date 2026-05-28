@@ -2,32 +2,35 @@
 
 import { useEffect, useState } from 'react'
 
-type NetworkStatus = 'online' | 'offline' | 'reconnected'
-
-let _status: NetworkStatus = typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online'
-const _listeners = new Set<(s: NetworkStatus) => void>()
-
-function _set(s: NetworkStatus) {
-  _status = s
-  _listeners.forEach(fn => fn(s))
-}
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('offline', () => _set('offline'))
-  window.addEventListener('online', () => {
-    _set('reconnected')
-    // Auto-clear "reconnected" toast after 2.5s
-    setTimeout(() => { if (_status === 'reconnected') _set('online') }, 2500)
-  })
-}
+export type NetworkStatus = 'online' | 'offline' | 'reconnected'
 
 export function useNetworkStatus(): NetworkStatus {
-  const [status, setStatus] = useState<NetworkStatus>(_status)
+  const [status, setStatus] = useState<NetworkStatus>('online')
 
   useEffect(() => {
-    _listeners.add(setStatus)
-    setStatus(_status)
-    return () => { _listeners.delete(setStatus) }
+    // Read real state after mount (navigator.onLine is unreliable before hydration)
+    if (!navigator.onLine) setStatus('offline')
+
+    let timer: ReturnType<typeof setTimeout>
+
+    const handleOffline = () => {
+      clearTimeout(timer)
+      setStatus('offline')
+    }
+
+    const handleOnline = () => {
+      clearTimeout(timer)
+      setStatus('reconnected')
+      timer = setTimeout(() => setStatus('online'), 2500)
+    }
+
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+    }
   }, [])
 
   return status
