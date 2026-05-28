@@ -43,7 +43,7 @@ export default function FeedPage() {
     }
   }, [])
 
-  const { data: trips, isLoading } = useQuery({
+  const { data: trips, isLoading, isError, refetch } = useQuery({
     queryKey: ['trips'],
     queryFn: getTrips,
   })
@@ -108,6 +108,17 @@ export default function FeedPage() {
             <div className="flex flex-col items-center justify-center gap-3 w-full">
               <div className="w-10 h-10 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
               <p className="text-white/30 text-sm">Loading trips...</p>
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center gap-4 w-full">
+              <p className="text-white/30 text-sm text-center">Couldn't load trips</p>
+              <button
+                onClick={() => refetch()}
+                className="px-5 py-2.5 rounded-2xl text-sm font-semibold"
+                style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff' }}
+              >
+                Try again
+              </button>
             </div>
           ) : trips && trips.length > 0 ? (
             <div className="w-full max-w-sm flex flex-col">

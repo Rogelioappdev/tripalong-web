@@ -65,14 +65,14 @@ export default function MessagesPage() {
     })
   }, [router])
 
-  const { data: tripChats = [] } = useQuery({
+  const { data: tripChats = [], isError: chatsError, refetch: refetchChats } = useQuery({
     queryKey: ['tripChats', userId],
     queryFn: () => getUserTripChats(userId!),
     enabled: !!userId,
     staleTime: 30_000,
   })
 
-  const { data: dms = [] } = useQuery({
+  const { data: dms = [], isError: dmsError, refetch: refetchDms } = useQuery({
     queryKey: ['dms', userId],
     queryFn: () => getDMConversations(userId!),
     enabled: !!userId,
@@ -133,7 +133,12 @@ export default function MessagesPage() {
             <h2 className="px-5 py-3 text-white/40 text-xs font-semibold uppercase tracking-widest border-b border-white/6">
               Trip Chats
             </h2>
-            {tripChats.length === 0 ? (
+            {chatsError ? (
+              <div className="px-5 py-6 flex flex-col items-center gap-3">
+                <p className="text-white/25 text-sm text-center">Couldn't load chats</p>
+                <button onClick={() => refetchChats()} className="text-white/50 text-xs font-semibold px-4 py-2 rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>Try again</button>
+              </div>
+            ) : tripChats.length === 0 ? (
               <div className="px-5 py-8 text-white/20 text-sm text-center">
                 Join a trip to start chatting
               </div>
@@ -187,7 +192,12 @@ export default function MessagesPage() {
             <h2 className="px-5 py-3 text-white/40 text-xs font-semibold uppercase tracking-widest border-b border-white/6 mt-4">
               Direct Messages
             </h2>
-            {dms.length === 0 ? (
+            {dmsError ? (
+              <div className="px-5 py-6 flex flex-col items-center gap-3">
+                <p className="text-white/25 text-sm text-center">Couldn't load messages</p>
+                <button onClick={() => refetchDms()} className="text-white/50 text-xs font-semibold px-4 py-2 rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>Try again</button>
+              </div>
+            ) : dms.length === 0 ? (
               <div className="px-5 py-8 text-white/20 text-sm text-center">
                 No direct messages yet
               </div>
