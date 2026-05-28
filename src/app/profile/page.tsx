@@ -77,6 +77,40 @@ const DNA_FIELDS = [
 ] as const
 
 
+function Bone({ className }: { className: string }) {
+  return <div className={`bg-white/8 rounded-2xl animate-pulse ${className}`} />
+}
+
+function ProfileSkeleton() {
+  return (
+    <>
+      <NavBar />
+      <main className="pt-14 min-h-screen bg-black pb-20">
+        <div className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-6">
+          <Bone className="w-full aspect-[3/2] rounded-3xl" />
+          <div className="border-t border-white/6 pt-6 flex flex-col gap-3">
+            <Bone className="w-20 h-3" />
+            <Bone className="w-36 h-6" />
+            <Bone className="w-24 h-4" />
+            <Bone className="w-full h-4" />
+            <Bone className="w-2/3 h-4" />
+          </div>
+          <div className="border-t border-white/6 pt-6 flex flex-col gap-2">
+            <Bone className="w-24 h-3 mb-2" />
+            {[0,1,2,3].map(i => <Bone key={i} className="w-full h-12" />)}
+          </div>
+          <div className="border-t border-white/6 pt-6">
+            <Bone className="w-16 h-3 mb-4" />
+            <div className="grid grid-cols-3 gap-1.5">
+              {[0,1,2].map(i => <Bone key={i} className="aspect-square" />)}
+            </div>
+          </div>
+        </div>
+      </main>
+    </>
+  )
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border-t border-white/6 pt-6">
@@ -138,6 +172,7 @@ export default function ProfilePage() {
   const [uploadingMain, setUploadingMain] = useState(false)
   const [uploadingGrid, setUploadingGrid] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [myTrips, setMyTrips] = useState<TripWithDetails[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -243,19 +278,19 @@ export default function ProfilePage() {
     setEditingField(null)
   }
 
-  if (loading) {
-    return (
-      <>
-        <NavBar />
-        <main className="pt-14 min-h-screen bg-black flex items-center justify-center">
-          <div className="w-7 h-7 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-        </main>
-      </>
-    )
-  }
+  if (loading) return <ProfileSkeleton />
 
   return (
     <>
+      {/* Global saved toast */}
+      {saved && (
+        <div className="fixed top-16 left-1/2 z-50 -translate-x-1/2 pointer-events-none">
+          <div className="bg-green-500 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-lg whitespace-nowrap">
+            Saved ✓
+          </div>
+        </div>
+      )}
+
       <NavBar />
       <main className="pt-14 min-h-screen bg-black pb-20 md:pb-8">
         <div className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-6">
@@ -342,7 +377,6 @@ export default function ProfilePage() {
                 ) : (
                   <p className="text-white/20 text-sm italic">No bio yet — tap Edit to add one</p>
                 )}
-                {saved && <p className="text-green-400 text-xs mt-2">Saved ✓</p>}
               </div>
             )}
           </Section>
@@ -538,13 +572,29 @@ export default function ProfilePage() {
 
           {/* Sign out */}
           <div className="pt-4 pb-8">
-            <button
-              type="button"
-              onClick={async () => { await supabase.auth.signOut(); router.replace('/') }}
-              className="w-full text-red-400 border border-red-400/20 font-semibold py-3.5 rounded-2xl text-sm hover:bg-red-400/8 transition-colors"
-            >
-              Sign Out
-            </button>
+            {showSignOutConfirm ? (
+              <div className="flex flex-col gap-2 p-4 rounded-2xl"
+                style={{ backgroundColor: 'rgba(255,59,48,0.07)', border: '1px solid rgba(255,59,48,0.18)' }}>
+                <p className="text-white/60 text-sm text-center mb-1">Sign out of TripAlong?</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setShowSignOutConfirm(false)}
+                    className="flex-1 py-3 rounded-2xl text-sm font-medium"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.55)' }}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={async () => { await supabase.auth.signOut(); router.replace('/') }}
+                    className="flex-1 py-3 rounded-2xl text-sm font-semibold"
+                    style={{ backgroundColor: '#FF3B30', color: '#fff' }}>
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setShowSignOutConfirm(true)}
+                className="w-full text-red-400 border border-red-400/20 font-semibold py-3.5 rounded-2xl text-sm transition-colors">
+                Sign Out
+              </button>
+            )}
           </div>
         </div>
       </main>
