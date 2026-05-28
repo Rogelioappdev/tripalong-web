@@ -2,11 +2,11 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { updateProfile } from '@/lib/queries'
+import { getProfile, updateProfile } from '@/lib/queries'
 
 type DNAData = {
   gender: string
@@ -112,8 +112,12 @@ const slideVariants = {
 
 export default function TravelDNAPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const returnTo = searchParams.get('from') ?? '/feed'
+
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
+  const [loaded, setLoaded] = useState(false)
   const [data, setData] = useState<DNAData>({
     gender: '',
     travel_styles: [],
@@ -124,6 +128,26 @@ export default function TravelDNAPage() {
     travel_with: '',
   })
   const [saving, setSaving] = useState(false)
+
+  // Pre-populate with existing profile data
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const profile = await getProfile(user.id)
+      if (profile) {
+        setData({
+          gender: profile.gender ?? '',
+          travel_styles: profile.travel_styles ?? [],
+          travel_pace: profile.travel_pace ?? '',
+          social_energy: profile.social_energy ?? '',
+          planning_style: profile.planning_style ?? '',
+          experience_level: profile.experience_level ?? '',
+          travel_with: profile.travel_with ?? '',
+        })
+      }
+      setLoaded(true)
+    })
+  }, [])
 
   const currentStep = STEPS[step]
 
@@ -166,7 +190,7 @@ export default function TravelDNAPage() {
           experience_level: data.experience_level as 'beginner' | 'intermediate' | 'experienced' | 'expert',
           travel_with: data.travel_with as 'male' | 'female' | 'everyone',
         })
-        router.replace('/feed')
+        router.replace(returnTo)
       } finally {
         setSaving(false)
       }
@@ -177,9 +201,17 @@ export default function TravelDNAPage() {
   }
 
   const goBack = () => {
-    if (step === 0) { router.replace('/feed'); return }
+    if (step === 0) { router.replace(returnTo); return }
     setDirection(-1)
     setStep(s => s - 1)
+  }
+
+  if (!loaded) {
+    return (
+      <main className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-7 h-7 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+      </main>
+    )
   }
 
   return (
@@ -189,7 +221,7 @@ export default function TravelDNAPage() {
         <div className="flex items-center justify-between mb-6">
           <button onClick={goBack} className="text-white/30 text-sm">← Back</button>
           <span className="text-white/30 text-sm">{step + 1} of {STEPS.length}</span>
-          <button onClick={() => router.replace('/feed')} className="text-white/30 text-sm">Skip</button>
+          <button onClick={() => router.replace(returnTo)} className="text-white/30 text-sm">Skip</button>
         </div>
 
         {/* Progress bar */}

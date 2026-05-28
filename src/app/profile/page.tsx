@@ -267,7 +267,7 @@ export default function ProfilePage() {
               </div>
             )}
             <button
-              onClick={() => router.push('/travel-dna')}
+              onClick={() => router.push('/travel-dna?from=/profile')}
               className="mt-3 text-accent text-sm"
             >
               Edit Travel DNA →
@@ -278,11 +278,12 @@ export default function ProfilePage() {
           <Section title="Photos">
             <div className="grid grid-cols-3 gap-1.5">
               {(profile?.photos ?? []).map((url, i) => (
-                <div key={i} className="aspect-square rounded-2xl overflow-hidden relative group">
+                <div key={i} className="aspect-square rounded-2xl overflow-hidden relative">
                   <img src={url} alt="" className="w-full h-full object-cover" />
                   <button
                     onClick={() => removePhoto(url)}
-                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 11 }}
                   >✕</button>
                 </div>
               ))}
