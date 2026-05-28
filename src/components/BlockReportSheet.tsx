@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { blockUser, reportUser } from '@/lib/queries'
 
+
 const REPORT_REASONS = [
   { id: 'spam', label: 'Spam or scam', icon: '🚫' },
   { id: 'harassment', label: 'Harassment or bullying', icon: '⚠️' },
@@ -41,10 +42,14 @@ export function BlockReportSheet({ userId, userName, userPhoto, onClose, onBlock
   const handleReport = async () => {
     if (!selectedReason) return
     setLoading(true)
-    await reportUser(userId, selectedReason, details.trim() || undefined)
+    await Promise.all([
+      reportUser(userId, selectedReason, details.trim() || undefined),
+      blockUser(userId),
+    ])
     setLoading(false)
-    setSuccessMsg("Thanks for the report. We'll review it shortly.")
+    setSuccessMsg(`${userName} has been reported and blocked.`)
     setPhase('success')
+    onBlocked?.()
   }
 
   return (

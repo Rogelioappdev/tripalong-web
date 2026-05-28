@@ -458,6 +458,10 @@ export async function reportUser(reportedId: string, reason: string, details?: s
   const uid = (await supabase.auth.getUser()).data.user?.id
   if (!uid) return
   await supabase.from('user_reports').insert({ reporter_id: uid, reported_id: reportedId, reason, details: details ?? null })
+  // Fire-and-forget — email admin, don't block on delivery
+  supabase.functions.invoke('report-notify', {
+    body: { reporter_id: uid, reported_id: reportedId, reason, details: details ?? null },
+  }).catch(() => {})
 }
 
 export async function getSavedTrips(userId: string): Promise<TripWithDetails[]> {
