@@ -50,6 +50,24 @@ export async function getTrips(): Promise<TripWithDetails[]> {
     })) as TripWithDetails[]
 }
 
+export async function getMyTrips(userId: string): Promise<TripWithDetails[]> {
+  const { data, error } = await supabase
+    .from('trips')
+    .select(`
+      *,
+      creator:users!creator_id(id, name, profile_photo),
+      members:trip_members(user_id, user:users(id, name, profile_photo))
+    `)
+    .eq('creator_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []).map((trip: any) => ({
+    ...trip,
+    member_count: trip.members?.length ?? 0,
+    save_count: 0,
+  })) as TripWithDetails[]
+}
+
 export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
   const { data, error } = await supabase
     .from('trips')

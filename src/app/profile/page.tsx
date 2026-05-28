@@ -6,8 +6,9 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getProfile, updateProfile } from '@/lib/queries'
-import type { UserProfile } from '@/lib/types'
+import { getProfile, updateProfile, getMyTrips } from '@/lib/queries'
+import type { UserProfile, TripWithDetails } from '@/lib/types'
+import { PublicProfileModal } from '@/components/PublicProfileModal'
 
 // ── DNA field definitions (single source of truth on this page) ───────────
 const DNA_FIELDS = [
@@ -85,12 +86,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function ChipList({ items, onAdd, onRemove, placeholder, emoji }: {
+function ChipList({ items, onAdd, onRemove, placeholder, emoji, saving, saved }: {
   items: string[]
   onAdd: (val: string) => void
   onRemove: (val: string) => void
   placeholder: string
   emoji: string
+  saving?: boolean
+  saved?: boolean
 }) {
   const [input, setInput] = useState('')
   const [adding, setAdding] = useState(false)
@@ -100,12 +103,14 @@ function ChipList({ items, onAdd, onRemove, placeholder, emoji }: {
         {items.map(item => (
           <div key={item} className="flex items-center gap-1.5 bg-white/8 rounded-full px-3 py-1.5">
             <span className="text-xs text-white/70">{emoji} {item}</span>
-            <button onClick={() => onRemove(item)} className="text-white/30 hover:text-white/60 text-xs leading-none">✕</button>
+            <button type="button" onClick={() => onRemove(item)} className="text-white/30 hover:text-white/60 text-xs leading-none">✕</button>
           </div>
         ))}
-        <button onClick={() => setAdding(true)} className="text-accent text-xs px-3 py-1.5 bg-white/4 rounded-full border border-white/10">
+        <button type="button" onClick={() => setAdding(true)} className="text-accent text-xs px-3 py-1.5 bg-white/4 rounded-full border border-white/10">
           + Add
         </button>
+        {saving && <div className="w-4 h-4 border-2 border-white/20 border-t-white/50 rounded-full animate-spin self-center" />}
+        {saved && !saving && <span className="text-green-400 text-xs self-center">Saved ✓</span>}
       </div>
       {adding && (
         <form onSubmit={e => { e.preventDefault(); if (input.trim()) { onAdd(input.trim()); setInput(''); setAdding(false) } }}
@@ -132,6 +137,8 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false)
   const [uploadingMain, setUploadingMain] = useState(false)
   const [uploadingGrid, setUploadingGrid] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [myTrips, setMyTrips] = useState<TripWithDetails[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Basic info edit
@@ -139,6 +146,7 @@ export default function ProfilePage() {
   const [bio, setBio] = useState('')
   const [city, setCity] = useState('')
   const [countryVal, setCountryVal] = useState('')
+  const [ageVal, setAgeVal] = useState('')
   const [editingBasic, setEditingBasic] = useState(false)
 
   // DNA per-field edit
@@ -148,14 +156,19 @@ export default function ProfilePage() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) { router.replace('/'); return }
-      const p = await getProfile(data.user.id)
+      const [p, trips] = await Promise.all([
+        getProfile(data.user.id),
+        getMyTrips(data.user.id).catch(() => [] as TripWithDetails[]),
+      ])
       if (p) {
         setProfile(p)
         setName(p.name ?? '')
         setBio(p.bio ?? '')
         setCity(p.city ?? '')
         setCountryVal(p.country ?? '')
+        setAgeVal(p.age != null ? String(p.age) : '')
       }
+      setMyTrips(trips)
       setLoading(false)
     })
   }, [router])
@@ -254,12 +267,22 @@ export default function ProfilePage() {
             ) : (
               <div className="w-full h-full flex items-center justify-center text-5xl">👤</div>
             )}
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl"
-            >
-              {uploadingMain ? '...' : '📷 Change photo'}
-            </button>
+            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPreview(true)}
+                className="bg-black/60 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl"
+              >
+                👁 Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="bg-black/60 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl"
+              >
+                {uploadingMain ? '...' : '📷 Change photo'}
+              </button>
+            </div>
             <input ref={fileRef} type="file" accept="image/*" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }} />
           </div>
@@ -268,9 +291,15 @@ export default function ProfilePage() {
           <Section title="About You">
             {editingBasic ? (
               <div className="flex flex-col gap-3">
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="Name"
-                  className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30"
-                  style={{ fontSize: 16 }} />
+                <div className="flex gap-3">
+                  <input value={name} onChange={e => setName(e.target.value)} placeholder="Name"
+                    className="flex-1 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30"
+                    style={{ fontSize: 16 }} />
+                  <input value={ageVal} onChange={e => setAgeVal(e.target.value.replace(/\D/g, ''))} placeholder="Age"
+                    inputMode="numeric" maxLength={3}
+                    className="w-20 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30"
+                    style={{ fontSize: 16 }} />
+                </div>
                 <div className="flex gap-3">
                   <input value={city} onChange={e => setCity(e.target.value)} placeholder="City"
                     className="flex-1 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30"
@@ -283,12 +312,12 @@ export default function ProfilePage() {
                   className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30 resize-none placeholder-white/25"
                   style={{ fontSize: 16 }} />
                 <div className="flex gap-3">
-                  <button onClick={() => { save({ name, bio, city, country: countryVal }); setEditingBasic(false) }}
+                  <button type="button" onClick={() => { save({ name, bio, city, country: countryVal, age: ageVal ? parseInt(ageVal, 10) : null }); setEditingBasic(false) }}
                     disabled={saving}
                     className="flex-1 bg-white text-black font-semibold py-3 rounded-2xl text-sm disabled:opacity-40">
                     {saving ? 'Saving...' : 'Save'}
                   </button>
-                  <button onClick={() => setEditingBasic(false)}
+                  <button type="button" onClick={() => setEditingBasic(false)}
                     className="flex-1 bg-white/8 text-white/60 font-medium py-3 rounded-2xl text-sm">
                     Cancel
                   </button>
@@ -454,6 +483,8 @@ export default function ProfilePage() {
               onRemove={v => save({ languages: (profile?.languages ?? []).filter(x => x !== v) })}
               placeholder="e.g. Spanish"
               emoji="🗣️"
+              saving={saving}
+              saved={saved}
             />
           </Section>
 
@@ -465,6 +496,8 @@ export default function ProfilePage() {
               onRemove={v => save({ places_visited: (profile?.places_visited ?? []).filter(x => x !== v) })}
               placeholder="e.g. Japan"
               emoji="🌍"
+              saving={saving}
+              saved={saved}
             />
           </Section>
 
@@ -476,12 +509,37 @@ export default function ProfilePage() {
               onRemove={v => save({ bucket_list: (profile?.bucket_list ?? []).filter(x => x !== v) })}
               placeholder="e.g. Patagonia"
               emoji="✈️"
+              saving={saving}
+              saved={saved}
             />
           </Section>
+
+          {/* My Trips */}
+          {myTrips.length > 0 && (
+            <Section title="My Trips">
+              <div className="flex flex-col gap-3">
+                {myTrips.map(trip => (
+                  <div key={trip.id} className="flex items-center gap-3 rounded-2xl overflow-hidden"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    {trip.cover_image ? (
+                      <img src={trip.cover_image} alt="" className="w-16 h-16 object-cover shrink-0" />
+                    ) : (
+                      <div className="w-16 h-16 bg-white/8 shrink-0 flex items-center justify-center text-2xl">🌍</div>
+                    )}
+                    <div className="flex-1 min-w-0 py-3 pr-3">
+                      <p className="text-white font-semibold text-sm truncate">{trip.destination}{trip.country ? `, ${trip.country}` : ''}</p>
+                      <p className="text-white/40 text-xs mt-0.5">{trip.member_count} member{trip.member_count !== 1 ? 's' : ''} · {trip.status}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
 
           {/* Sign out */}
           <div className="pt-4 pb-8">
             <button
+              type="button"
               onClick={async () => { await supabase.auth.signOut(); router.replace('/') }}
               className="w-full text-red-400 border border-red-400/20 font-semibold py-3.5 rounded-2xl text-sm hover:bg-red-400/8 transition-colors"
             >
@@ -490,6 +548,11 @@ export default function ProfilePage() {
           </div>
         </div>
       </main>
+
+      {/* Preview modal */}
+      {showPreview && profile && (
+        <PublicProfileModal userId={profile.id} onClose={() => setShowPreview(false)} />
+      )}
     </>
   )
 }
