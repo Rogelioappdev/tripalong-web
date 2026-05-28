@@ -75,35 +75,6 @@ const DNA_FIELDS = [
   },
 ] as const
 
-type DNAValues = {
-  gender: string
-  travel_styles: string[]
-  travel_pace: string
-  social_energy: string
-  planning_style: string
-  experience_level: string
-  travel_with: string
-}
-
-function dnaFromProfile(p: UserProfile): DNAValues {
-  return {
-    gender: p.gender ?? '',
-    travel_styles: p.travel_styles ?? [],
-    travel_pace: p.travel_pace ?? '',
-    social_energy: p.social_energy ?? '',
-    planning_style: p.planning_style ?? '',
-    experience_level: p.experience_level ?? '',
-    travel_with: p.travel_with ?? '',
-  }
-}
-
-// ── Shared helpers ────────────────────────────────────────────────────────
-const PACE_LABELS: Record<string, string> = { slow: '☕ Slow & Steady', balanced: '⚖️ Balanced', fast: '⚡ Fast-paced' }
-const ENERGY_LABELS: Record<string, string> = { introvert: '🌙 Introvert', extrovert: '☀️ Extrovert', ambivert: '🌗 Ambivert' }
-const PLANNING_LABELS: Record<string, string> = { planner: '📋 Planner', spontaneous: '🎲 Spontaneous', flexible: '🤸 Flexible' }
-const EXP_LABELS: Record<string, string> = { beginner: '🌱 Beginner', intermediate: '🌿 Intermediate', experienced: '✈️ Experienced', expert: '🌍 Expert' }
-const GENDER_LABELS: Record<string, string> = { male: '👨 Man', female: '👩 Woman', other: '🌟 Non-binary' }
-const TRAVEL_WITH_LABELS: Record<string, string> = { everyone: '🌍 Everyone', female: '👩 Women only', male: '👨 Men only' }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -170,12 +141,9 @@ export default function ProfilePage() {
   const [countryVal, setCountryVal] = useState('')
   const [editingBasic, setEditingBasic] = useState(false)
 
-  // DNA inline edit
-  const [editingDNA, setEditingDNA] = useState(false)
-  const [dnaEdit, setDnaEdit] = useState<DNAValues>({
-    gender: '', travel_styles: [], travel_pace: '',
-    social_energy: '', planning_style: '', experience_level: '', travel_with: '',
-  })
+  // DNA per-field edit
+  const [editingField, setEditingField] = useState<string | null>(null)
+  const [fieldDraft, setFieldDraft] = useState<string | string[]>('')
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -239,38 +207,27 @@ export default function ProfilePage() {
     save({ photos: (profile.photos ?? []).filter(p => p !== url) })
   }
 
-  // DNA helpers
-  const openDNAEdit = () => {
-    if (profile) setDnaEdit(dnaFromProfile(profile))
-    setEditingDNA(true)
+  // DNA per-field helpers
+  const openFieldEdit = (field: typeof DNA_FIELDS[number]) => {
+    const raw = profile?.[field.key as keyof UserProfile]
+    setFieldDraft(field.multi ? ((raw as string[]) ?? []) : ((raw as string) ?? ''))
+    setEditingField(field.key)
   }
 
-  const toggleDNA = (key: string, value: string, multi: boolean) => {
-    setDnaEdit(prev => {
-      if (multi) {
-        const arr = (prev[key as keyof DNAValues] as string[])
-        return { ...prev, [key]: arr.includes(value) ? arr.filter(x => x !== value) : [...arr, value] }
-      }
-      return { ...prev, [key]: value }
-    })
+  const toggleFieldDraft = (value: string, multi: boolean) => {
+    if (multi) {
+      setFieldDraft(prev => {
+        const arr = prev as string[]
+        return arr.includes(value) ? arr.filter(x => x !== value) : [...arr, value]
+      })
+    } else {
+      setFieldDraft(value)
+    }
   }
 
-  const isDNASelected = (key: string, value: string) => {
-    const v = dnaEdit[key as keyof DNAValues]
-    return Array.isArray(v) ? v.includes(value) : v === value
-  }
-
-  const saveDNA = async () => {
-    await save({
-      gender: (dnaEdit.gender || null) as UserProfile['gender'],
-      travel_styles: dnaEdit.travel_styles,
-      travel_pace: (dnaEdit.travel_pace || null) as UserProfile['travel_pace'],
-      social_energy: (dnaEdit.social_energy || null) as UserProfile['social_energy'],
-      planning_style: (dnaEdit.planning_style || null) as UserProfile['planning_style'],
-      experience_level: (dnaEdit.experience_level || null) as UserProfile['experience_level'],
-      travel_with: (dnaEdit.travel_with || null) as UserProfile['travel_with'],
-    })
-    setEditingDNA(false)
+  const saveField = async (key: string, value: string | string[]) => {
+    await save({ [key]: (Array.isArray(value) ? value : value || null) } as Partial<UserProfile>)
+    setEditingField(null)
   }
 
   if (loading) {
@@ -361,95 +318,114 @@ export default function ProfilePage() {
             )}
           </Section>
 
-          {/* Travel DNA */}
+          {/* Travel DNA — per-field tap-to-edit */}
           <Section title="Travel DNA">
-            {editingDNA ? (
-              <div className="flex flex-col gap-5">
-                {DNA_FIELDS.map(field => (
-                  <div key={field.key}>
-                    <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-2">{field.label}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {field.options.map(opt => {
-                        const selected = isDNASelected(field.key, opt.value)
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => toggleDNA(field.key, opt.value, field.multi)}
-                            className="px-3 py-2 rounded-full text-sm font-semibold border transition-all active:scale-95"
-                            style={{
-                              backgroundColor: selected ? '#F0EBE3' : 'rgba(255,255,255,0.06)',
-                              color: selected ? '#000' : 'rgba(255,255,255,0.6)',
-                              borderColor: selected ? 'transparent' : 'rgba(255,255,255,0.12)',
-                            }}
-                          >
-                            {opt.emoji} {opt.label}
-                          </button>
-                        )
-                      })}
-                    </div>
+            <div className="flex flex-col gap-2">
+              {DNA_FIELDS.map(field => {
+                const isEditing = editingField === field.key
+                const rawVal = profile?.[field.key as keyof UserProfile]
+                const displayPills = field.multi
+                  ? ((rawVal as string[]) ?? []).flatMap(v => { const o = field.options.find(x => x.value === v); return o ? [o] : [] })
+                  : null
+                const displaySingle = !field.multi && rawVal
+                  ? field.options.find(o => o.value === rawVal)
+                  : null
+
+                return (
+                  <div key={field.key}
+                    className="rounded-2xl transition-colors"
+                    style={{ backgroundColor: isEditing ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.04)', border: isEditing ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.06)' }}
+                  >
+                    {/* Row header */}
+                    <button
+                      type="button"
+                      onClick={() => isEditing ? setEditingField(null) : openFieldEdit(field)}
+                      className="w-full flex items-center justify-between px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-white/30 text-xs font-semibold uppercase tracking-widest shrink-0">{field.label}</span>
+                        {!isEditing && (
+                          field.multi
+                            ? displayPills && displayPills.length > 0
+                              ? <div className="flex flex-wrap gap-1.5 ml-1">
+                                  {displayPills.map(o => (
+                                    <span key={o.value} className="text-xs bg-white/10 rounded-full px-2 py-0.5 text-white/70">{o.emoji} {o.label}</span>
+                                  ))}
+                                </div>
+                              : <span className="text-white/20 text-xs ml-1">Not set</span>
+                            : displaySingle
+                              ? <span className="text-white text-sm font-medium ml-1">{displaySingle.emoji} {displaySingle.label}</span>
+                              : <span className="text-white/20 text-xs ml-1">Not set</span>
+                        )}
+                      </div>
+                      <span className="text-white/25 text-xs shrink-0 ml-2">{isEditing ? '✕' : 'Edit'}</span>
+                    </button>
+
+                    {/* Expanded option picker */}
+                    {isEditing && (
+                      <div className="px-4 pb-4">
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {field.options.map(opt => {
+                            const sel = field.multi
+                              ? (fieldDraft as string[]).includes(opt.value)
+                              : fieldDraft === opt.value
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => {
+                                  if (!field.multi) {
+                                    saveField(field.key, opt.value)
+                                  } else {
+                                    toggleFieldDraft(opt.value, true)
+                                  }
+                                }}
+                                className="px-3 py-2 rounded-full text-sm font-semibold border transition-all active:scale-95"
+                                style={{
+                                  backgroundColor: sel ? '#F0EBE3' : 'rgba(255,255,255,0.06)',
+                                  color: sel ? '#000' : 'rgba(255,255,255,0.6)',
+                                  borderColor: sel ? 'transparent' : 'rgba(255,255,255,0.12)',
+                                }}
+                              >
+                                {opt.emoji} {opt.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        {field.multi && (
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => saveField(field.key, fieldDraft as string[])}
+                              disabled={saving}
+                              className="flex-1 py-2.5 rounded-2xl text-sm font-semibold disabled:opacity-40"
+                              style={{ backgroundColor: '#F0EBE3', color: '#000' }}>
+                              {saving ? 'Saving…' : 'Save'}
+                            </button>
+                            <button type="button" onClick={() => setEditingField(null)}
+                              className="px-5 py-2.5 rounded-2xl text-sm"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))}
-                <div className="flex gap-3 pt-1">
-                  <button onClick={saveDNA} disabled={saving}
-                    className="flex-1 bg-white text-black font-semibold py-3 rounded-2xl text-sm disabled:opacity-40">
-                    {saving ? 'Saving...' : 'Save'}
-                  </button>
-                  <button onClick={() => setEditingDNA(false)}
-                    className="flex-1 bg-white/8 text-white/60 font-medium py-3 rounded-2xl text-sm">
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  {[
-                    { label: 'Pace', value: profile?.travel_pace ? PACE_LABELS[profile.travel_pace] : null },
-                    { label: 'Social', value: profile?.social_energy ? ENERGY_LABELS[profile.social_energy] : null },
-                    { label: 'Planning', value: profile?.planning_style ? PLANNING_LABELS[profile.planning_style] : null },
-                    { label: 'Experience', value: profile?.experience_level ? EXP_LABELS[profile.experience_level] : null },
-                    { label: 'Gender', value: profile?.gender ? GENDER_LABELS[profile.gender] : null },
-                    { label: 'Travel with', value: profile?.travel_with ? TRAVEL_WITH_LABELS[profile.travel_with] : null },
-                  ].map(item => item.value && (
-                    <div key={item.label} className="bg-white/4 rounded-2xl px-4 py-3">
-                      <p className="text-white/30 text-xs mb-1">{item.label}</p>
-                      <p className="text-white text-sm font-medium">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-                {profile?.travel_styles && profile.travel_styles.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {profile.travel_styles.map(s => {
-                      const style = DNA_FIELDS[1].options.find(o => o.value === s)
-                      return style ? (
-                        <span key={s} className="text-xs bg-white/8 rounded-full px-3 py-1.5 text-white/60">
-                          {style.emoji} {style.label}
-                        </span>
-                      ) : null
-                    })}
-                  </div>
-                )}
-                <button
-                  onClick={openDNAEdit}
-                  className="text-white/40 text-sm hover:text-white transition-colors"
-                >
-                  Edit →
-                </button>
-              </div>
-            )}
+                )
+              })}
+            </div>
           </Section>
 
           {/* Photos grid */}
           <Section title="Photos">
             <div className="grid grid-cols-3 gap-1.5">
-              {(profile?.photos ?? []).map((url, i) => (
-                <div key={i} className="aspect-square rounded-2xl overflow-hidden relative">
+              {(profile?.photos ?? []).map((url) => (
+                <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
                   <img src={url} alt="" className="w-full h-full object-cover" />
                   <button
+                    type="button"
                     onClick={() => removePhoto(url)}
-                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 11, lineHeight: 1 }}
+                    className="absolute top-1 right-1 z-10 w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 13, lineHeight: 1 }}
                   >✕</button>
                 </div>
               ))}
