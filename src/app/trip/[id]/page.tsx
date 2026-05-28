@@ -103,7 +103,7 @@ export default function TripLandingPage() {
   const vibes: string[] = (trip as any).vibes ?? []
 
   return (
-    <div className="min-h-screen bg-black flex flex-col" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}>
+    <div className="min-h-screen bg-black flex flex-col" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 180px)' }}>
 
       {/* Hero */}
       <div className="relative shrink-0" style={{ height: 300 }}>
@@ -256,8 +256,16 @@ export default function TripLandingPage() {
         )}
       </div>
 
-      {/* CTA */}
-      <div className="px-5 pt-5">
+      {/* CTA — fixed above the tab bar so it's always reachable */}
+      <div
+        className="fixed left-0 right-0 px-5"
+        style={{
+          bottom: 0,
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 90px)',
+          paddingTop: 24,
+          background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.88) 28%, #000 60%)',
+        }}
+      >
         {joinError && (
           <p className="text-center text-sm mb-3" style={{ color: '#FF453A' }}>{joinError}</p>
         )}
