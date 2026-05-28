@@ -1,18 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { leaveTripFromChat, getTripChatMuted, setTripChatMuted } from '@/lib/queries'
+import { leaveTripFromChat, getTripChatMuted, setTripChatMuted, getChatImages } from '@/lib/queries'
 import { useOnlineUsers } from '@/lib/presence'
 import { PublicProfileModal } from './PublicProfileModal'
 import type { TripWithDetails } from '@/lib/types'
 
-interface TripGroupInfoSheetProps {
-  chatId: string
-  tripInfo: TripWithDetails
-  userId: string
-  onClose: () => void
-  onLeft: () => void
+const VIBE_ICONS: Record<string, string> = {
+  beach: '🏖️', adventure: '🧗', nightlife: '🎉', culture: '🏛️',
+  food: '🍜', nature: '🌿', luxury: '✨', backpacker: '🎒',
+  party: '🎊', chill: '😌', sports: '⚽', photography: '📸',
+  hiking: '🥾', roadtrip: '🚗', festival: '🎵', wellness: '🧘',
+  history: '🏺', art: '🎨', shopping: '🛍️', skiing: '⛷️',
+  diving: '🤿', surfing: '🏄', camping: '⛺', wildlife: '🦁',
+  music: '🎶', spiritual: '🕌', volunteer: '🤝', yoga: '🧘',
 }
 
 function formatDates(start: string | null, end: string | null): string {
@@ -23,22 +26,39 @@ function formatDates(start: string | null, end: string | null): string {
   return `Until ${fmt(end!)}`
 }
 
+interface TripGroupInfoSheetProps {
+  chatId: string
+  tripInfo: TripWithDetails
+  userId: string
+  onClose: () => void
+  onLeft: () => void
+}
+
 export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }: TripGroupInfoSheetProps) {
   const [leaving, setLeaving] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [muted, setMuted] = useState(false)
+  const [descExpanded, setDescExpanded] = useState(false)
+  const [images, setImages] = useState<{ id: string; content: string }[]>([])
+  const [viewingImage, setViewingImage] = useState<string | null>(null)
   const onlineUsers = useOnlineUsers()
 
   useEffect(() => {
     getTripChatMuted(chatId).then(setMuted)
+    getChatImages(chatId).then(setImages)
   }, [chatId])
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (viewingImage) setViewingImage(null)
+        else onClose()
+      }
+    }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  }, [onClose, viewingImage])
 
   const handleToggleMute = async () => {
     const next = !muted
@@ -58,7 +78,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
     }
   }
 
-  // Sort: "You" first, creator second, rest alphabetically
+  // Sort: You first, creator second, then alphabetical
   const rawMembers = tripInfo.members ?? []
   const members = [...rawMembers].sort((a: any, b: any) => {
     const aId = a.user?.id
@@ -69,7 +89,11 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
     if (bId === tripInfo.creator_id) return 1
     return (a.user?.name ?? '').localeCompare(b.user?.name ?? '')
   })
+
   const dateStr = formatDates(tripInfo.start_date, tripInfo.end_date)
+  const hasDescription = !!tripInfo.description?.trim()
+  const descLong = (tripInfo.description?.length ?? 0) > 120
+  const hasVibes = (tripInfo.vibes?.length ?? 0) > 0
 
   return (
     <>
@@ -97,7 +121,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
           <div className="flex-1 min-w-0">
             <p className="text-white font-bold text-base">Group Info</p>
             <p className="text-white/40 text-xs truncate">
-              {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}
+              {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''} · {members.length} members
             </p>
           </div>
         </div>
@@ -130,8 +154,36 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
             </div>
           </div>
 
+          {/* ── Description ─────────────────────────────────────────────────── */}
+          {hasDescription && (
+            <div className="px-5 py-4" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-white/35 text-xs font-semibold uppercase tracking-widest mb-2">About</p>
+              <p
+                className="text-white/70 text-sm leading-relaxed"
+                style={!descExpanded ? {
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                } as React.CSSProperties : undefined}
+              >
+                {tripInfo.description}
+              </p>
+              {descLong && (
+                <button
+                  type="button"
+                  onClick={() => setDescExpanded(p => !p)}
+                  className="text-xs mt-2 font-semibold transition-opacity hover:opacity-70"
+                  style={{ color: '#F0EBE3', opacity: 0.55 }}
+                >
+                  {descExpanded ? 'Show less' : 'Read more'}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Info pills */}
-          {(dateStr || tripInfo.budget_level || tripInfo.max_group_size > 0 || tripInfo.pace) && (
+          {(dateStr || tripInfo.pace || tripInfo.budget_level || tripInfo.max_group_size > 0) && (
             <div className="flex gap-3 px-5 py-4 overflow-x-auto" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
               {dateStr && (
                 <div className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-2.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
@@ -170,6 +222,29 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
             </div>
           )}
 
+          {/* ── Vibes ────────────────────────────────────────────────────────── */}
+          {hasVibes && (
+            <div className="px-5 py-4" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-white/35 text-xs font-semibold uppercase tracking-widest mb-3">Vibes</p>
+              <div className="flex flex-wrap gap-2">
+                {tripInfo.vibes.map(vibe => (
+                  <div
+                    key={vibe}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
+                    style={{
+                      backgroundColor: 'rgba(240,235,227,0.07)',
+                      border: '0.5px solid rgba(240,235,227,0.14)',
+                      color: 'rgba(240,235,227,0.72)',
+                    }}
+                  >
+                    <span>{VIBE_ICONS[vibe.toLowerCase()] ?? '🏷️'}</span>
+                    <span style={{ textTransform: 'capitalize' }}>{vibe}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Mute toggle row */}
           <button
             type="button"
@@ -181,9 +256,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
             <div
               className="relative transition-colors"
               style={{
-                width: 44,
-                height: 26,
-                borderRadius: 13,
+                width: 44, height: 26, borderRadius: 13,
                 backgroundColor: muted ? '#30D158' : 'rgba(255,255,255,0.15)',
                 flexShrink: 0,
               }}
@@ -191,17 +264,50 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
               <div
                 className="absolute top-0.5 transition-transform"
                 style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: '50%',
-                  backgroundColor: '#fff',
-                  left: 2,
+                  width: 22, height: 22, borderRadius: '50%',
+                  backgroundColor: '#fff', left: 2,
                   transform: muted ? 'translateX(18px)' : 'translateX(0px)',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
                 }}
               />
             </div>
           </button>
+
+          {/* ── Shared media grid ─────────────────────────────────────────────── */}
+          {images.length > 0 && (
+            <div style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+                <p className="text-white/35 text-xs font-semibold uppercase tracking-widest">Photos</p>
+                <p className="text-white/25 text-xs">
+                  {images.length >= 30 ? '30+' : images.length} {images.length === 1 ? 'photo' : 'photos'}
+                </p>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 2,
+                  paddingBottom: 16,
+                }}
+              >
+                {images.map(img => (
+                  <button
+                    key={img.id}
+                    type="button"
+                    onClick={() => setViewingImage(img.content)}
+                    className="overflow-hidden active:opacity-75 transition-opacity"
+                    style={{ aspectRatio: '1 / 1', display: 'block' }}
+                  >
+                    <img
+                      src={img.content}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Members header */}
           <div className="px-5 pt-5 pb-1">
@@ -217,6 +323,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
               if (!u) return null
               const isCreator = u.id === tripInfo.creator_id
               const isMe = u.id === userId
+              const isOnline = onlineUsers.has(u.id)
               return (
                 <button
                   key={u.id}
@@ -235,7 +342,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                         </div>
                       )}
                     </div>
-                    {onlineUsers.has(u.id) && (
+                    {isOnline && (
                       <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full" style={{ backgroundColor: '#30D158', border: '2px solid #000' }} />
                     )}
                   </div>
@@ -245,10 +352,10 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                       {isCreator && (
                         <span style={{ color: '#F0EBE3', opacity: 0.5 }}>Creator</span>
                       )}
-                      {isCreator && onlineUsers.has(u.id) && (
+                      {isCreator && isOnline && (
                         <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
                       )}
-                      {onlineUsers.has(u.id) && (
+                      {isOnline && (
                         <span style={{ color: '#30D158' }}>Online</span>
                       )}
                     </p>
@@ -302,9 +409,37 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
         </div>
       </motion.div>
 
-      {/* Member profile — z-[70] from PublicProfileModal's own portal */}
+      {/* Member profile modal */}
       {selectedMemberId && (
         <PublicProfileModal userId={selectedMemberId} onClose={() => setSelectedMemberId(null)} />
+      )}
+
+      {/* Full-screen image viewer */}
+      {viewingImage && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.96)' }}
+          onClick={() => setViewingImage(null)}
+        >
+          <img
+            src={viewingImage}
+            alt=""
+            className="max-w-full max-h-full object-contain"
+            style={{ maxWidth: '100vw', maxHeight: '100dvh', padding: 16 }}
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setViewingImage(null)}
+            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full"
+            style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>,
+        document.body
       )}
     </>
   )

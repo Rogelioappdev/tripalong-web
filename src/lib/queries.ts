@@ -416,6 +416,18 @@ export async function leaveTrip(tripId: string, userId: string) {
   if (error) throw error
 }
 
+export async function getChatImages(chatId: string): Promise<{ id: string; content: string }[]> {
+  const { data, error } = await supabase
+    .from('trip_messages')
+    .select('id, content')
+    .eq('trip_chat_id', chatId)
+    .eq('type', 'image')
+    .order('created_at', { ascending: false })
+    .limit(30)
+  if (error) return []
+  return (data ?? []) as { id: string; content: string }[]
+}
+
 export async function searchChatMessages(chatId: string, query: string): Promise<TripMessage[]> {
   if (!query.trim()) return []
   const { data, error } = await supabase
