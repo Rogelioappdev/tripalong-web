@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
@@ -111,6 +111,18 @@ const slideVariants = {
 }
 
 export default function TravelDNAPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-7 h-7 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+      </main>
+    }>
+      <TravelDNAContent />
+    </Suspense>
+  )
+}
+
+function TravelDNAContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnTo = searchParams.get('from') ?? '/feed'
