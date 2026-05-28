@@ -9,17 +9,95 @@ import { supabase } from '@/lib/supabase'
 import { getProfile, updateProfile } from '@/lib/queries'
 import type { UserProfile } from '@/lib/types'
 
-const TRAVEL_STYLES = [
-  { value: 'adventure', emoji: '🏔️', label: 'Adventure' },
-  { value: 'luxury', emoji: '✨', label: 'Luxury' },
-  { value: 'backpacking', emoji: '🎒', label: 'Backpacking' },
-  { value: 'cultural', emoji: '🏛️', label: 'Cultural' },
-  { value: 'foodie', emoji: '🍜', label: 'Foodie' },
-  { value: 'relaxed', emoji: '🌴', label: 'Relaxed' },
-  { value: 'party', emoji: '🎉', label: 'Party' },
-  { value: 'budget', emoji: '💸', label: 'Budget' },
-]
+// ── DNA field definitions (single source of truth on this page) ───────────
+const DNA_FIELDS = [
+  {
+    key: 'gender', label: 'Identity', multi: false,
+    options: [
+      { value: 'male', emoji: '👨', label: 'Man' },
+      { value: 'female', emoji: '👩', label: 'Woman' },
+      { value: 'other', emoji: '🌟', label: 'Non-binary' },
+    ],
+  },
+  {
+    key: 'travel_styles', label: 'Travel Style', multi: true,
+    options: [
+      { value: 'adventure', emoji: '🏔️', label: 'Adventure' },
+      { value: 'luxury', emoji: '✨', label: 'Luxury' },
+      { value: 'backpacking', emoji: '🎒', label: 'Backpacking' },
+      { value: 'cultural', emoji: '🏛️', label: 'Cultural' },
+      { value: 'foodie', emoji: '🍜', label: 'Foodie' },
+      { value: 'relaxed', emoji: '🌴', label: 'Relaxed' },
+      { value: 'party', emoji: '🎉', label: 'Party' },
+      { value: 'budget', emoji: '💸', label: 'Budget' },
+    ],
+  },
+  {
+    key: 'travel_pace', label: 'Daily Pace', multi: false,
+    options: [
+      { value: 'slow', emoji: '☕', label: 'Slow & Steady' },
+      { value: 'balanced', emoji: '⚖️', label: 'Balanced' },
+      { value: 'fast', emoji: '⚡', label: 'Go Go Go!' },
+    ],
+  },
+  {
+    key: 'social_energy', label: 'Social Energy', multi: false,
+    options: [
+      { value: 'introvert', emoji: '🌙', label: 'Introvert' },
+      { value: 'extrovert', emoji: '☀️', label: 'Extrovert' },
+      { value: 'ambivert', emoji: '🌗', label: 'Ambivert' },
+    ],
+  },
+  {
+    key: 'planning_style', label: 'Planning Style', multi: false,
+    options: [
+      { value: 'planner', emoji: '📋', label: 'Planner' },
+      { value: 'spontaneous', emoji: '🎲', label: 'Spontaneous' },
+      { value: 'flexible', emoji: '🤸', label: 'Flexible' },
+    ],
+  },
+  {
+    key: 'experience_level', label: 'Experience', multi: false,
+    options: [
+      { value: 'beginner', emoji: '🌱', label: 'Beginner' },
+      { value: 'intermediate', emoji: '🌿', label: 'Intermediate' },
+      { value: 'experienced', emoji: '✈️', label: 'Experienced' },
+      { value: 'expert', emoji: '🌍', label: 'Expert' },
+    ],
+  },
+  {
+    key: 'travel_with', label: 'Travel With', multi: false,
+    options: [
+      { value: 'everyone', emoji: '🌍', label: 'Everyone' },
+      { value: 'female', emoji: '👩', label: 'Women only' },
+      { value: 'male', emoji: '👨', label: 'Men only' },
+    ],
+  },
+] as const
 
+type DNAValues = {
+  gender: string
+  travel_styles: string[]
+  travel_pace: string
+  social_energy: string
+  planning_style: string
+  experience_level: string
+  travel_with: string
+}
+
+function dnaFromProfile(p: UserProfile): DNAValues {
+  return {
+    gender: p.gender ?? '',
+    travel_styles: p.travel_styles ?? [],
+    travel_pace: p.travel_pace ?? '',
+    social_energy: p.social_energy ?? '',
+    planning_style: p.planning_style ?? '',
+    experience_level: p.experience_level ?? '',
+    travel_with: p.travel_with ?? '',
+  }
+}
+
+// ── Shared helpers ────────────────────────────────────────────────────────
 const PACE_LABELS: Record<string, string> = { slow: '☕ Slow & Steady', balanced: '⚖️ Balanced', fast: '⚡ Fast-paced' }
 const ENERGY_LABELS: Record<string, string> = { introvert: '🌙 Introvert', extrovert: '☀️ Extrovert', ambivert: '🌗 Ambivert' }
 const PLANNING_LABELS: Record<string, string> = { planner: '📋 Planner', spontaneous: '🎲 Spontaneous', flexible: '🤸 Flexible' }
@@ -64,6 +142,7 @@ function ChipList({ items, onAdd, onRemove, placeholder, emoji }: {
           <input
             autoFocus value={input} onChange={e => setInput(e.target.value)} placeholder={placeholder}
             className="flex-1 bg-white/6 border border-white/12 rounded-2xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30"
+            style={{ fontSize: 16 }}
           />
           <button type="submit" className="bg-white text-black font-semibold px-4 rounded-2xl text-sm">Add</button>
           <button type="button" onClick={() => setAdding(false)} className="text-white/30 px-2 text-sm">✕</button>
@@ -73,21 +152,30 @@ function ChipList({ items, onAdd, onRemove, placeholder, emoji }: {
   )
 }
 
+// ── Main page ─────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const [uploadingMain, setUploadingMain] = useState(false)
+  const [uploadingGrid, setUploadingGrid] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Edit states
+  // Basic info edit
   const [name, setName] = useState('')
   const [bio, setBio] = useState('')
   const [city, setCity] = useState('')
   const [countryVal, setCountryVal] = useState('')
   const [editingBasic, setEditingBasic] = useState(false)
+
+  // DNA inline edit
+  const [editingDNA, setEditingDNA] = useState(false)
+  const [dnaEdit, setDnaEdit] = useState<DNAValues>({
+    gender: '', travel_styles: [], travel_pace: '',
+    social_energy: '', planning_style: '', experience_level: '', travel_with: '',
+  })
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -119,7 +207,7 @@ export default function ProfilePage() {
 
   const handlePhotoUpload = async (file: File) => {
     if (!profile) return
-    setUploading(true)
+    setUploadingMain(true)
     try {
       const ext = file.name.split('.').pop()
       const path = `${profile.id}/profile.${ext}`
@@ -127,29 +215,62 @@ export default function ProfilePage() {
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
       await save({ profile_photo: publicUrl })
     } finally {
-      setUploading(false)
+      setUploadingMain(false)
     }
   }
 
   const handlePhotoGridUpload = async (file: File) => {
     if (!profile) return
-    setUploading(true)
+    setUploadingGrid(true)
     try {
       const ts = Date.now()
       const ext = file.name.split('.').pop()
       const path = `${profile.id}/${ts}.${ext}`
       await supabase.storage.from('avatars').upload(path, file, { upsert: true })
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
-      const newPhotos = [...(profile.photos ?? []), publicUrl]
-      await save({ photos: newPhotos })
+      await save({ photos: [...(profile.photos ?? []), publicUrl] })
     } finally {
-      setUploading(false)
+      setUploadingGrid(false)
     }
   }
 
   const removePhoto = (url: string) => {
     if (!profile) return
-    save({ photos: profile.photos.filter(p => p !== url) })
+    save({ photos: (profile.photos ?? []).filter(p => p !== url) })
+  }
+
+  // DNA helpers
+  const openDNAEdit = () => {
+    if (profile) setDnaEdit(dnaFromProfile(profile))
+    setEditingDNA(true)
+  }
+
+  const toggleDNA = (key: string, value: string, multi: boolean) => {
+    setDnaEdit(prev => {
+      if (multi) {
+        const arr = (prev[key as keyof DNAValues] as string[])
+        return { ...prev, [key]: arr.includes(value) ? arr.filter(x => x !== value) : [...arr, value] }
+      }
+      return { ...prev, [key]: value }
+    })
+  }
+
+  const isDNASelected = (key: string, value: string) => {
+    const v = dnaEdit[key as keyof DNAValues]
+    return Array.isArray(v) ? v.includes(value) : v === value
+  }
+
+  const saveDNA = async () => {
+    await save({
+      gender: (dnaEdit.gender || null) as UserProfile['gender'],
+      travel_styles: dnaEdit.travel_styles,
+      travel_pace: (dnaEdit.travel_pace || null) as UserProfile['travel_pace'],
+      social_energy: (dnaEdit.social_energy || null) as UserProfile['social_energy'],
+      planning_style: (dnaEdit.planning_style || null) as UserProfile['planning_style'],
+      experience_level: (dnaEdit.experience_level || null) as UserProfile['experience_level'],
+      travel_with: (dnaEdit.travel_with || null) as UserProfile['travel_with'],
+    })
+    setEditingDNA(false)
   }
 
   if (loading) {
@@ -157,7 +278,7 @@ export default function ProfilePage() {
       <>
         <NavBar />
         <main className="pt-14 min-h-screen bg-black flex items-center justify-center">
-          <div className="text-white/30 text-sm">Loading...</div>
+          <div className="w-7 h-7 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
         </main>
       </>
     )
@@ -180,7 +301,7 @@ export default function ProfilePage() {
               onClick={() => fileRef.current?.click()}
               className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl"
             >
-              {uploading ? '...' : '📷 Change photo'}
+              {uploadingMain ? '...' : '📷 Change photo'}
             </button>
             <input ref={fileRef} type="file" accept="image/*" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }} />
@@ -191,15 +312,19 @@ export default function ProfilePage() {
             {editingBasic ? (
               <div className="flex flex-col gap-3">
                 <input value={name} onChange={e => setName(e.target.value)} placeholder="Name"
-                  className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30" />
+                  className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30"
+                  style={{ fontSize: 16 }} />
                 <div className="flex gap-3">
                   <input value={city} onChange={e => setCity(e.target.value)} placeholder="City"
-                    className="flex-1 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30" />
+                    className="flex-1 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30"
+                    style={{ fontSize: 16 }} />
                   <input value={countryVal} onChange={e => setCountryVal(e.target.value)} placeholder="Country"
-                    className="flex-1 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30" />
+                    className="flex-1 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30"
+                    style={{ fontSize: 16 }} />
                 </div>
                 <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} placeholder="Bio..."
-                  className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30 resize-none placeholder-white/25" />
+                  className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30 resize-none placeholder-white/25"
+                  style={{ fontSize: 16 }} />
                 <div className="flex gap-3">
                   <button onClick={() => { save({ name, bio, city, country: countryVal }); setEditingBasic(false) }}
                     disabled={saving}
@@ -223,14 +348,13 @@ export default function ProfilePage() {
                         {[profile.city, profile.country].filter(Boolean).join(', ')}
                       </p>
                     )}
-                    <p className="text-white/30 text-xs mt-1">{profile?.email}</p>
                   </div>
                   <button onClick={() => setEditingBasic(true)} className="text-white/40 text-sm hover:text-white">Edit</button>
                 </div>
                 {profile?.bio ? (
                   <p className="text-white/50 text-sm leading-relaxed">{profile.bio}</p>
                 ) : (
-                  <p className="text-white/20 text-sm italic">No bio yet</p>
+                  <p className="text-white/20 text-sm italic">No bio yet — tap Edit to add one</p>
                 )}
                 {saved && <p className="text-green-400 text-xs mt-2">Saved ✓</p>}
               </div>
@@ -239,39 +363,81 @@ export default function ProfilePage() {
 
           {/* Travel DNA */}
           <Section title="Travel DNA">
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {[
-                { label: 'Pace', value: profile?.travel_pace ? PACE_LABELS[profile.travel_pace] : null },
-                { label: 'Social', value: profile?.social_energy ? ENERGY_LABELS[profile.social_energy] : null },
-                { label: 'Planning', value: profile?.planning_style ? PLANNING_LABELS[profile.planning_style] : null },
-                { label: 'Experience', value: profile?.experience_level ? EXP_LABELS[profile.experience_level] : null },
-                { label: 'Gender', value: profile?.gender ? GENDER_LABELS[profile.gender] : null },
-                { label: 'Travel with', value: profile?.travel_with ? TRAVEL_WITH_LABELS[profile.travel_with] : null },
-              ].map(item => item.value && (
-                <div key={item.label} className="bg-white/4 rounded-2xl px-4 py-3">
-                  <p className="text-white/30 text-xs mb-1">{item.label}</p>
-                  <p className="text-white text-sm font-medium">{item.value}</p>
+            {editingDNA ? (
+              <div className="flex flex-col gap-5">
+                {DNA_FIELDS.map(field => (
+                  <div key={field.key}>
+                    <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-2">{field.label}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {field.options.map(opt => {
+                        const selected = isDNASelected(field.key, opt.value)
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => toggleDNA(field.key, opt.value, field.multi)}
+                            className="px-3 py-2 rounded-full text-sm font-semibold border transition-all active:scale-95"
+                            style={{
+                              backgroundColor: selected ? '#F0EBE3' : 'rgba(255,255,255,0.06)',
+                              color: selected ? '#000' : 'rgba(255,255,255,0.6)',
+                              borderColor: selected ? 'transparent' : 'rgba(255,255,255,0.12)',
+                            }}
+                          >
+                            {opt.emoji} {opt.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex gap-3 pt-1">
+                  <button onClick={saveDNA} disabled={saving}
+                    className="flex-1 bg-white text-black font-semibold py-3 rounded-2xl text-sm disabled:opacity-40">
+                    {saving ? 'Saving...' : 'Save'}
+                  </button>
+                  <button onClick={() => setEditingDNA(false)}
+                    className="flex-1 bg-white/8 text-white/60 font-medium py-3 rounded-2xl text-sm">
+                    Cancel
+                  </button>
                 </div>
-              ))}
-            </div>
-            {profile?.travel_styles && profile.travel_styles.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {profile.travel_styles.map(s => {
-                  const style = TRAVEL_STYLES.find(ts => ts.value === s)
-                  return style ? (
-                    <span key={s} className="text-xs bg-white/8 rounded-full px-3 py-1.5 text-white/60">
-                      {style.emoji} {style.label}
-                    </span>
-                  ) : null
-                })}
+              </div>
+            ) : (
+              <div>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {[
+                    { label: 'Pace', value: profile?.travel_pace ? PACE_LABELS[profile.travel_pace] : null },
+                    { label: 'Social', value: profile?.social_energy ? ENERGY_LABELS[profile.social_energy] : null },
+                    { label: 'Planning', value: profile?.planning_style ? PLANNING_LABELS[profile.planning_style] : null },
+                    { label: 'Experience', value: profile?.experience_level ? EXP_LABELS[profile.experience_level] : null },
+                    { label: 'Gender', value: profile?.gender ? GENDER_LABELS[profile.gender] : null },
+                    { label: 'Travel with', value: profile?.travel_with ? TRAVEL_WITH_LABELS[profile.travel_with] : null },
+                  ].map(item => item.value && (
+                    <div key={item.label} className="bg-white/4 rounded-2xl px-4 py-3">
+                      <p className="text-white/30 text-xs mb-1">{item.label}</p>
+                      <p className="text-white text-sm font-medium">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+                {profile?.travel_styles && profile.travel_styles.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {profile.travel_styles.map(s => {
+                      const style = DNA_FIELDS[1].options.find(o => o.value === s)
+                      return style ? (
+                        <span key={s} className="text-xs bg-white/8 rounded-full px-3 py-1.5 text-white/60">
+                          {style.emoji} {style.label}
+                        </span>
+                      ) : null
+                    })}
+                  </div>
+                )}
+                <button
+                  onClick={openDNAEdit}
+                  className="text-white/40 text-sm hover:text-white transition-colors"
+                >
+                  Edit →
+                </button>
               </div>
             )}
-            <button
-              onClick={() => router.push('/travel-dna?from=/profile')}
-              className="mt-3 text-accent text-sm"
-            >
-              Edit Travel DNA →
-            </button>
           </Section>
 
           {/* Photos grid */}
@@ -283,18 +449,22 @@ export default function ProfilePage() {
                   <button
                     onClick={() => removePhoto(url)}
                     className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 11 }}
+                    style={{ backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 11, lineHeight: 1 }}
                   >✕</button>
                 </div>
               ))}
               {(profile?.photos?.length ?? 0) < 10 && (
-                <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer hover:border-white/30 transition-colors">
+                <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer active:border-white/30 transition-colors">
                   <input type="file" accept="image/*" className="hidden"
                     onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoGridUpload(f) }} />
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-white/30 text-2xl">+</span>
-                    <span className="text-white/20 text-xs">Add</span>
-                  </div>
+                  {uploadingGrid ? (
+                    <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-white/30 text-2xl">+</span>
+                      <span className="text-white/20 text-xs">Add</span>
+                    </div>
+                  )}
                 </label>
               )}
             </div>
