@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
+import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { supabase } from '@/lib/supabase'
 import {
   getDMMessages,
@@ -95,6 +96,9 @@ export default function DMPage() {
 
   // Read receipts
   const [otherLastRead, setOtherLastRead] = useState<string | null>(null)
+
+  // Profile sheet
+  const [showUserInfo, setShowUserInfo] = useState(false)
 
   // Scroll
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -381,7 +385,11 @@ export default function DMPage() {
                 style={{ fontSize: 16 }}
               />
             ) : otherUser ? (
-              <div className="flex flex-1 items-center gap-3 min-w-0">
+              <button
+                type="button"
+                onClick={() => setShowUserInfo(true)}
+                className="flex flex-1 items-center gap-3 min-w-0 text-left active:opacity-70 transition-opacity"
+              >
                 <div className="relative shrink-0">
                   <div className="w-9 h-9 rounded-full bg-white/10 overflow-hidden">
                     {otherUser.profile_photo
@@ -399,7 +407,7 @@ export default function DMPage() {
                     {otherTyping ? 'typing…' : presenceText || ''}
                   </p>
                 </div>
-              </div>
+              </button>
             ) : (
               <div className="flex-1 h-8 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} />
             )}
@@ -718,6 +726,10 @@ export default function DMPage() {
           </button>
         </div>,
         document.body
+      )}
+
+      {showUserInfo && otherUser && (
+        <PublicProfileModal userId={otherUser.id} onClose={() => setShowUserInfo(false)} />
       )}
 
       <style>{`
