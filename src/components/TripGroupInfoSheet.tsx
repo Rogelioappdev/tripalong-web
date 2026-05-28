@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { leaveTripFromChat, getTripChatMuted, setTripChatMuted, getChatImages } from '@/lib/queries'
 import { useOnlineUsers } from '@/lib/presence'
 import { PublicProfileModal } from './PublicProfileModal'
@@ -42,7 +42,40 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
   const [descExpanded, setDescExpanded] = useState(false)
   const [images, setImages] = useState<{ id: string; content: string }[]>([])
   const [viewingImage, setViewingImage] = useState<string | null>(null)
+  const [showInvite, setShowInvite] = useState(false)
+  const [copied, setCopied] = useState(false)
   const onlineUsers = useOnlineUsers()
+
+  const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/trip/${tripInfo.id}` : ''
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2200)
+    } catch { /* ignore */ }
+  }
+
+  const handleNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join our trip to ${tripInfo.destination}!`,
+          text: `I'm planning a trip to ${tripInfo.destination}${tripInfo.country ? `, ${tripInfo.country}` : ''} on TripAlong. Join us! 🌍`,
+          url: inviteUrl,
+        })
+      } catch { /* dismissed */ }
+    } else {
+      handleCopyLink()
+    }
+  }
+
+  const handleWhatsApp = () => {
+    const text = encodeURIComponent(
+      `Join our trip to ${tripInfo.destination}${tripInfo.country ? `, ${tripInfo.country}` : ''}! 🌍\n${inviteUrl}`
+    )
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener')
+  }
 
   useEffect(() => {
     getTripChatMuted(chatId).then(setMuted)
@@ -94,6 +127,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
   const hasDescription = !!tripInfo.description?.trim()
   const descLong = (tripInfo.description?.length ?? 0) > 120
   const hasVibes = (tripInfo.vibes?.length ?? 0) > 0
+  const memberCount = Math.max(members.length, tripInfo.member_count ?? 0)
 
   return (
     <>
@@ -121,7 +155,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
           <div className="flex-1 min-w-0">
             <p className="text-white font-bold text-base">Group Info</p>
             <p className="text-white/40 text-xs truncate">
-              {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''} · {members.length} members
+              {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}{memberCount > 0 ? ` · ${memberCount} members` : ''}
             </p>
           </div>
         </div>
@@ -302,8 +336,36 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
           {/* Members header */}
           <div className="px-5 pt-5 pb-1">
             <p className="text-white/35 text-xs font-semibold uppercase tracking-widest">
-              Members · {members.length}
+              Members · {memberCount}
             </p>
+          </div>
+
+          {/* Invite row */}
+          <div className="px-4">
+            <button
+              type="button"
+              onClick={() => setShowInvite(true)}
+              className="w-full flex items-center gap-4 py-3.5"
+              style={{ borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}
+            >
+              <div
+                className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.14)' }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="rgba(240,235,227,0.8)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="9" cy="7" r="4" stroke="rgba(240,235,227,0.8)" strokeWidth="1.8"/>
+                  <path d="M19 8v6M22 11h-6" stroke="rgba(240,235,227,0.8)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-white/85 text-sm font-semibold">Invite to trip</p>
+                <p className="text-white/35 text-xs">Share a link to add someone new</p>
+              </div>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>
+                <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
           </div>
 
           {/* Members list */}
@@ -398,6 +460,114 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
           </div>
         </div>
       </motion.div>
+
+      {/* Invite sheet */}
+      <AnimatePresence>
+        {showInvite && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-[70]"
+              style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowInvite(false)}
+            />
+            <motion.div
+              className="fixed bottom-0 left-0 right-0 z-[71] rounded-t-3xl overflow-hidden"
+              style={{ backgroundColor: '#111', paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)' }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 380, damping: 40, mass: 0.9 }}
+            >
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-9 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+              </div>
+
+              {/* Header */}
+              <div className="px-5 pt-3 pb-5" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
+                <p className="text-white font-bold" style={{ fontSize: 20 }}>Invite to Trip</p>
+                <p className="text-white/40 text-sm mt-0.5">
+                  {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}
+                </p>
+              </div>
+
+              {/* Link row */}
+              <div className="px-5 pt-4 pb-1">
+                <p className="text-white/30 text-xs font-semibold uppercase tracking-widest mb-2.5">Trip link</p>
+                <div
+                  className="flex items-center gap-2.5 rounded-2xl px-4 py-3"
+                  style={{ backgroundColor: '#0A0A0A', border: '0.5px solid rgba(255,255,255,0.09)' }}
+                >
+                  <p className="flex-1 text-white/40 text-sm truncate">{inviteUrl}</p>
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs transition-all"
+                    style={{
+                      backgroundColor: copied ? 'rgba(48,209,88,0.13)' : 'rgba(240,235,227,0.09)',
+                      color: copied ? '#30D158' : 'rgba(240,235,227,0.75)',
+                      border: `0.5px solid ${copied ? 'rgba(48,209,88,0.28)' : 'rgba(240,235,227,0.12)'}`,
+                    }}
+                  >
+                    {copied ? (
+                      <>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                          <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                          <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2"/>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeWidth="2"/>
+                        </svg>
+                        Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Share buttons */}
+              <div className="px-5 pt-4 flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleNativeShare}
+                  className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm transition-opacity active:opacity-75"
+                  style={{ backgroundColor: '#F0EBE3', color: '#000', padding: '15px 0' }}
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Share link
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWhatsApp}
+                  className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm transition-opacity active:opacity-75"
+                  style={{
+                    padding: '15px 0',
+                    backgroundColor: 'rgba(37,211,102,0.1)',
+                    color: '#25D366',
+                    border: '0.5px solid rgba(37,211,102,0.22)',
+                  }}
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/>
+                  </svg>
+                  Share on WhatsApp
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Member profile modal */}
       {selectedMemberId && (

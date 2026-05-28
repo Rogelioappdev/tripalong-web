@@ -467,11 +467,14 @@ export default function ChatPage() {
                   {(() => {
                     const memberIds = (tripInfo.members ?? []).map((m: any) => m.user?.id).filter(Boolean) as string[]
                     const othersOnline = memberIds.filter(id => id !== userId && onlineUsers.has(id)).length
+                    const total = Math.max(tripInfo.members?.length ?? 0, tripInfo.member_count ?? 0)
                     return (
                       <p className="text-white/40 text-xs">
-                        {othersOnline > 0
-                          ? <><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#30D158] mr-1 mb-px" />{othersOnline} online</>
-                          : `${tripInfo.member_count} members`}
+                        {othersOnline > 0 ? (
+                          <><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#30D158] mr-1 mb-px" />{othersOnline} online{total > 0 ? ` · ${total} members` : ''}</>
+                        ) : total > 0 ? (
+                          `${total} members`
+                        ) : null}
                       </p>
                     )
                   })()}

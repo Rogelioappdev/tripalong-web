@@ -16,12 +16,18 @@ export default function Home() {
     })
   }
 
+  const getPostAuthRedirect = (fallback: string) => {
+    const pending = sessionStorage.getItem('postAuthRedirect')
+    if (pending) { sessionStorage.removeItem('postAuthRedirect'); return pending }
+    return fallback
+  }
+
   const handleSignIn = async () => {
     setError('')
     setStatus('Signing in...')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError(error.message); setStatus('') }
-    else window.location.href = '/feed'
+    else window.location.href = getPostAuthRedirect('/feed')
   }
 
   const handleSignUp = async () => {
@@ -29,7 +35,7 @@ export default function Home() {
     setStatus('Creating account...')
     const { error } = await supabase.auth.signUp({ email, password })
     if (error) { setError(error.message); setStatus('') }
-    else window.location.href = '/onboarding'
+    else window.location.href = getPostAuthRedirect('/onboarding')
   }
 
   return (
