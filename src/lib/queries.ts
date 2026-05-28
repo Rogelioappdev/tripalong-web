@@ -336,23 +336,82 @@ export async function getOrCreateDM(otherUserId: string): Promise<string> {
   return data as string
 }
 
+const DM_MSG_SELECT = `
+  *,
+  sender:users(id, name, profile_photo),
+  reactions:message_reactions(id, user_id, emoji),
+  reply_to:messages!reply_to_id(id, content, sender:users(name))
+`
+
 export async function getDMMessages(conversationId: string) {
   const { data, error } = await supabase
     .from('messages')
-    .select('*, sender:users(id, name, profile_photo)')
+    .select(DM_MSG_SELECT)
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-    .limit(100)
-
+    .order('created_at', { ascending: false })
+    .limit(50)
   if (error) throw error
-  return data ?? []
+  return ((data ?? []) as any[]).reverse()
 }
 
-export async function sendDMMessage(conversationId: string, senderId: string, content: string) {
-  const { error } = await supabase
+export async function getOlderDMMessages(conversationId: string, before: string, limit = 30) {
+  const { data, error } = await supabase
     .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: senderId, content })
+    .select(DM_MSG_SELECT)
+    .eq('conversation_id', conversationId)
+    .lt('created_at', before)
+    .order('created_at', { ascending: false })
+    .limit(limit)
   if (error) throw error
+  return ((data ?? []) as any[]).reverse()
+}
+
+export async function sendDMMessage(
+  conversationId: string,
+  senderId: string,
+  content: string,
+  replyToId?: string | null,
+  type: 'text' | 'image' = 'text',
+) {
+  const payload: Record<string, unknown> = { conversation_id: conversationId, sender_id: senderId, content, type }
+  if (replyToId) payload.reply_to_id = replyToId
+  const { error } = await supabase.from('messages').insert(payload)
+  if (error) throw error
+}
+
+export async function deleteDMMessage(messageId: string): Promise<void> {
+  const { error } = await supabase.from('messages').delete().eq('id', messageId)
+  if (error) throw error
+}
+
+export async function uploadDMImage(conversationId: string, file: File): Promise<string> {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `dm/${conversationId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from('chat-images').upload(path, file, { upsert: false })
+  if (error) throw error
+  return `${CHAT_IMAGES_BASE}/${path}`
+}
+
+export async function searchDMMessages(conversationId: string, query: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select(DM_MSG_SELECT)
+    .eq('conversation_id', conversationId)
+    .ilike('content', `%${query}%`)
+    .order('created_at', { ascending: true })
+    .limit(50)
+  if (error) return []
+  return (data ?? []) as any[]
+}
+
+export async function getDMOtherLastRead(conversationId: string, myUserId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('conversation_members')
+    .select('last_read_at')
+    .eq('conversation_id', conversationId)
+    .neq('user_id', myUserId)
+    .single()
+  return (data as any)?.last_read_at ?? null
 }
 
 export async function getSavedTrips(userId: string): Promise<TripWithDetails[]> {
