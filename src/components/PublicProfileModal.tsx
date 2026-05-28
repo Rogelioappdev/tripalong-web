@@ -6,6 +6,7 @@ import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getProfile, getTrip, getOrCreateDM } from '@/lib/queries'
+import { BlockReportSheet } from './BlockReportSheet'
 import { TripDetailModal } from './TripDetailModal'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
@@ -171,6 +172,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
   const [savedTrips, setSavedTrips] = useState<any[]>([])
   const [mounted, setMounted] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [showBlockReport, setShowBlockReport] = useState(false)
   const router = useRouter()
   const heroPtrRef = useRef({ x: 0, y: 0 })
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
@@ -494,7 +496,30 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                   {dmLoading ? 'Opening...' : 'Send Message'}
                   {!dmLoading && <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#F0EBE3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                 </button>
+                {currentUserId && currentUserId !== userId && (
+                  <button
+                    type="button"
+                    onClick={() => setShowBlockReport(true)}
+                    className="w-full text-center text-xs mt-3 py-1 transition-opacity active:opacity-60"
+                    style={{ color: 'rgba(255,255,255,0.22)' }}
+                  >
+                    Block or Report {profile.name}
+                  </button>
+                )}
               </div>
+
+              {/* Block / Report sheet */}
+              <AnimatePresence>
+                {showBlockReport && (
+                  <BlockReportSheet
+                    userId={userId}
+                    userName={profile.name}
+                    userPhoto={profile.profile_photo}
+                    onClose={() => setShowBlockReport(false)}
+                    onBlocked={() => { setShowBlockReport(false); onClose() }}
+                  />
+                )}
+              </AnimatePresence>
 
               {/* Lightbox */}
               {lightboxOpen && (

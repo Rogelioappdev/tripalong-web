@@ -8,6 +8,7 @@ import { AnimatePresence } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
+import { BlockReportSheet } from '@/components/BlockReportSheet'
 import { supabase } from '@/lib/supabase'
 import {
   getDMMessages,
@@ -20,6 +21,8 @@ import {
   toggleReaction,
   searchDMMessages,
   getDMOtherLastRead,
+  isUserBlocked,
+  unblockUser,
 } from '@/lib/queries'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 import type { DMMessage, TripMessage } from '@/lib/types'
@@ -100,6 +103,14 @@ export default function DMPage() {
   // Profile sheet
   const [showUserInfo, setShowUserInfo] = useState(false)
 
+  // Block / report
+  const [showBlockReport, setShowBlockReport] = useState(false)
+  const [isBlockedByMe, setIsBlockedByMe] = useState(false)
+
+  // Safety notice (dismissed per conversation in localStorage)
+  const safetyKey = `dm_safety_dismissed_${conversationId}`
+  const [safetyDismissed, setSafetyDismissed] = useState(true) // start hidden, set in effect
+
   // Scroll
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -135,7 +146,18 @@ export default function DMPage() {
         getDMOtherLastRead(conversationId, uid).then(setOtherLastRead)
       }
     })
-  }, [conversationId, queryClient])
+    // Safety banner — show once per conversation
+    if (typeof localStorage !== 'undefined') {
+      setSafetyDismissed(!!localStorage.getItem(safetyKey))
+    }
+  }, [conversationId, queryClient, safetyKey])
+
+  // Check block status when otherUser loads
+  useEffect(() => {
+    if (otherUser?.id) {
+      isUserBlocked(otherUser.id).then(setIsBlockedByMe)
+    }
+  }, [otherUser?.id])
 
   // ── Search debounce ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -412,7 +434,7 @@ export default function DMPage() {
               <div className="flex-1 h-8 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} />
             )}
 
-            {/* Search / close button */}
+            {/* Search / close + more button */}
             {searchOpen ? (
               searchQuery ? (
                 <button type="button" onClick={() => setSearchQuery('')} className="shrink-0 text-white/40 hover:text-white transition-colors">
@@ -426,17 +448,64 @@ export default function DMPage() {
                 </button>
               )
             ) : (
-              <button type="button" onClick={handleOpenSearch} className="shrink-0 text-white/40 hover:text-white transition-colors">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button type="button" onClick={handleOpenSearch} className="text-white/40 hover:text-white transition-colors p-1">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+                {otherUser && (
+                  <button type="button" onClick={() => setShowBlockReport(true)} className="text-white/40 hover:text-white transition-colors p-1">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="5" r="1.5" fill="currentColor"/>
+                      <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                      <circle cx="12" cy="19" r="1.5" fill="currentColor"/>
+                    </svg>
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5">
+
+            {/* Safety notice — shown once per conversation until dismissed */}
+            {!searchOpen && !safetyDismissed && otherUser && (
+              <div
+                className="mx-1 mb-2 rounded-2xl px-4 py-3 flex items-start gap-3 shrink-0"
+                style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+              >
+                <span className="text-base shrink-0 mt-0.5">🔒</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-xs mb-0.5">Stay safe on TripAlong</p>
+                  <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Only share personal info you're comfortable with. Never send money to someone you haven't met in person.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowBlockReport(true)}
+                    className="text-xs mt-1.5 font-medium"
+                    style={{ color: 'rgba(240,235,227,0.5)' }}
+                  >
+                    Block or report {otherUser.name} →
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof localStorage !== 'undefined') localStorage.setItem(safetyKey, '1')
+                    setSafetyDismissed(true)
+                  }}
+                  className="shrink-0 text-white/20 hover:text-white/50 transition-colors mt-0.5"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            )}
 
             {/* Search count */}
             {searchOpen && (
@@ -630,6 +699,30 @@ export default function DMPage() {
             </div>
           )}
 
+          {/* Blocked banner */}
+          {isBlockedByMe && otherUser && (
+            <div
+              className="shrink-0 mx-1 mb-2 rounded-2xl px-4 py-3 flex items-center gap-3"
+              style={{ backgroundColor: 'rgba(255,59,48,0.08)', border: '0.5px solid rgba(255,59,48,0.2)' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                <circle cx="12" cy="12" r="9" stroke="#FF3B30" strokeWidth="2"/>
+                <path d="M5.636 5.636l12.728 12.728" stroke="#FF3B30" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              <p className="flex-1 text-xs" style={{ color: 'rgba(255,59,48,0.8)' }}>
+                You've blocked {otherUser.name}.
+              </p>
+              <button
+                type="button"
+                onClick={async () => { await unblockUser(otherUser.id); setIsBlockedByMe(false) }}
+                className="text-xs font-semibold shrink-0"
+                style={{ color: '#FF3B30' }}
+              >
+                Unblock
+              </button>
+            </div>
+          )}
+
           {/* Input */}
           <form
             onSubmit={handleSend}
@@ -659,13 +752,14 @@ export default function DMPage() {
             <input
               value={input}
               onChange={handleInputChange}
-              placeholder="Message…"
-              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25"
+              disabled={isBlockedByMe}
+              placeholder={isBlockedByMe ? 'You blocked this person' : 'Message…'}
+              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25 disabled:opacity-40"
               style={{ fontSize: 16 }}
             />
             <button
               type="submit"
-              disabled={!input.trim() || sending}
+              disabled={!input.trim() || sending || isBlockedByMe}
               className="shrink-0 bg-white text-black font-semibold px-5 rounded-2xl text-sm hover:bg-white/90 transition-colors disabled:opacity-30"
               style={{ height: 44 }}
             >
@@ -695,7 +789,23 @@ export default function DMPage() {
               await deleteDMMessage(actionMsg.id)
               queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] })
             }}
-            onReport={() => setActionMsg(null)}
+            onReport={() => {
+              setActionMsg(null)
+              if (actionMsg.sender_id !== userId) setShowBlockReport(true)
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Block / Report sheet */}
+      <AnimatePresence>
+        {showBlockReport && otherUser && (
+          <BlockReportSheet
+            userId={otherUser.id}
+            userName={otherUser.name}
+            userPhoto={otherUser.profile_photo}
+            onClose={() => setShowBlockReport(false)}
+            onBlocked={() => { setIsBlockedByMe(true); setShowBlockReport(false) }}
           />
         )}
       </AnimatePresence>

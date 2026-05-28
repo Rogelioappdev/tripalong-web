@@ -25,24 +25,29 @@ export async function getTrips(): Promise<TripWithDetails[]> {
     throw error
   }
 
-  // Optionally fetch save counts — silently skip if table doesn't exist
+  // Fetch save counts + blocked IDs in parallel, silently skip failures
   let saveCounts: Record<string, number> = {}
-  try {
-    const { data: saves } = await supabase
-      .from('saved_trips')
-      .select('trip_id')
-    if (saves) {
-      saves.forEach((s: any) => {
-        saveCounts[s.trip_id] = (saveCounts[s.trip_id] ?? 0) + 1
-      })
-    }
-  } catch {}
+  let blockedIds: string[] = []
+  await Promise.all([
+    (async () => {
+      try {
+        const { data: saves } = await supabase.from('saved_trips').select('trip_id')
+        if (saves) saves.forEach((s: any) => { saveCounts[s.trip_id] = (saveCounts[s.trip_id] ?? 0) + 1 })
+      } catch {}
+    })(),
+    (async () => {
+      if (userId) blockedIds = await getBlockedUserIds()
+    })(),
+  ])
 
-  return (data ?? []).map((trip: any) => ({
-    ...trip,
-    member_count: trip.members?.length ?? 0,
-    save_count: saveCounts[trip.id] ?? 0,
-  })) as TripWithDetails[]
+  const blockedSet = new Set(blockedIds)
+  return (data ?? [])
+    .filter((trip: any) => !blockedSet.has(trip.creator_id))
+    .map((trip: any) => ({
+      ...trip,
+      member_count: trip.members?.length ?? 0,
+      save_count: saveCounts[trip.id] ?? 0,
+    })) as TripWithDetails[]
 }
 
 export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
@@ -313,21 +318,27 @@ export async function getUnreadCount(): Promise<number> {
 }
 
 export async function getDMConversations(_userId: string) {
-  const { data, error } = await supabase.rpc('get_my_dms')
-  if (error) return []
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    last_message: row.last_message ?? null,
-    last_message_at: row.last_message_at ?? null,
-    unread_count: Number(row.unread_count ?? 0),
-    other_user: {
-      id: row.other_user_id,
-      name: row.other_user_name,
-      profile_photo: row.other_user_photo,
-    },
-  }))
+  const [dmsResult, blockedIds] = await Promise.all([
+    supabase.rpc('get_my_dms'),
+    getBlockedUserIds(),
+  ])
+  if (dmsResult.error) return []
+  const blockedSet = new Set(blockedIds)
+  return (dmsResult.data ?? [])
+    .filter((row: any) => !blockedSet.has(row.other_user_id))
+    .map((row: any) => ({
+      id: row.id,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      last_message: row.last_message ?? null,
+      last_message_at: row.last_message_at ?? null,
+      unread_count: Number(row.unread_count ?? 0),
+      other_user: {
+        id: row.other_user_id,
+        name: row.other_user_name,
+        profile_photo: row.other_user_photo,
+      },
+    }))
 }
 
 export async function getOrCreateDM(otherUserId: string): Promise<string> {
@@ -412,6 +423,41 @@ export async function getDMOtherLastRead(conversationId: string, myUserId: strin
     .neq('user_id', myUserId)
     .single()
   return (data as any)?.last_read_at ?? null
+}
+
+// ── Block / Report ────────────────────────────────────────────────────────
+
+export async function blockUser(blockedId: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase.from('blocked_users').upsert({ blocker_id: uid, blocked_id: blockedId })
+}
+
+export async function unblockUser(blockedId: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase.from('blocked_users').delete().eq('blocker_id', uid).eq('blocked_id', blockedId)
+}
+
+export async function isUserBlocked(blockedId: string): Promise<boolean> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return false
+  const { data } = await supabase
+    .from('blocked_users').select('id').eq('blocker_id', uid).eq('blocked_id', blockedId).maybeSingle()
+  return !!data
+}
+
+export async function getBlockedUserIds(): Promise<string[]> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return []
+  const { data } = await supabase.from('blocked_users').select('blocked_id').eq('blocker_id', uid)
+  return (data ?? []).map((r: any) => r.blocked_id)
+}
+
+export async function reportUser(reportedId: string, reason: string, details?: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase.from('user_reports').insert({ reporter_id: uid, reported_id: reportedId, reason, details: details ?? null })
 }
 
 export async function getSavedTrips(userId: string): Promise<TripWithDetails[]> {
