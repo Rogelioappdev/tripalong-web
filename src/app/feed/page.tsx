@@ -3,9 +3,9 @@
 export const dynamic = 'force-dynamic'
 
 import { useQuery } from '@tanstack/react-query'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, useAnimation, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
@@ -25,6 +25,19 @@ export default function FeedPage() {
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
+  const [savedToast, setSavedToast] = useState<TripWithDetails | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const bookmarkControls = useAnimation()
+
+  const handleTripSaved = (trip: TripWithDetails) => {
+    setSavedToast(trip)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setSavedToast(null), 1800)
+    bookmarkControls.start({
+      scale: [1, 1.55, 1],
+      transition: { duration: 0.38, times: [0, 0.45, 1], ease: 'easeOut' },
+    })
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -68,10 +81,12 @@ export default function FeedPage() {
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
               onClick={() => { haptic(8); setShowSaved(true) }}
               className="w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-                  stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <motion.div animate={bookmarkControls}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                    stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </motion.div>
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.88 }}
@@ -128,7 +143,7 @@ export default function FeedPage() {
             </div>
           ) : trips && trips.length > 0 ? (
             <div className="w-full max-w-sm flex flex-col">
-              <SwipeStack trips={trips} userId={userId} onTripTap={setSelectedTrip} />
+              <SwipeStack trips={trips} userId={userId} onTripTap={setSelectedTrip} onSave={handleTripSaved} />
             </div>
           ) : (
             <div className="flex items-center justify-center w-full">
@@ -152,6 +167,44 @@ export default function FeedPage() {
           onClose={() => setShowSaved(false)}
         />
       )}
+
+      {/* Save confirmation toast */}
+      <AnimatePresence>
+        {savedToast && (
+          <motion.button
+            key={savedToast.id}
+            initial={{ y: 20, opacity: 0, scale: 0.94 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 12, opacity: 0, scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            onClick={() => { haptic(8); setSavedToast(null); setShowSaved(true) }}
+            className="fixed left-4 right-4 z-50 flex items-center gap-3 px-3 py-2.5 rounded-2xl"
+            style={{
+              bottom: 'calc(env(safe-area-inset-bottom) + 90px)',
+              backgroundColor: 'rgba(18,18,18,0.97)',
+              border: '0.5px solid rgba(255,255,255,0.13)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              maxWidth: 400,
+              margin: '0 auto',
+            } as React.CSSProperties}
+          >
+            {savedToast.cover_image ? (
+              <img src={savedToast.cover_image} alt="" className="w-11 h-11 rounded-xl object-cover shrink-0" />
+            ) : (
+              <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-xl">🌍</div>
+            )}
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-white font-semibold text-sm truncate">{savedToast.destination} saved ✓</p>
+              <p className="text-white/38 text-xs mt-0.5">Tap to view saved trips</p>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                stroke="rgba(255,255,255,0.45)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </motion.button>
+        )}
+      </AnimatePresence>
     </>
   )
 }

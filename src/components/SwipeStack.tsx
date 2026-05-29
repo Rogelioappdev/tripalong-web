@@ -13,9 +13,10 @@ interface SwipeStackProps {
   trips: TripWithDetails[]
   userId: string | null
   onTripTap: (trip: TripWithDetails) => void
+  onSave?: (trip: TripWithDetails) => void
 }
 
-export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
+export function SwipeStack({ trips, userId, onTripTap, onSave }: SwipeStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set())
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
@@ -44,6 +45,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
     advance()
     if (userId && !savedIds.has(trip.id)) {
       setSavedIds(s => new Set([...s, trip.id]))
+      onSave?.(trip)
       try {
         await saveTrip(trip.id, userId)
         qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
