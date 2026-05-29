@@ -1,4 +1,9 @@
+'use client'
+
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export const metadata = {
   title: 'Terms of Service — TripAlong',
@@ -57,24 +62,25 @@ function Caps({ children }: { children: React.ReactNode }) {
 }
 
 export default function TermsPage() {
+  const router = useRouter()
   return (
     <div style={{ background: '#080808', minHeight: '100vh' }}>
 
       {/* Top bar */}
       <header className="sticky top-0 z-20 border-b flex items-center justify-between px-5 py-3"
         style={{ background: 'rgba(8,8,8,0.92)', backdropFilter: 'blur(12px)', borderColor: 'rgba(255,255,255,0.07)' }}>
-        <Link href="/" className="font-bold text-white text-base tracking-tight">
-          TripAlong
+        <button type="button" onClick={() => router.back()}
+          className="flex items-center gap-1.5 text-sm font-medium"
+          style={{ color: 'rgba(255,255,255,0.5)' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          Back
+        </button>
+        <span className="text-sm font-semibold text-white">Terms of Service</span>
+        <Link href="/privacy" className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          Privacy →
         </Link>
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-semibold px-3 py-1 rounded-full"
-            style={{ background: 'rgba(255,255,255,0.1)', color: '#fff' }}>
-            Terms of Service
-          </span>
-          <Link href="/privacy" className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            Privacy Policy →
-          </Link>
-        </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-5 pb-36 pt-10">
@@ -576,9 +582,6 @@ export default function TermsPage() {
         {/* Footer links */}
         <div className="flex items-center gap-5 mt-16 pt-8 border-t"
           style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-          <Link href="/" className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-            ← Back to TripAlong
-          </Link>
           <Link href="/privacy" className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
             Privacy Policy →
           </Link>

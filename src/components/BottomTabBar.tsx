@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { getUnreadCount } from '@/lib/queries'
 
-const HIDE_ON = ['/', '/onboarding', '/travel-dna']
+const HIDE_ON = ['/', '/onboarding', '/travel-dna', '/terms', '/privacy', '/faq', '/report-bug']
 
 export function BottomTabBar() {
   const pathname = usePathname()
