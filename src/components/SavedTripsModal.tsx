@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat, updateTripMemberStatus } from '@/lib/queries'
 import { TripDetailModal } from '@/components/TripDetailModal'
+import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
 interface Props {
@@ -176,8 +177,8 @@ export function SavedTripsModal({ userId, onClose }: Props) {
             </p>
           </div>
           <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center"
+            onClick={() => { haptic(8); onClose() }}
+            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.12)' }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -189,8 +190,8 @@ export function SavedTripsModal({ userId, onClose }: Props) {
         {/* Main tabs */}
         <div className="flex gap-2 px-5 pb-3 shrink-0">
           <button
-            onClick={() => setMainTab('saved')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all"
+            onClick={() => { haptic(8); setMainTab('saved') }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-all"
             style={mainTab === 'saved'
               ? { backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff', border: '0.5px solid rgba(255,255,255,0.2)' }
               : { backgroundColor: 'transparent', color: 'rgba(255,255,255,0.4)', border: '0.5px solid rgba(255,255,255,0.08)' }}
@@ -202,8 +203,8 @@ export function SavedTripsModal({ userId, onClose }: Props) {
             Saved ({savedTrips.length})
           </button>
           <button
-            onClick={() => setMainTab('mytrips')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all"
+            onClick={() => { haptic(8); setMainTab('mytrips') }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-all"
             style={mainTab === 'mytrips'
               ? { backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff', border: '0.5px solid rgba(255,255,255,0.2)' }
               : { backgroundColor: 'transparent', color: 'rgba(255,255,255,0.4)', border: '0.5px solid rgba(255,255,255,0.08)' }}
@@ -219,8 +220,8 @@ export function SavedTripsModal({ userId, onClose }: Props) {
         {mainTab === 'mytrips' && (
           <div className="flex gap-2 px-5 pb-3 shrink-0">
             <button
-              onClick={() => setSubTab('in')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+              onClick={() => { haptic(8); setSubTab('in') }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold active:scale-95 transition-all"
               style={subTab === 'in'
                 ? { backgroundColor: 'rgba(48,209,88,0.15)', color: '#30D158', border: '0.5px solid rgba(48,209,88,0.35)' }
                 : { backgroundColor: 'transparent', color: 'rgba(255,255,255,0.35)', border: '0.5px solid rgba(255,255,255,0.08)' }}
@@ -228,8 +229,8 @@ export function SavedTripsModal({ userId, onClose }: Props) {
               ✓ I'm In ({tripsIn.length})
             </button>
             <button
-              onClick={() => setSubTab('maybe')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+              onClick={() => { haptic(8); setSubTab('maybe') }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold active:scale-95 transition-all"
               style={subTab === 'maybe'
                 ? { backgroundColor: 'rgba(255,214,10,0.12)', color: '#FFD60A', border: '0.5px solid rgba(255,214,10,0.3)' }
                 : { backgroundColor: 'transparent', color: 'rgba(255,255,255,0.35)', border: '0.5px solid rgba(255,255,255,0.08)' }}
@@ -403,7 +404,7 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
           {/* Pass */}
           <div className="flex flex-col items-center gap-1.5">
             <button
-              onClick={onUnsave}
+              onClick={() => { haptic([6,20,6]); onUnsave() }}
               className="w-14 h-14 rounded-full flex items-center justify-center active:scale-95 transition-transform"
               style={{ backgroundColor: '#2a0e0e', border: '1.5px solid #FF453A' }}
             >
@@ -417,7 +418,7 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
           {/* Join / Joined */}
           <div className="flex flex-col items-center gap-1.5">
             <button
-              onClick={joined ? undefined : onJoin}
+              onClick={joined ? undefined : () => { haptic(18); onJoin() }}
               className="w-16 h-16 rounded-full flex items-center justify-center active:scale-95 transition-transform"
               style={joined
                 ? { backgroundColor: '#ffffff' }
@@ -437,7 +438,7 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
           {/* Unsave */}
           <div className="flex flex-col items-center gap-1.5">
             <button
-              onClick={onUnsave}
+              onClick={() => { haptic(8); onUnsave() }}
               className="w-14 h-14 rounded-full flex items-center justify-center active:scale-95 transition-transform"
               style={{ backgroundColor: '#1e1c14', border: '1.5px solid rgba(240,235,227,0.45)' }}
             >
@@ -452,7 +453,7 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
 
         {/* Chat button */}
         <button
-          onClick={chatLoading ? undefined : onOpenChat}
+          onClick={chatLoading ? undefined : () => { haptic(10); onOpenChat() }}
           disabled={chatLoading}
           className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
           style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.12)' }}
@@ -536,8 +537,8 @@ function MyTripCard({ trip, currentStatus, onView, onStatusChange, onLeave, onOp
         <div className="flex items-center gap-2">
           {/* I'm In */}
           <button
-            onClick={() => onStatusChange('in')}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-colors"
+            onClick={() => { haptic(8); onStatusChange('in') }}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold active:scale-95 transition-all"
             style={currentStatus === 'in'
               ? { backgroundColor: 'rgba(48,209,88,0.15)', color: '#30D158', border: '1px solid rgba(48,209,88,0.4)' }
               : { backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
@@ -546,8 +547,8 @@ function MyTripCard({ trip, currentStatus, onView, onStatusChange, onLeave, onOp
           </button>
           {/* Maybe */}
           <button
-            onClick={() => onStatusChange('maybe')}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold transition-colors"
+            onClick={() => { haptic(8); onStatusChange('maybe') }}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold active:scale-95 transition-all"
             style={currentStatus === 'maybe'
               ? { backgroundColor: 'rgba(255,214,10,0.12)', color: '#FFD60A', border: '1px solid rgba(255,214,10,0.35)' }
               : { backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
@@ -556,7 +557,7 @@ function MyTripCard({ trip, currentStatus, onView, onStatusChange, onLeave, onOp
           </button>
           {/* Leave */}
           <button
-            onClick={onLeave}
+            onClick={() => { haptic([6,20,6]); onLeave() }}
             className="w-10 h-10 rounded-2xl flex items-center justify-center active:scale-95 transition-transform shrink-0"
             style={{ backgroundColor: 'rgba(255,69,58,0.08)', border: '0.5px solid rgba(255,69,58,0.3)' }}
           >
@@ -569,7 +570,7 @@ function MyTripCard({ trip, currentStatus, onView, onStatusChange, onLeave, onOp
 
         {/* Message Group */}
         <button
-          onClick={chatLoading ? undefined : onOpenChat}
+          onClick={chatLoading ? undefined : () => { haptic(10); onOpenChat() }}
           disabled={chatLoading}
           className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
           style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.12)' }}
@@ -630,15 +631,15 @@ function UnsaveConfirmSheet({ trip, onConfirm, onCancel }: {
           </div>
           <p className="text-white/50 text-sm text-center mb-4">Remove this trip from your saved list?</p>
           <button
-            onClick={onConfirm}
-            className="w-full py-4 rounded-2xl font-bold text-base mb-3 active:opacity-80 transition-opacity"
+            onClick={() => { haptic(18); onConfirm() }}
+            className="w-full py-4 rounded-2xl font-bold text-base mb-3 active:scale-[0.98] active:opacity-80 transition-all"
             style={{ backgroundColor: '#FF453A', color: '#fff' }}
           >
             Remove from Saved
           </button>
           <button
-            onClick={onCancel}
-            className="w-full py-4 rounded-2xl font-semibold text-base active:opacity-70 transition-opacity"
+            onClick={() => { haptic(8); onCancel() }}
+            className="w-full py-4 rounded-2xl font-semibold text-base active:scale-[0.98] active:opacity-70 transition-all"
             style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '0.5px solid rgba(255,255,255,0.1)' }}
           >
             Cancel
@@ -689,15 +690,15 @@ function LeaveConfirmSheet({ trip, onConfirm, onCancel }: {
           </div>
           <p className="text-white/50 text-sm text-center mb-4">Leave this trip? You'll be removed from the group.</p>
           <button
-            onClick={onConfirm}
-            className="w-full py-4 rounded-2xl font-bold text-base mb-3 active:opacity-80 transition-opacity"
+            onClick={() => { haptic(18); onConfirm() }}
+            className="w-full py-4 rounded-2xl font-bold text-base mb-3 active:scale-[0.98] active:opacity-80 transition-all"
             style={{ backgroundColor: '#FF453A', color: '#fff' }}
           >
             Leave Trip
           </button>
           <button
-            onClick={onCancel}
-            className="w-full py-4 rounded-2xl font-semibold text-base active:opacity-70 transition-opacity"
+            onClick={() => { haptic(8); onCancel() }}
+            className="w-full py-4 rounded-2xl font-semibold text-base active:scale-[0.98] active:opacity-70 transition-all"
             style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '0.5px solid rgba(255,255,255,0.1)' }}
           >
             Cancel

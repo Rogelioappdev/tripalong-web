@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { createTrip, getDestinationPhotos } from '@/lib/queries'
+import { haptic } from '@/lib/haptics'
 
 interface CreateTripModalProps {
   onClose: () => void
@@ -185,8 +186,8 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
               style={{ paddingTop: 'calc(env(safe-area-inset-top) + 14px)', paddingBottom: '12px' }}
             >
               <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                onClick={() => { haptic(8); onClose() }}
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 active:scale-90 transition-transform"
                 style={{ backgroundColor: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -235,7 +236,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                 {QUICK_DESTINATIONS.map(d => (
                   <button
                     key={d.city}
-                    onClick={() => { setDestination(d.city); setCountry(d.country) }}
+                    onClick={() => { haptic(8); setDestination(d.city); setCountry(d.country) }}
                     className="px-3 py-1.5 rounded-full text-xs font-semibold active:scale-95 transition-transform"
                     style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.65)', border: '0.5px solid rgba(255,255,255,0.12)' }}
                   >
@@ -292,7 +293,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                 {SEASONS.map(s => (
                   <button
                     key={s}
-                    onClick={() => { setSeason(s === season ? '' : s); setFlexDates(false) }}
+                    onClick={() => { haptic(8); setSeason(s === season ? '' : s); setFlexDates(false) }}
                     className="px-3.5 py-2 rounded-full text-xs font-semibold transition-colors"
                     style={season === s
                       ? { backgroundColor: 'rgba(255,255,255,0.14)', color: 'white', border: '1px solid rgba(255,255,255,0.28)' }
@@ -329,7 +330,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
               )}
 
               <button
-                onClick={() => { setFlexDates(!flexDates); setSeason('') }}
+                onClick={() => { haptic(8); setFlexDates(!flexDates); setSeason('') }}
                 className="flex items-center gap-2.5 active:opacity-80 transition-opacity"
               >
                 <div
@@ -361,7 +362,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                   return (
                     <button
                       key={v.value}
-                      onClick={() => toggleVibe(v.value)}
+                      onClick={() => { haptic(8); toggleVibe(v.value) }}
                       disabled={maxed}
                       className="px-3 py-2 rounded-full text-sm font-medium transition-colors"
                       style={selected
@@ -384,7 +385,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                 {PACES.map(p => (
                   <button
                     key={p.value}
-                    onClick={() => setPace(p.value)}
+                    onClick={() => { haptic(8); setPace(p.value) }}
                     className="flex flex-col items-center gap-2 py-4 rounded-2xl transition-colors active:scale-95"
                     style={pace === p.value
                       ? { backgroundColor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)' }
@@ -412,13 +413,13 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                 <span className="text-white/55 text-sm">Max travelers</span>
                 <div className="flex items-center gap-4 ml-auto">
                   <button
-                    onClick={() => setGroupSize(s => Math.max(2, s - 1))}
+                    onClick={() => { haptic(4); setGroupSize(s => Math.max(2, s - 1)) }}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
                     style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
                   >−</button>
                   <span className="text-white font-bold text-base w-5 text-center">{groupSize}</span>
                   <button
-                    onClick={() => setGroupSize(s => Math.min(20, s + 1))}
+                    onClick={() => { haptic(4); setGroupSize(s => Math.min(20, s + 1)) }}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
                     style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
                   >+</button>
@@ -428,7 +429,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                 {GROUP_PREFS.map(g => (
                   <button
                     key={g.value + g.label}
-                    onClick={() => setGroupPref(g.value === 'everyone' && g.label === 'Mixed' ? 'mixed' : g.value)}
+                    onClick={() => { haptic(8); setGroupPref(g.value === 'everyone' && g.label === 'Mixed' ? 'mixed' : g.value) }}
                     className="px-3 py-2 rounded-full text-xs font-semibold transition-colors active:scale-95"
                     style={(() => {
                       const active =
@@ -459,7 +460,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setAnyAge(a => !a)}
+                  onClick={() => { haptic(8); setAnyAge(a => !a) }}
                   className="relative transition-colors shrink-0"
                   style={{
                     width: '44px', height: '26px', borderRadius: '13px',
@@ -490,14 +491,14 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
-                          onClick={() => setMinAge(v => Math.max(16, v - 1))}
+                          onClick={() => { haptic(4); setMinAge(v => Math.max(16, v - 1)) }}
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
                           style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
                         >−</button>
                         <span className="text-white font-bold text-xl w-8 text-center">{minAge}</span>
                         <button
                           type="button"
-                          onClick={() => setMinAge(v => Math.min(maxAge - 1, v + 1))}
+                          onClick={() => { haptic(4); setMinAge(v => Math.min(maxAge - 1, v + 1)) }}
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
                           style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
                         >+</button>
@@ -513,14 +514,14 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
-                          onClick={() => setMaxAge(v => Math.max(minAge + 1, v - 1))}
+                          onClick={() => { haptic(4); setMaxAge(v => Math.max(minAge + 1, v - 1)) }}
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
                           style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
                         >−</button>
                         <span className="text-white font-bold text-xl w-8 text-center">{maxAge}</span>
                         <button
                           type="button"
-                          onClick={() => setMaxAge(v => Math.min(65, v + 1))}
+                          onClick={() => { haptic(4); setMaxAge(v => Math.min(65, v + 1)) }}
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg active:scale-90 transition-transform"
                           style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
                         >+</button>
@@ -544,7 +545,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                 {BUDGETS.map(b => (
                   <button
                     key={b.value}
-                    onClick={() => setBudget(budget === b.value ? '' : b.value)}
+                    onClick={() => { haptic(8); setBudget(budget === b.value ? '' : b.value) }}
                     className="flex flex-col items-center gap-2 py-4 rounded-2xl transition-colors active:scale-95"
                     style={budget === b.value
                       ? { backgroundColor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)' }
@@ -593,7 +594,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
           }}
         >
           <button
-            onClick={handleCreate}
+            onClick={() => { haptic(18); handleCreate() }}
             disabled={!isValid || loading || !userId}
             className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.98]"
             style={isValid && !loading

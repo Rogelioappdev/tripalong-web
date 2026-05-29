@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip } from '@/lib/queries'
 import { PublicProfileModal } from './PublicProfileModal'
+import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
 interface TripDetailModalProps {
@@ -129,8 +130,8 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
 
           {/* Chevron-down close */}
           <button
-            onClick={onClose}
-            className="absolute flex items-center justify-center"
+            onClick={() => { haptic(8); onClose() }}
+            className="absolute flex items-center justify-center active:scale-90 transition-transform"
             style={{
               top: 16, left: 16,
               width: 36, height: 36, borderRadius: 18,
@@ -229,7 +230,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
                     <button
                       key={m.id}
                       type="button"
-                      onPointerDown={(e) => { e.stopPropagation(); setProfileUserId(m.id) }}
+                      onPointerDown={(e) => { e.stopPropagation(); haptic(8); setProfileUserId(m.id) }}
                       className="flex flex-col items-center gap-1.5 shrink-0 active:opacity-75 transition-opacity"
                       style={{ touchAction: 'manipulation', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
                     >
@@ -280,7 +281,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
         >
           {isJoined ? (
             <button
-              onClick={openChat}
+              onClick={() => { haptic(10); openChat() }}
               className="w-full font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform"
               style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: '#000', padding: '16px' }}
             >
@@ -288,7 +289,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
             </button>
           ) : (
             <button
-              onClick={() => joinMutation.mutate()}
+              onClick={() => { haptic(10); joinMutation.mutate() }}
               disabled={joinMutation.isPending || spotsLeft <= 0}
               className="w-full font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-40"
               style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: '#000', padding: '16px' }}

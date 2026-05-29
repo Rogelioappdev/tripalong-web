@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { getUnreadCount } from '@/lib/queries'
 import { setTabDir } from '@/lib/tab-direction'
@@ -86,7 +87,7 @@ export function BottomTabBar() {
         {tabs.map(tab => {
           const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
           return (
-            <button
+            <motion.button
               key={tab.href}
               type="button"
               onClick={() => {
@@ -96,6 +97,8 @@ export function BottomTabBar() {
                   router.push(tab.href)
                 }
               }}
+              whileTap={{ scale: 0.82 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
               className="flex flex-col items-center justify-center gap-1 flex-1 h-full"
             >
               <div className="relative flex items-center justify-center" style={{ height: tab.isCenter ? 38 : 22 }}>
@@ -113,7 +116,7 @@ export function BottomTabBar() {
               >
                 {tab.label}
               </span>
-            </button>
+            </motion.button>
           )
         })}
       </div>

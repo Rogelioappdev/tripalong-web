@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { getUserTripChats, getDMConversations } from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
+import { haptic } from '@/lib/haptics'
 
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -112,9 +113,9 @@ export default function MessagesPage() {
               </div>
               <button
                 type="button"
-                onClick={handleEnableNotifications}
+                onClick={() => { haptic(8); handleEnableNotifications() }}
                 disabled={pushLoading}
-                className="shrink-0 font-semibold text-xs px-3 py-1.5 rounded-xl transition-opacity disabled:opacity-50"
+                className="shrink-0 font-semibold text-xs px-3 py-1.5 rounded-xl active:scale-95 transition-all disabled:opacity-50"
                 style={{ backgroundColor: '#F0EBE3', color: '#000' }}
               >
                 {pushLoading ? 'Enabling…' : 'Enable'}
@@ -151,8 +152,8 @@ export default function MessagesPage() {
                 return (
                   <button
                     key={chat.id}
-                    onClick={() => router.push(`/chat/${chat.id}`)}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 transition-colors border-b border-white/6"
+                    onClick={() => { haptic(8); router.push(`/chat/${chat.id}`) }}
+                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6"
                   >
                     <div className="w-12 h-12 rounded-2xl bg-white/8 overflow-hidden shrink-0">
                       {trip.cover_image ? (
@@ -211,8 +212,8 @@ export default function MessagesPage() {
                 return (
                   <button
                     key={dm.id}
-                    onClick={() => router.push(`/dm/${dm.id}`)}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 transition-colors border-b border-white/6"
+                    onClick={() => { haptic(8); router.push(`/dm/${dm.id}`) }}
+                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6"
                   >
                     <div className="relative shrink-0">
                       <div className="w-12 h-12 rounded-full bg-white/8 overflow-hidden">

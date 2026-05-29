@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { leaveTripFromChat, getTripChatMuted, setTripChatMuted, getChatImages } from '@/lib/queries'
 import { useOnlineUsers } from '@/lib/presence'
+import { haptic } from '@/lib/haptics'
 import { PublicProfileModal } from './PublicProfileModal'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -95,6 +96,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
 
   const handleToggleMute = async () => {
     const next = !muted
+    haptic(8)
     setMuted(next)
     await setTripChatMuted(chatId, next)
   }
@@ -145,8 +147,8 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
           style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)', paddingBottom: 12 }}
         >
           <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 text-white/40 hover:text-white transition-colors shrink-0"
+            onClick={() => { haptic(8); onClose() }}
+            className="flex items-center gap-1.5 text-white/40 hover:text-white active:scale-90 transition-all shrink-0"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
               <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -344,8 +346,8 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
           <div className="px-4">
             <button
               type="button"
-              onClick={() => setShowInvite(true)}
-              className="w-full flex items-center gap-4 py-3.5"
+              onClick={() => { haptic(8); setShowInvite(true) }}
+              className="w-full flex items-center gap-4 py-3.5 active:opacity-75 transition-opacity"
               style={{ borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}
             >
               <div
@@ -380,7 +382,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                 <button
                   key={u.id}
                   type="button"
-                  onClick={() => { if (!isMe) setSelectedMemberId(u.id) }}
+                  onClick={() => { if (!isMe) { haptic(8); setSelectedMemberId(u.id) } }}
                   className="w-full flex items-center gap-4 py-3.5"
                   style={{ borderBottom: '0.5px solid rgba(255,255,255,0.05)', cursor: isMe ? 'default' : 'pointer' }}
                 >
@@ -430,15 +432,15 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setConfirmLeave(false)}
-                    className="flex-1 font-semibold text-sm rounded-xl py-2.5"
+                    onClick={() => { haptic(8); setConfirmLeave(false) }}
+                    className="flex-1 font-semibold text-sm rounded-xl py-2.5 active:scale-95 transition-transform"
                     style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
-                    onClick={handleLeave}
+                    onClick={() => { haptic(18); handleLeave() }}
                     disabled={leaving}
                     className="flex-1 font-semibold text-sm rounded-xl py-2.5 disabled:opacity-50"
                     style={{ backgroundColor: '#FF453A', color: '#fff' }}
@@ -450,8 +452,8 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
             ) : (
               <button
                 type="button"
-                onClick={() => setConfirmLeave(true)}
-                className="w-full font-semibold text-sm rounded-2xl py-3.5 transition-opacity hover:opacity-75"
+                onClick={() => { haptic(8); setConfirmLeave(true) }}
+                className="w-full font-semibold text-sm rounded-2xl py-3.5 active:scale-[0.98] transition-all hover:opacity-75"
                 style={{ color: '#FF453A', border: '1px solid rgba(255,69,58,0.3)' }}
               >
                 Leave Trip
@@ -505,8 +507,8 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                   <p className="flex-1 text-white/40 text-sm truncate">{inviteUrl}</p>
                   <button
                     type="button"
-                    onClick={handleCopyLink}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs transition-all"
+                    onClick={() => { haptic(8); handleCopyLink() }}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs transition-all active:scale-95"
                     style={{
                       backgroundColor: copied ? 'rgba(48,209,88,0.13)' : 'rgba(240,235,227,0.09)',
                       color: copied ? '#30D158' : 'rgba(240,235,227,0.75)',
@@ -537,8 +539,8 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
               <div className="px-5 pt-4 flex flex-col gap-2.5">
                 <button
                   type="button"
-                  onClick={handleNativeShare}
-                  className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm transition-opacity active:opacity-75"
+                  onClick={() => { haptic(10); handleNativeShare() }}
+                  className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98] active:opacity-75"
                   style={{ backgroundColor: '#F0EBE3', color: '#000', padding: '15px 0' }}
                 >
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
@@ -549,8 +551,8 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                 </button>
                 <button
                   type="button"
-                  onClick={handleWhatsApp}
-                  className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm transition-opacity active:opacity-75"
+                  onClick={() => { haptic(10); handleWhatsApp() }}
+                  className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98] active:opacity-75"
                   style={{
                     padding: '15px 0',
                     backgroundColor: 'rgba(37,211,102,0.1)',

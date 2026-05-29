@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
+import { haptic } from '@/lib/haptics'
 
 // ── Primitives ────────────────────────────────────────────────────────────
 
@@ -13,7 +14,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   return (
     <button
       type="button"
-      onClick={() => onChange(!value)}
+      onClick={() => { haptic(8); onChange(!value) }}
       className="w-12 h-7 rounded-full relative flex items-center shrink-0 transition-colors duration-200"
       style={{ backgroundColor: value ? '#30D158' : 'rgba(255,255,255,0.15)', padding: 2 }}
     >
@@ -64,7 +65,7 @@ function Row({
   )
   if (onPress) {
     return (
-      <button type="button" onClick={onPress} className="w-full text-left active:bg-white/5 transition-colors">
+      <button type="button" onClick={() => { haptic(8); onPress?.() }} className="w-full text-left active:bg-white/5 active:scale-[0.99] transition-all">
         {inner}
       </button>
     )
@@ -152,8 +153,8 @@ export default function SettingsPage() {
       <main className="pt-14 min-h-screen bg-black pb-28 md:pb-10">
         {/* Page header */}
         <div className="max-w-lg mx-auto px-5 pt-4 pb-2 flex items-center gap-3">
-          <button type="button" onClick={() => router.back()}
-            className="text-white/40 text-sm hover:text-white transition-colors">
+          <button type="button" onClick={() => { haptic(8); router.back() }}
+            className="text-white/40 text-sm hover:text-white active:scale-95 transition-all">
             ← Back
           </button>
           <h1 className="text-white font-bold text-lg flex-1 text-center pr-10">Settings</h1>
@@ -198,13 +199,13 @@ export default function SettingsPage() {
                         />
                         {pwError && <p className="text-red-400 text-xs">{pwError}</p>}
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => { setChangingPw(false); setNewPw(''); setConfirmPw(''); setPwError('') }}
-                            className="flex-1 py-3 rounded-2xl text-sm"
+                          <button type="button" onClick={() => { haptic(8); setChangingPw(false); setNewPw(''); setConfirmPw(''); setPwError('') }}
+                            className="flex-1 py-3 rounded-2xl text-sm active:scale-95 transition-transform"
                             style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
                             Cancel
                           </button>
-                          <button type="button" onClick={handleChangePw} disabled={pwSaving}
-                            className="flex-1 py-3 rounded-2xl text-sm font-semibold disabled:opacity-40"
+                          <button type="button" onClick={() => { haptic(10); handleChangePw() }} disabled={pwSaving}
+                            className="flex-1 py-3 rounded-2xl text-sm font-semibold active:scale-95 transition-transform disabled:opacity-40"
                             style={{ backgroundColor: '#F0EBE3', color: '#000' }}>
                             {pwSaving ? 'Saving…' : 'Update'}
                           </button>
@@ -267,13 +268,13 @@ export default function SettingsPage() {
                   This will permanently delete your account, profile, messages, and trips. This cannot be undone.
                 </p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setDeletePhase('idle')}
-                    className="flex-1 py-3 rounded-2xl text-sm"
+                  <button type="button" onClick={() => { haptic(8); setDeletePhase('idle') }}
+                    className="flex-1 py-3 rounded-2xl text-sm active:scale-95 transition-transform"
                     style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
                     Cancel
                   </button>
-                  <button type="button" onClick={() => setDeletePhase('typing')}
-                    className="flex-1 py-3 rounded-2xl text-sm font-semibold"
+                  <button type="button" onClick={() => { haptic(8); setDeletePhase('typing') }}
+                    className="flex-1 py-3 rounded-2xl text-sm font-semibold active:scale-95 transition-transform"
                     style={{ backgroundColor: '#FF3B30', color: '#fff' }}>
                     Continue
                   </button>
@@ -293,14 +294,14 @@ export default function SettingsPage() {
                   style={{ borderColor: deleteInput === 'DELETE' ? '#FF3B30' : 'rgba(255,255,255,0.12)', fontSize: 16 }}
                 />
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => { setDeletePhase('idle'); setDeleteInput('') }}
-                    className="flex-1 py-3 rounded-2xl text-sm"
+                  <button type="button" onClick={() => { haptic(8); setDeletePhase('idle'); setDeleteInput('') }}
+                    className="flex-1 py-3 rounded-2xl text-sm active:scale-95 transition-transform"
                     style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
                     Cancel
                   </button>
-                  <button type="button" onClick={handleDeleteAccount}
+                  <button type="button" onClick={() => { haptic(18); handleDeleteAccount() }}
                     disabled={deleteInput !== 'DELETE' || deleting}
-                    className="flex-1 py-3 rounded-2xl text-sm font-semibold disabled:opacity-30"
+                    className="flex-1 py-3 rounded-2xl text-sm font-semibold active:scale-95 transition-transform disabled:opacity-30"
                     style={{ backgroundColor: '#FF3B30', color: '#fff' }}>
                     {deleting ? 'Deleting…' : 'Delete Forever'}
                   </button>

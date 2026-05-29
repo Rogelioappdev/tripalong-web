@@ -89,7 +89,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
         <motion.button
           whileTap={{ scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-          onClick={() => setCurrentIndex(0)}
+          onClick={() => { haptic(8); setCurrentIndex(0) }}
           className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm"
         >
           Start over

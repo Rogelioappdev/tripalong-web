@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getProfile, updateProfile, getMyTrips } from '@/lib/queries'
+import { haptic } from '@/lib/haptics'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { CountryPicker } from '@/components/CountryPicker'
@@ -288,8 +289,8 @@ export default function ProfilePage() {
             <h1 className="text-white font-bold text-lg">Profile</h1>
             <button
               type="button"
-              onClick={() => router.push('/settings')}
-              className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/8 transition-colors"
+              onClick={() => { haptic(8); router.push('/settings') }}
+              className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/8 active:scale-90 transition-all"
               style={{ color: 'rgba(255,255,255,0.45)' }}
               aria-label="Settings"
             >
@@ -310,15 +311,15 @@ export default function ProfilePage() {
             <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => setShowPreview(true)}
-                className="bg-black/60 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl"
+                onClick={() => { haptic(8); setShowPreview(true) }}
+                className="bg-black/60 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl active:scale-95 transition-transform"
               >
                 👁 Preview
               </button>
               <button
                 type="button"
-                onClick={() => fileRef.current?.click()}
-                className="bg-black/60 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl"
+                onClick={() => { haptic(8); fileRef.current?.click() }}
+                className="bg-black/60 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl active:scale-95 transition-transform"
               >
                 {uploadingMain ? '...' : '📷 Change photo'}
               </button>
@@ -352,13 +353,13 @@ export default function ProfilePage() {
                   className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30 resize-none placeholder-white/25"
                   style={{ fontSize: 16 }} />
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => { save({ name, bio, city, country: countryVal, age: ageVal ? parseInt(ageVal, 10) : null }); setEditingBasic(false) }}
+                  <button type="button" onClick={() => { haptic(10); save({ name, bio, city, country: countryVal, age: ageVal ? parseInt(ageVal, 10) : null }); setEditingBasic(false) }}
                     disabled={saving}
-                    className="flex-1 bg-white text-black font-semibold py-3 rounded-2xl text-sm disabled:opacity-40">
+                    className="flex-1 bg-white text-black font-semibold py-3 rounded-2xl text-sm disabled:opacity-40 active:scale-[0.98] transition-transform">
                     {saving ? 'Saving...' : 'Save'}
                   </button>
-                  <button type="button" onClick={() => setEditingBasic(false)}
-                    className="flex-1 bg-white/8 text-white/60 font-medium py-3 rounded-2xl text-sm">
+                  <button type="button" onClick={() => { haptic(8); setEditingBasic(false) }}
+                    className="flex-1 bg-white/8 text-white/60 font-medium py-3 rounded-2xl text-sm active:scale-[0.98] transition-transform">
                     Cancel
                   </button>
                 </div>
@@ -375,7 +376,7 @@ export default function ProfilePage() {
                       </p>
                     )}
                   </div>
-                  <button onClick={() => setEditingBasic(true)} className="text-white/40 text-sm hover:text-white">Edit</button>
+                  <button onClick={() => { haptic(8); setEditingBasic(true) }} className="text-white/40 text-sm hover:text-white active:scale-90 transition-transform">Edit</button>
                 </div>
                 {profile?.bio ? (
                   <p className="text-white/50 text-sm leading-relaxed">{profile.bio}</p>
@@ -407,7 +408,7 @@ export default function ProfilePage() {
                     {/* Row header */}
                     <button
                       type="button"
-                      onClick={() => isEditing ? setEditingField(null) : openFieldEdit(field)}
+                      onClick={() => { haptic(8); isEditing ? setEditingField(null) : openFieldEdit(field) }}
                       className="w-full flex items-center justify-between px-4 py-3"
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -442,6 +443,7 @@ export default function ProfilePage() {
                                 key={opt.value}
                                 type="button"
                                 onClick={() => {
+                                  haptic(8)
                                   if (!field.multi) {
                                     saveField(field.key, opt.value)
                                   } else {
@@ -462,14 +464,14 @@ export default function ProfilePage() {
                         </div>
                         {field.multi && (
                           <div className="flex gap-2">
-                            <button type="button" onClick={() => saveField(field.key, fieldDraft as string[])}
+                            <button type="button" onClick={() => { haptic(10); saveField(field.key, fieldDraft as string[]) }}
                               disabled={saving}
-                              className="flex-1 py-2.5 rounded-2xl text-sm font-semibold disabled:opacity-40"
+                              className="flex-1 py-2.5 rounded-2xl text-sm font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
                               style={{ backgroundColor: '#F0EBE3', color: '#000' }}>
                               {saving ? 'Saving…' : 'Save'}
                             </button>
-                            <button type="button" onClick={() => setEditingField(null)}
-                              className="px-5 py-2.5 rounded-2xl text-sm"
+                            <button type="button" onClick={() => { haptic(8); setEditingField(null) }}
+                              className="px-5 py-2.5 rounded-2xl text-sm active:scale-[0.98] transition-transform"
                               style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
                               Cancel
                             </button>
@@ -575,21 +577,21 @@ export default function ProfilePage() {
                 style={{ backgroundColor: 'rgba(255,59,48,0.07)', border: '1px solid rgba(255,59,48,0.18)' }}>
                 <p className="text-white/60 text-sm text-center mb-1">Sign out of TripAlong?</p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setShowSignOutConfirm(false)}
-                    className="flex-1 py-3 rounded-2xl text-sm font-medium"
+                  <button type="button" onClick={() => { haptic(8); setShowSignOutConfirm(false) }}
+                    className="flex-1 py-3 rounded-2xl text-sm font-medium active:scale-[0.98] transition-transform"
                     style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.55)' }}>
                     Cancel
                   </button>
-                  <button type="button" onClick={async () => { await supabase.auth.signOut(); router.replace('/') }}
-                    className="flex-1 py-3 rounded-2xl text-sm font-semibold"
+                  <button type="button" onClick={async () => { haptic(18); await supabase.auth.signOut(); router.replace('/') }}
+                    className="flex-1 py-3 rounded-2xl text-sm font-semibold active:scale-[0.98] transition-transform"
                     style={{ backgroundColor: '#FF3B30', color: '#fff' }}>
                     Sign Out
                   </button>
                 </div>
               </div>
             ) : (
-              <button type="button" onClick={() => setShowSignOutConfirm(true)}
-                className="w-full text-red-400 border border-red-400/20 font-semibold py-3.5 rounded-2xl text-sm transition-colors">
+              <button type="button" onClick={() => { haptic(8); setShowSignOutConfirm(true) }}
+                className="w-full text-red-400 border border-red-400/20 font-semibold py-3.5 rounded-2xl text-sm active:scale-[0.98] transition-all">
                 Sign Out
               </button>
             )}

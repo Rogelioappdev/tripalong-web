@@ -9,6 +9,7 @@ import { getProfile, getTrip, getOrCreateDM } from '@/lib/queries'
 import { BlockReportSheet } from './BlockReportSheet'
 import { getFlag } from '@/lib/countries'
 import { TripDetailModal } from './TripDetailModal'
+import { haptic } from '@/lib/haptics'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
 interface PublicProfileModalProps {
@@ -102,8 +103,8 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
           </span>
         ) : <span />}
         <button
-          onClick={onClose}
-          className="flex items-center justify-center"
+          onClick={() => { haptic(8); onClose() }}
+          className="flex items-center justify-center active:scale-90 transition-transform"
           style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', border: '0.5px solid rgba(255,255,255,0.15)' }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -148,7 +149,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
           style={{ paddingTop: 16, paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
         >
           {photos.map((_, i) => (
-            <button key={i} onClick={() => navigate(i, i > index ? 1 : -1)}>
+            <button key={i} onClick={() => { haptic(4); navigate(i, i > index ? 1 : -1) }}>
               <div
                 className="rounded-full transition-all duration-200"
                 style={{ width: i === index ? 24 : 8, height: 8, backgroundColor: i === index ? '#F0EBE3' : 'rgba(255,255,255,0.3)' }}
@@ -322,8 +323,8 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
 
                 {/* Chevron-down close — z-index keeps it above drag layer */}
                 <button
-                  onClick={onClose}
-                  className="absolute flex items-center justify-center"
+                  onClick={() => { haptic(8); onClose() }}
+                  className="absolute flex items-center justify-center active:scale-90 transition-transform"
                   style={{ top: 16, left: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.5)', border: '0.5px solid rgba(255,255,255,0.15)', zIndex: 10 }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -511,7 +512,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
               >
                 <button
                   type="button"
-                  onClick={handleSendMessage}
+                  onClick={() => { haptic(10); handleSendMessage() }}
                   disabled={dmLoading || !currentUserId || currentUserId === userId}
                   className="w-full font-semibold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
                   style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.15)', color: '#F0EBE3', padding: '13px' }}
@@ -522,7 +523,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                 {currentUserId && currentUserId !== userId && (
                   <button
                     type="button"
-                    onClick={() => setShowBlockReport(true)}
+                    onClick={() => { haptic(8); setShowBlockReport(true) }}
                     className="w-full text-center text-xs mt-3 py-1 transition-opacity active:opacity-60"
                     style={{ color: 'rgba(255,255,255,0.22)' }}
                   >
