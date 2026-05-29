@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
+import { useDismissibleSheet } from '@/lib/use-dismissible-sheet'
 import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat, updateTripMemberStatus } from '@/lib/queries'
 import { TripDetailModal } from '@/components/TripDetailModal'
 import type { TripWithDetails } from '@/lib/types'
@@ -24,6 +26,7 @@ function formatDates(trip: TripWithDetails) {
 
 export function SavedTripsModal({ userId, onClose }: Props) {
   const router = useRouter()
+  const { y, backdropOpacity, dragControls, handleDragEnd, startDrag } = useDismissibleSheet(onClose)
   const [mounted, setMounted] = useState(false)
   const [mainTab, setMainTab] = useState<MainTab>('saved')
   const [subTab, setSubTab] = useState<MyTripsSubTab>('in')
@@ -138,18 +141,26 @@ export function SavedTripsModal({ userId, onClose }: Props) {
 
   return (
     <>
-      {/* Backdrop — absorbs all pointer/touch so nothing reaches SwipeCard */}
-      <div
+      {/* Backdrop */}
+      <motion.div
         className="fixed inset-0 bg-black/60 z-[55]"
+        style={{ opacity: backdropOpacity }}
         onClick={onClose}
         onPointerDown={stopEvents}
         onTouchStart={stopEvents}
       />
 
       {/* Sheet */}
-      <div
+      <motion.div
+        drag="y"
+        dragControls={dragControls}
+        dragListener={false}
+        dragConstraints={{ top: 0 }}
+        dragElastic={{ bottom: 0.3, top: 0 }}
+        onDragEnd={handleDragEnd}
         className="fixed bottom-0 left-0 right-0 z-[60] rounded-t-[28px] overflow-hidden flex flex-col"
         style={{
+          y,
           backgroundColor: '#0d0d0d',
           height: '88dvh',
           paddingBottom: 'env(safe-area-inset-bottom)',
@@ -158,8 +169,12 @@ export function SavedTripsModal({ userId, onClose }: Props) {
         onPointerDown={stopEvents}
         onTouchStart={stopEvents}
       >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1 shrink-0">
+        {/* Handle — drag start zone */}
+        <div
+          className="flex justify-center pt-3 pb-1 shrink-0"
+          onPointerDown={startDrag}
+          style={{ touchAction: 'none', cursor: 'grab' }}
+        >
           <div className="w-10 h-1 rounded-full bg-white/20" />
         </div>
 
@@ -291,7 +306,7 @@ export function SavedTripsModal({ userId, onClose }: Props) {
             )
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Unsave confirm sheet */}
       {confirmUnsave && (

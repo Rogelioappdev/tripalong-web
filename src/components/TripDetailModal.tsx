@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
+import { useDismissibleSheet } from '@/lib/use-dismissible-sheet'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip } from '@/lib/queries'
 import { PublicProfileModal } from './PublicProfileModal'
@@ -33,6 +35,7 @@ function formatDates(start: string | null, end: string | null, flexible: boolean
 export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { y, backdropOpacity, dragControls, handleDragEnd, startDrag } = useDismissibleSheet(onClose)
   const [userId, setUserId] = useState<string | null>(null)
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
 
@@ -98,12 +101,19 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
     <>
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" style={{ opacity: backdropOpacity }} onClick={onClose} />
 
-      {/* Sheet — no overflow-hidden here so nested scroll containers and portals work on iOS */}
-      <div
+      {/* Sheet */}
+      <motion.div
+        drag="y"
+        dragControls={dragControls}
+        dragListener={false}
+        dragConstraints={{ top: 0 }}
+        dragElastic={{ bottom: 0.3, top: 0 }}
+        onDragEnd={handleDragEnd}
         className="relative w-full sm:max-w-lg flex flex-col"
         style={{
+          y,
           backgroundColor: '#000',
           borderRadius: '28px 28px 0 0',
           height: '92dvh',
@@ -111,6 +121,14 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
       >
         {/* ── Hero — overflow-hidden scoped here for the rounded-corner image clip ── */}
         <div className="relative shrink-0 overflow-hidden" style={{ height: '44dvh', borderRadius: '28px 28px 0 0' }}>
+          {/* Handle — overlaid at top of hero */}
+          <div
+            className="absolute top-0 left-0 right-0 flex justify-center pt-2.5 z-30"
+            onPointerDown={startDrag}
+            style={{ touchAction: 'none', cursor: 'grab' }}
+          >
+            <div className="w-10 h-1 rounded-full bg-white/30" />
+          </div>
           {displayTrip.cover_image ? (
             <img
               src={displayTrip.cover_image}
@@ -300,7 +318,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
             <p className="text-red-400 text-xs text-center mt-2">Something went wrong. Try again.</p>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
 
     {profileUserId && (
