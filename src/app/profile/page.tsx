@@ -121,14 +121,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function ChipList({ items, onAdd, onRemove, placeholder, emoji, saving, saved }: {
+function ChipList({ items, onAdd, onRemove, placeholder, emoji }: {
   items: string[]
   onAdd: (val: string) => void
   onRemove: (val: string) => void
   placeholder: string
   emoji: string
-  saving?: boolean
-  saved?: boolean
 }) {
   const [input, setInput] = useState('')
   const [adding, setAdding] = useState(false)
@@ -144,8 +142,6 @@ function ChipList({ items, onAdd, onRemove, placeholder, emoji, saving, saved }:
         <button type="button" onClick={() => setAdding(true)} className="text-accent text-xs px-3 py-1.5 bg-white/4 rounded-full border border-white/10">
           + Add
         </button>
-        {saving && <div className="w-4 h-4 border-2 border-white/20 border-t-white/50 rounded-full animate-spin self-center" />}
-        {saved && !saving && <span className="text-green-400 text-xs self-center">Saved ✓</span>}
       </div>
       {adding && (
         <form onSubmit={e => { e.preventDefault(); if (input.trim()) { onAdd(input.trim()); setInput(''); setAdding(false) } }}
@@ -283,15 +279,6 @@ export default function ProfilePage() {
 
   return (
     <>
-      {/* Global saved toast */}
-      {saved && (
-        <div className="fixed top-16 left-1/2 z-50 -translate-x-1/2 pointer-events-none">
-          <div className="bg-green-500 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-lg whitespace-nowrap">
-            Saved ✓
-          </div>
-        </div>
-      )}
-
       <NavBar />
       <main className="pt-14 min-h-screen bg-black pb-20 md:pb-8">
         <div className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-6">
@@ -535,8 +522,6 @@ export default function ProfilePage() {
               onRemove={v => save({ languages: (profile?.languages ?? []).filter(x => x !== v) })}
               placeholder="e.g. Spanish"
               emoji="🗣️"
-              saving={saving}
-              saved={saved}
             />
           </Section>
 
