@@ -141,13 +141,14 @@ export default function ChatPage() {
   }, [chatId, userId])
 
   // ── Membership status ─────────────────────────────────────────────────────
-  const { data: membership, refetch: refetchMembership } = useQuery({
+  const { data: membership, refetch: refetchMembership, isFetched: membershipFetched } = useQuery({
     queryKey: ['membership', tripInfo?.id, userId],
     queryFn: () => getTripMembership(tripInfo!.id, userId!),
     enabled: !!tripInfo?.id && !!userId,
   })
 
   const isFullMember = membership?.status === 'in'
+  const showJoinBanner = membershipFetched && !isFullMember && !joinBannerDismissed && !!tripInfo && !showCelebration
 
   const joinMutation = useMutation({
     mutationFn: () => joinTrip(tripInfo!.id, userId!),
@@ -772,8 +773,8 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* Join this trip banner — shown when user is 'maybe' or guest in the chat */}
-          {!isFullMember && !joinBannerDismissed && tripInfo && !showCelebration && (
+          {/* Join this trip banner — shown only after membership is confirmed non-full */}
+          {showJoinBanner && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
