@@ -69,45 +69,37 @@ export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoi
   }
 
   return (
-    // Entrance wrapper — springs in from below on every fresh mount (swipe or button)
     <motion.div
-      initial={{ y: 22, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 350, damping: 26 }}
-      style={{ zIndex: 10, position: 'absolute', inset: 0 }}
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.7}
+      animate={controls}
+      style={{ x, rotate, touchAction: 'none', zIndex: 10, position: 'absolute', inset: 0 }}
+      className="rounded-[22px] overflow-hidden cursor-grab active:cursor-grabbing"
+      onDragEnd={handleDragEnd}
+      onClick={onTap}
     >
+      {/* Color wash overlays */}
+      <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#30D158', opacity: greenOverlay }} />
+      <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#FF453A', opacity: redOverlay }} />
+
+      {/* PASS stamp */}
       <motion.div
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.7}
-        animate={controls}
-        style={{ x, rotate, touchAction: 'none', position: 'absolute', inset: 0 }}
-        className="rounded-[22px] overflow-hidden cursor-grab active:cursor-grabbing"
-        onDragEnd={handleDragEnd}
-        onClick={onTap}
+        className="absolute top-7 left-5 z-20 border-2 border-red-400 rounded-xl px-4 py-1.5 rotate-[-15deg]"
+        style={{ opacity: passOpacity }}
       >
-        {/* Color wash overlays */}
-        <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#30D158', opacity: greenOverlay }} />
-        <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#FF453A', opacity: redOverlay }} />
-
-        {/* PASS stamp */}
-        <motion.div
-          className="absolute top-7 left-5 z-20 border-2 border-red-400 rounded-xl px-4 py-1.5 rotate-[-15deg]"
-          style={{ opacity: passOpacity }}
-        >
-          <span className="text-red-400 font-black text-xl tracking-widest">PASS</span>
-        </motion.div>
-
-        {/* JOIN stamp */}
-        <motion.div
-          className="absolute top-7 right-5 z-20 border-2 border-green-400 rounded-xl px-4 py-1.5 rotate-[15deg]"
-          style={{ opacity: joinOpacity }}
-        >
-          <span className="text-green-400 font-black text-xl tracking-widest">JOIN</span>
-        </motion.div>
-
-        <CardContent trip={trip} memberCount={memberCount} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} />
+        <span className="text-red-400 font-black text-xl tracking-widest">PASS</span>
       </motion.div>
+
+      {/* JOIN stamp */}
+      <motion.div
+        className="absolute top-7 right-5 z-20 border-2 border-green-400 rounded-xl px-4 py-1.5 rotate-[15deg]"
+        style={{ opacity: joinOpacity }}
+      >
+        <span className="text-green-400 font-black text-xl tracking-widest">JOIN</span>
+      </motion.div>
+
+      <CardContent trip={trip} memberCount={memberCount} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} />
     </motion.div>
   )
 }
