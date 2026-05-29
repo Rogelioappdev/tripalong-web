@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
-import { useDismissibleSheet } from '@/lib/use-dismissible-sheet'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getProfile, getTrip, getOrCreateDM } from '@/lib/queries'
@@ -166,7 +165,6 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
 
 // ── Main modal ──────────────────────────────────────────────────────────────
 export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps) {
-  const { y, backdropOpacity, dragControls, handleDragEnd, startDrag } = useDismissibleSheet(onClose)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [photoIndex, setPhotoIndex] = useState(0)
@@ -239,26 +237,12 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
 
   const content = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
-      <motion.div className="absolute inset-0 bg-black/80 backdrop-blur-sm" style={{ opacity: backdropOpacity }} onClick={onClose} />
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
-      <motion.div
-        drag="y"
-        dragControls={dragControls}
-        dragListener={false}
-        dragConstraints={{ top: 0 }}
-        dragElastic={{ bottom: 0.3, top: 0 }}
-        onDragEnd={handleDragEnd}
+      <div
         className="relative w-full sm:max-w-lg flex flex-col overflow-hidden"
-        style={{ y, backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh' }}
+        style={{ backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh' }}
       >
-        {/* Handle — overlaid at very top */}
-        <div
-          className="absolute top-0 left-0 right-0 flex justify-center pt-2.5 z-30"
-          onPointerDown={startDrag}
-          style={{ touchAction: 'none', cursor: 'grab' }}
-        >
-          <div className="w-10 h-1 rounded-full bg-white/30" />
-        </div>
         {loading || !profile ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
@@ -578,7 +562,7 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
             </>
           )
         })()}
-      </motion.div>
+      </div>
     </div>
   )
 
