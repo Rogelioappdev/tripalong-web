@@ -31,11 +31,13 @@ interface TripGroupInfoSheetProps {
   chatId: string
   tripInfo: TripWithDetails
   userId: string
+  isFullMember?: boolean
+  onJoinTrip?: () => void
   onClose: () => void
   onLeft: () => void
 }
 
-export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }: TripGroupInfoSheetProps) {
+export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = true, onJoinTrip, onClose, onLeft }: TripGroupInfoSheetProps) {
   const [leaving, setLeaving] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
@@ -273,6 +275,30 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, onClose, onLeft }
                 </div>
               )}
             </div>
+          )}
+
+          {/* Join Trip row — only for non-full members */}
+          {!isFullMember && onJoinTrip && (
+            <button
+              type="button"
+              onClick={() => { haptic(10); onJoinTrip() }}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 active:bg-white/4 transition-colors"
+              style={{ borderBottom: '0.5px solid rgba(255,255,255,0.07)' }}
+            >
+              <div className="flex items-center gap-3">
+                <span style={{ fontSize: 18 }}>🎒</span>
+                <div className="text-left">
+                  <p className="text-white text-sm font-semibold">Join This Trip</p>
+                  <p className="text-white/40 text-xs mt-0.5">Officially join and confirm your spot</p>
+                </div>
+              </div>
+              <span
+                className="shrink-0 font-bold text-xs rounded-xl px-3 py-1.5"
+                style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+              >
+                Join
+              </span>
+            </button>
           )}
 
           {/* Mute toggle row */}

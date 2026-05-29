@@ -104,6 +104,7 @@ export default function ChatPage() {
 
   // Join from chat
   const [showCelebration, setShowCelebration] = useState(false)
+  const [joinBannerDismissed, setJoinBannerDismissed] = useState(false)
 
   // Search
   const [searchOpen, setSearchOpen] = useState(false)
@@ -772,7 +773,7 @@ export default function ChatPage() {
           )}
 
           {/* Join this trip banner — shown when user is 'maybe' or guest in the chat */}
-          {!isFullMember && tripInfo && !showCelebration && (
+          {!isFullMember && !joinBannerDismissed && tripInfo && !showCelebration && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -795,6 +796,17 @@ export default function ChatPage() {
                 style={{ backgroundColor: '#F0EBE3', color: '#000' }}
               >
                 {joinMutation.isPending ? 'Joining…' : 'Join Trip'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { haptic(4); setJoinBannerDismissed(true) }}
+                className="shrink-0 flex items-center justify-center active:scale-90 transition-transform"
+                style={{ width: 28, height: 28 }}
+                aria-label="Dismiss"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.3)" strokeWidth="2.5" strokeLinecap="round"/>
+                </svg>
               </button>
             </motion.div>
           )}
@@ -859,6 +871,8 @@ export default function ChatPage() {
             chatId={chatId}
             tripInfo={tripInfo}
             userId={userId}
+            isFullMember={isFullMember}
+            onJoinTrip={() => { setShowGroupInfo(false); joinMutation.mutate() }}
             onClose={() => setShowGroupInfo(false)}
             onLeft={() => router.replace('/messages')}
           />
