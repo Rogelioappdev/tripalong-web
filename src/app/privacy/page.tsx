@@ -5,11 +5,6 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-export const metadata = {
-  title: 'Privacy Policy — TripAlong',
-  description: 'TripAlong Privacy Policy. How we collect, use, and protect your data.',
-}
-
 function S({ n, title }: { n: string; title: string }) {
   return (
     <h2 className="font-bold text-white text-lg mt-12 mb-4 pt-6 border-t"

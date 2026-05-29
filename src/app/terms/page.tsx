@@ -5,11 +5,6 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-export const metadata = {
-  title: 'Terms of Service — TripAlong',
-  description: 'TripAlong Terms of Service. Read before using the app.',
-}
-
 function Warn({ children }: { children: React.ReactNode }) {
   return (
     <div className="my-6 rounded-2xl border p-5"
