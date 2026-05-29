@@ -99,10 +99,10 @@ export function SwipeStack({ trips, userId, onTripTap, onSave }: SwipeStackProps
   return (
     <div className="flex flex-col items-center w-full h-full gap-0">
       {/* Card */}
-      <div className="relative w-full flex-1 min-h-0 overflow-hidden">
+      <div className="relative w-full flex-1 min-h-0 overflow-hidden" style={{ backgroundColor: '#111' }}>
         {visibleTrips[1] && (
           <SwipeCard
-            key={visibleTrips[1].id + '-behind'}
+            key={visibleTrips[1].id}
             trip={visibleTrips[1]}
             isTop={false}
             sharedX={topCardX}

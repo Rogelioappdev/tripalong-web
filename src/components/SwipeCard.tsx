@@ -47,8 +47,8 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
   const rotate = useTransform(x, [-250, 250], [-18, 18])
   const passOpacity = useTransform(x, [-150, -20, 0], [1, 0.3, 0])
   const joinOpacity = useTransform(x, [0, 20, 150], [0, 0.3, 1])
-  const behindScale = useTransform(x, [-200, 0, 200], [1.0, 0.94, 1.0])
-  const behindY = useTransform(x, [-200, 0, 200], [0, 16, 0])
+  const behindScale = useTransform(x, [-200, 0, 200], [1.0, 0.97, 1.0])
+  const behindY = useTransform(x, [-200, 0, 200], [0, 10, 0])
   const greenOverlay = useTransform(x, [0, 50, 200], [0, 0.06, 0.2])
   const redOverlay = useTransform(x, [0, -50, -200], [0, 0.06, 0.2])
 
