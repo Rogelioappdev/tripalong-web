@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { getProfile, updateProfile, getMyTrips } from '@/lib/queries'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
+import { CountryPicker } from '@/components/CountryPicker'
 
 // ── DNA field definitions (single source of truth on this page) ───────────
 const DNA_FIELDS = [
@@ -541,27 +542,26 @@ export default function ProfilePage() {
 
           {/* Places visited */}
           <Section title="Places Visited">
-            <ChipList
+            <CountryPicker
               items={profile?.places_visited ?? []}
               onAdd={v => save({ places_visited: [...(profile?.places_visited ?? []), v] })}
               onRemove={v => save({ places_visited: (profile?.places_visited ?? []).filter(x => x !== v) })}
-              placeholder="e.g. Japan"
-              emoji="🌍"
               saving={saving}
               saved={saved}
+              addLabel="+ Add country"
             />
           </Section>
 
           {/* Bucket list */}
           <Section title="Bucket List">
-            <ChipList
+            <CountryPicker
               items={profile?.bucket_list ?? []}
               onAdd={v => save({ bucket_list: [...(profile?.bucket_list ?? []), v] })}
               onRemove={v => save({ bucket_list: (profile?.bucket_list ?? []).filter(x => x !== v) })}
-              placeholder="e.g. Patagonia"
-              emoji="✈️"
               saving={saving}
               saved={saved}
+              addLabel="+ Add dream destination"
+              chipColor="rgba(240,235,227,0.1)"
             />
           </Section>
 

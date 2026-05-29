@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getProfile, getTrip, getOrCreateDM } from '@/lib/queries'
 import { BlockReportSheet } from './BlockReportSheet'
+import { getFlag } from '@/lib/countries'
 import { TripDetailModal } from './TripDetailModal'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
@@ -413,15 +414,26 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <span>🗺️</span>
-                        <p className="text-white font-semibold text-lg">Places Visited</p>
-                        <span className="font-semibold ml-auto" style={{ color: 'rgba(255,255,255,0.5)' }}>{placesVisited.length}</span>
+                        <p className="text-white font-semibold text-base">Places Visited</p>
+                        <span className="ml-auto text-sm font-bold px-2.5 py-0.5 rounded-full"
+                          style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}>
+                          {placesVisited.length}
+                        </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {placesVisited.slice(0, 8).map((p, i) => (
-                          <span key={i} className="rounded-full px-3 py-1.5 text-sm" style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)' }}>{p}</span>
+                        {placesVisited.slice(0, 10).map((p, i) => (
+                          <span key={i}
+                            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-white"
+                            style={{ background: 'rgba(255,255,255,0.07)' }}>
+                            <span>{getFlag(p) || '🌍'}</span>
+                            <span>{p}</span>
+                          </span>
                         ))}
-                        {placesVisited.length > 8 && (
-                          <span className="rounded-full px-3 py-1.5 text-sm" style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>+{placesVisited.length - 8} more</span>
+                        {placesVisited.length > 10 && (
+                          <span className="rounded-full px-3 py-1.5 text-sm"
+                            style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)' }}>
+                            +{placesVisited.length - 10} more
+                          </span>
                         )}
                       </div>
                     </div>
@@ -443,16 +455,27 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <span>✨</span>
-                        <p className="text-white font-semibold text-lg">Dream Bucket List</p>
-                        <span className="font-semibold ml-auto" style={{ color: 'rgba(255,255,255,0.5)' }}>{bucketList.length}</span>
+                        <p className="text-white font-semibold text-base">Dream Destinations</p>
+                        <span className="ml-auto text-sm font-bold px-2.5 py-0.5 rounded-full"
+                          style={{ background: 'rgba(240,235,227,0.1)', color: 'rgba(240,235,227,0.6)' }}>
+                          {bucketList.length}
+                        </span>
                       </div>
-                      <div className="flex gap-3 overflow-x-auto pb-1 -mx-6 px-6">
-                        {bucketList.map((country, i) => (
-                          <div key={i} className="relative rounded-xl overflow-hidden shrink-0 flex items-end" style={{ width: 120, height: 80, backgroundColor: '#1a1a1a' }}>
-                            <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #1a1a2e, #16213e)' }} />
-                            <p className="relative text-white font-bold text-xs p-2.5 leading-tight">{country}</p>
-                          </div>
+                      <div className="flex flex-wrap gap-2">
+                        {bucketList.slice(0, 10).map((p, i) => (
+                          <span key={i}
+                            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-white"
+                            style={{ background: 'rgba(240,235,227,0.08)' }}>
+                            <span>{getFlag(p) || '✈️'}</span>
+                            <span>{p}</span>
+                          </span>
                         ))}
+                        {bucketList.length > 10 && (
+                          <span className="rounded-full px-3 py-1.5 text-sm"
+                            style={{ background: 'rgba(240,235,227,0.05)', color: 'rgba(255,255,255,0.4)' }}>
+                            +{bucketList.length - 10} more
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
