@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, useMotionValue } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { useQueryClient } from '@tanstack/react-query'
-import { SwipeCard } from './SwipeCard'
+import { SwipeCard, type SwipeCardHandle } from './SwipeCard'
 import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
 import { calculateTripMatch } from '@/lib/matching'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
@@ -21,6 +21,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const topCardX = useMotionValue(0)
+  const topCardRef = useRef<SwipeCardHandle>(null)
   const qc = useQueryClient()
 
   useEffect(() => {
@@ -52,30 +53,22 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
 
   const handleSwipeLeft = () => advance()
 
-  const handlePass = () => {
+  const handlePass = async () => {
     if (!currentTrip) return
     haptic([6, 20, 6])
-    topCardX.set(-700)
-    handleSwipeLeft()
+    await topCardRef.current?.swipeLeft()
   }
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     if (!currentTrip) return
     haptic(18)
-    handleSwipeRight(currentTrip)
+    await topCardRef.current?.swipeRight()
   }
 
   const handleSave = async () => {
-    if (!currentTrip || !userId) return
+    if (!currentTrip) return
     haptic(8)
-    if (!savedIds.has(currentTrip.id)) {
-      setSavedIds(s => new Set([...s, currentTrip.id]))
-      try {
-        await saveTrip(currentTrip.id, userId)
-        qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
-      } catch {}
-    }
-    advance()
+    await topCardRef.current?.swipeRight()
   }
 
   if (!hasMore) {
@@ -119,6 +112,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
         {currentTrip && (
           <SwipeCard
             key={currentTrip.id}
+            ref={topCardRef}
             trip={currentTrip}
             isTop={true}
             sharedX={topCardX}

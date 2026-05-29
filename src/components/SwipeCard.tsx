@@ -1,7 +1,13 @@
 'use client'
 
+import { forwardRef, useImperativeHandle } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation, type PanInfo } from 'framer-motion'
 import type { TripWithDetails } from '@/lib/types'
+
+export interface SwipeCardHandle {
+  swipeLeft: () => Promise<void>
+  swipeRight: () => Promise<void>
+}
 
 interface SwipeCardProps {
   trip: TripWithDetails
@@ -19,10 +25,24 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, matchPct, sharedX }: SwipeCardProps) {
+export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function SwipeCard(
+  { trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, matchPct, sharedX },
+  ref
+) {
   const internalX = useMotionValue(0)
   const x = sharedX ?? internalX
   const controls = useAnimation()
+
+  useImperativeHandle(ref, () => ({
+    swipeLeft: async () => {
+      await controls.start({ x: -700, opacity: 0, rotate: -20, transition: { duration: 0.3, ease: 'easeOut' } })
+      onSwipeLeft()
+    },
+    swipeRight: async () => {
+      await controls.start({ x: 700, opacity: 0, rotate: 20, transition: { duration: 0.3, ease: 'easeOut' } })
+      onSwipeRight()
+    },
+  }))
 
   const rotate = useTransform(x, [-250, 250], [-18, 18])
   const passOpacity = useTransform(x, [-150, -20, 0], [1, 0.3, 0])
@@ -102,7 +122,7 @@ export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoi
       <CardContent trip={trip} memberCount={memberCount} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} />
     </motion.div>
   )
-}
+})
 
 function CardContent({ trip, memberCount, dateLabel, isJoined, matchPct }: {
   trip: TripWithDetails
