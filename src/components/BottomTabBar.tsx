@@ -1,16 +1,18 @@
 'use client'
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { getUnreadCount } from '@/lib/queries'
+import { setTabDir } from '@/lib/tab-direction'
+import { haptic } from '@/lib/haptics'
 
 const HIDE_ON = ['/', '/onboarding', '/travel-dna', '/terms', '/privacy', '/faq', '/report-bug']
 
 export function BottomTabBar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -84,9 +86,16 @@ export function BottomTabBar() {
         {tabs.map(tab => {
           const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
           return (
-            <Link
+            <button
               key={tab.href}
-              href={tab.href}
+              type="button"
+              onClick={() => {
+                if (!active) {
+                  haptic(8)
+                  setTabDir(pathname, tab.href)
+                  router.push(tab.href)
+                }
+              }}
               className="flex flex-col items-center justify-center gap-1 flex-1 h-full"
             >
               <div className="relative flex items-center justify-center" style={{ height: tab.isCenter ? 38 : 22 }}>
@@ -104,7 +113,7 @@ export function BottomTabBar() {
               >
                 {tab.label}
               </span>
-            </Link>
+            </button>
           )
         })}
       </div>

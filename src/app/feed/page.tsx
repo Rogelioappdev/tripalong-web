@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { haptic } from '@/lib/haptics'
 import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
 import { TripDetailModal } from '@/components/TripDetailModal'
@@ -65,7 +66,7 @@ export default function FeedPage() {
             <motion.button
               whileTap={{ scale: 0.88 }}
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-              onClick={() => setShowSaved(true)}
+              onClick={() => { haptic(8); setShowSaved(true) }}
               className="w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
@@ -75,7 +76,7 @@ export default function FeedPage() {
             <motion.button
               whileTap={{ scale: 0.88 }}
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-              onClick={() => setShowCreate(true)}
+              onClick={() => { haptic(8); setShowCreate(true) }}
               className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
               style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.12)' }}
             >

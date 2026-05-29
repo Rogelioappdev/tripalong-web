@@ -2,10 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, useMotionValue } from 'framer-motion'
-
-function haptic(ms: number | number[]) {
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(ms)
-}
+import { haptic } from '@/lib/haptics'
 import { useQueryClient } from '@tanstack/react-query'
 import { SwipeCard } from './SwipeCard'
 import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
