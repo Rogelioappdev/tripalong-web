@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation, type PanInfo } from 'framer-motion'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -29,6 +30,12 @@ export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoi
   const joinOpacity = useTransform(x, [0, 20, 150], [0, 0.3, 1])
   const behindScale = useTransform(x, [-200, 0, 200], [1.0, 0.94, 1.0])
   const behindY = useTransform(x, [-200, 0, 200], [0, 16, 0])
+  const greenOverlay = useTransform(x, [0, 50, 200], [0, 0.06, 0.2])
+  const redOverlay = useTransform(x, [0, -50, -200], [0, 0.06, 0.2])
+
+  useEffect(() => {
+    if (isTop) controls.start({ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 300, damping: 22 } })
+  }, [])
 
   const memberCount = trip.member_count ?? 0
 
@@ -72,11 +79,16 @@ export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoi
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.7}
       animate={controls}
+      initial={{ scale: 0.94, opacity: 0.7 }}
       style={{ x, rotate, touchAction: 'none', zIndex: 10, position: 'absolute', inset: 0 }}
       className="rounded-[22px] overflow-hidden cursor-grab active:cursor-grabbing"
       onDragEnd={handleDragEnd}
       onClick={onTap}
     >
+      {/* Color wash overlays */}
+      <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#30D158', opacity: greenOverlay }} />
+      <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#FF453A', opacity: redOverlay }} />
+
       {/* PASS stamp */}
       <motion.div
         className="absolute top-7 left-5 z-20 border-2 border-red-400 rounded-xl px-4 py-1.5 rotate-[-15deg]"

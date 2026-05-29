@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useQuery } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
 import { TripDetailModal } from '@/components/TripDetailModal'
@@ -61,15 +62,19 @@ export default function FeedPage() {
           style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
           <h1 className="text-white font-extrabold text-2xl tracking-tight">TripAlong</h1>
           <div className="flex items-center gap-2">
-            <button
+            <motion.button
+              whileTap={{ scale: 0.88 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
               onClick={() => setShowSaved(true)}
-              className="w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center active:scale-95 transition-transform">
+              className="w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
                   stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.88 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
               onClick={() => setShowCreate(true)}
               className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
               style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.12)' }}
@@ -78,7 +83,7 @@ export default function FeedPage() {
                 <path d="M12 5v14M5 12h14" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
               </svg>
               <span className="text-white text-xs font-semibold">Create Trip</span>
-            </button>
+            </motion.button>
           </div>
         </div>
 

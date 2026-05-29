@@ -1,7 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useMotionValue } from 'framer-motion'
+import { motion, useMotionValue } from 'framer-motion'
+
+function haptic(ms: number | number[]) {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(ms)
+}
 import { useQueryClient } from '@tanstack/react-query'
 import { SwipeCard } from './SwipeCard'
 import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
@@ -53,17 +57,20 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
 
   const handlePass = () => {
     if (!currentTrip) return
+    haptic([6, 20, 6])
     topCardX.set(-700)
     handleSwipeLeft()
   }
 
   const handleJoin = () => {
     if (!currentTrip) return
+    haptic(18)
     handleSwipeRight(currentTrip)
   }
 
   const handleSave = async () => {
     if (!currentTrip || !userId) return
+    haptic(8)
     if (!savedIds.has(currentTrip.id)) {
       setSavedIds(s => new Set([...s, currentTrip.id]))
       try {
@@ -77,13 +84,19 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
   if (!hasMore) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
-        <span className="text-5xl">✈️</span>
+        <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}>
+          <span className="text-5xl">✈️</span>
+        </motion.div>
         <h3 className="text-white text-xl font-bold">You've seen them all!</h3>
         <p className="text-white/40 text-sm">Check back later for new trips</p>
-        <button onClick={() => setCurrentIndex(0)}
-          className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm">
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          onClick={() => setCurrentIndex(0)}
+          className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm"
+        >
           Start over
-        </button>
+        </motion.button>
       </div>
     )
   }
@@ -124,28 +137,43 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
       {/* Pass / Join / Save buttons */}
       <div className="flex items-center justify-center gap-7 py-3 shrink-0">
         {/* Pass */}
-        <button onClick={handlePass} className="flex flex-col items-center gap-1 group">
-          <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
+        <motion.button
+          whileTap={{ scale: 0.80 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          onClick={handlePass}
+          className="flex flex-col items-center gap-1"
+        >
+          <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="#FF453A" strokeWidth="2.5" strokeLinecap="round"/>
             </svg>
           </div>
           <span className="text-white/35 text-[10px] font-semibold">Pass</span>
-        </button>
+        </motion.button>
 
         {/* Join */}
-        <button onClick={handleJoin} className="flex flex-col items-center gap-1 group">
-          <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
+        <motion.button
+          whileTap={{ scale: 0.80 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          onClick={handleJoin}
+          className="flex flex-col items-center gap-1"
+        >
+          <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
           <span className="text-white/35 text-[10px] font-semibold">Join</span>
-        </button>
+        </motion.button>
 
         {/* Save */}
-        <button onClick={handleSave} className="flex flex-col items-center gap-1 group">
-          <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center group-active:scale-95 transition-transform">
+        <motion.button
+          whileTap={{ scale: 0.80 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          onClick={handleSave}
+          className="flex flex-col items-center gap-1"
+        >
+          <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
                 stroke={currentTrip && savedIds.has(currentTrip.id) ? '#F0EBE3' : 'rgba(255,255,255,0.55)'}
@@ -155,7 +183,7 @@ export function SwipeStack({ trips, userId, onTripTap }: SwipeStackProps) {
             </svg>
           </div>
           <span className="text-white/35 text-[10px] font-semibold">Save</span>
-        </button>
+        </motion.button>
       </div>
     </div>
   )
