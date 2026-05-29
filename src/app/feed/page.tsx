@@ -11,7 +11,7 @@ import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
 import { TripDetailModal } from '@/components/TripDetailModal'
 import { CreateTripModal } from '@/components/CreateTripModal'
-import { getTrips } from '@/lib/queries'
+import { getTrips, getUserSavedTripIds } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import { SavedTripsModal } from '@/components/SavedTripsModal'
 import type { TripWithDetails } from '@/lib/types'
@@ -26,11 +26,19 @@ export default function FeedPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const [savedToast, setSavedToast] = useState<TripWithDetails | null>(null)
+  const [savedCount, setSavedCount] = useState(0)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
 
+  // Load initial saved count once userId is known
+  useEffect(() => {
+    if (!userId) return
+    getUserSavedTripIds(userId).then(ids => setSavedCount(ids.length))
+  }, [userId])
+
   const handleTripSaved = (trip: TripWithDetails) => {
     setSavedToast(trip)
+    setSavedCount(c => c + 1)
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setSavedToast(null), 3000)
     bookmarkControls.start({
@@ -80,13 +88,28 @@ export default function FeedPage() {
               whileTap={{ scale: 0.88 }}
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
               onClick={() => { haptic(8); setShowSaved(true) }}
-              className="w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
+              className="relative w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
               <motion.div animate={bookmarkControls}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                   <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
                     stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </motion.div>
+              <AnimatePresence>
+                {savedCount > 0 && (
+                  <motion.div
+                    key={savedCount}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                    className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 rounded-full flex items-center justify-center px-1 font-bold text-black"
+                    style={{ backgroundColor: '#F0EBE3', fontSize: 9 }}
+                  >
+                    {savedCount > 99 ? '99+' : savedCount}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.88 }}
@@ -196,7 +219,7 @@ export default function FeedPage() {
             )}
             <div className="flex-1 min-w-0 text-left">
               <p className="text-white font-semibold text-sm truncate">{savedToast.destination} saved ✓</p>
-              <p className="text-white/38 text-xs mt-0.5">Tap to view saved trips</p>
+              <p className="text-white/38 text-xs mt-0.5">Saved to 🔖 — tap to view</p>
             </div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
