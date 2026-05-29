@@ -80,7 +80,7 @@ export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoi
       onClick={onTap}
     >
       {/* Color wash overlays */}
-      <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#30D158', opacity: greenOverlay }} />
+      <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#F0EBE3', opacity: greenOverlay }} />
       <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#FF453A', opacity: redOverlay }} />
 
       {/* PASS stamp */}
@@ -91,12 +91,12 @@ export function SwipeCard({ trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoi
         <span className="text-red-400 font-black text-xl tracking-widest">PASS</span>
       </motion.div>
 
-      {/* JOIN stamp */}
+      {/* SAVE stamp */}
       <motion.div
-        className="absolute top-7 right-5 z-20 border-2 border-green-400 rounded-xl px-4 py-1.5 rotate-[15deg]"
-        style={{ opacity: joinOpacity }}
+        className="absolute top-7 right-5 z-20 border-2 rounded-xl px-4 py-1.5 rotate-[15deg]"
+        style={{ opacity: joinOpacity, borderColor: '#F0EBE3' }}
       >
-        <span className="text-green-400 font-black text-xl tracking-widest">JOIN</span>
+        <span className="font-black text-xl tracking-widest" style={{ color: '#F0EBE3' }}>SAVE</span>
       </motion.div>
 
       <CardContent trip={trip} memberCount={memberCount} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} />
