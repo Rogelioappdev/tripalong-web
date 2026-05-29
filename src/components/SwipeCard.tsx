@@ -52,8 +52,6 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
   const greenOverlay = useTransform(x, [0, 50, 200], [0, 0.06, 0.2])
   const redOverlay = useTransform(x, [0, -50, -200], [0, 0.06, 0.2])
 
-  const memberCount = trip.member_count ?? 0
-
   const dateLabel = trip.is_flexible_dates
     ? 'Flexible dates'
     : trip.start_date && trip.end_date
@@ -83,7 +81,7 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
         className="absolute inset-0 rounded-[22px] overflow-hidden"
         style={{ scale: behindScale, y: behindY, zIndex: 0, transformOrigin: 'bottom center' }}
       >
-        <CardContent trip={trip} memberCount={memberCount} dateLabel={dateLabel} isJoined={false} matchPct={undefined} />
+        <CardContent trip={trip} dateLabel={dateLabel} isJoined={false} matchPct={undefined} />
       </motion.div>
     )
   }
@@ -119,18 +117,21 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
         <span className="font-black text-xl tracking-widest" style={{ color: '#F0EBE3' }}>SAVE</span>
       </motion.div>
 
-      <CardContent trip={trip} memberCount={memberCount} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} />
+      <CardContent trip={trip} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} />
     </motion.div>
   )
 })
 
-function CardContent({ trip, memberCount, dateLabel, isJoined, matchPct }: {
+function CardContent({ trip, dateLabel, isJoined, matchPct }: {
   trip: TripWithDetails
-  memberCount: number
   dateLabel: string
   isJoined?: boolean
   matchPct?: number
 }) {
+  // Creator is also in trip_members — exclude them to avoid double-counting
+  const otherMembers = (trip.members ?? []).filter(m => m.user_id !== (trip as any).creator_id)
+  const otherCount = otherMembers.length
+
   return (
     <div className="relative w-full h-full bg-[#111] rounded-[22px] overflow-hidden select-none">
       {/* Cover image */}
@@ -231,8 +232,8 @@ function CardContent({ trip, memberCount, dateLabel, isJoined, matchPct }: {
                   </div>
                 )}
               </div>
-              {/* Up to 2 more member avatars */}
-              {(trip.members ?? []).slice(0, 2).map((m, i) => (
+              {/* Up to 2 other members (creator already shown above) */}
+              {otherMembers.slice(0, 2).map((m, i) => (
                 <div key={m.user_id} className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0" style={{ zIndex: 9 - i }}>
                   {m.user?.profile_photo ? (
                     <img src={m.user.profile_photo} alt="" className="w-full h-full object-cover" draggable={false} />
@@ -246,7 +247,7 @@ function CardContent({ trip, memberCount, dateLabel, isJoined, matchPct }: {
             </div>
             <span className="text-white/50 text-sm">
               {trip.creator.name}
-              {memberCount > 0 ? ` +${memberCount} going` : ' · going'}
+              {otherCount > 0 ? ` +${otherCount} going` : ' · going'}
             </span>
           </div>
           {/* Save count */}
