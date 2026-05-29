@@ -32,7 +32,7 @@ export default function FeedPage() {
   const handleTripSaved = (trip: TripWithDetails) => {
     setSavedToast(trip)
     if (toastTimer.current) clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setSavedToast(null), 1800)
+    toastTimer.current = setTimeout(() => setSavedToast(null), 3000)
     bookmarkControls.start({
       scale: [1, 1.55, 1],
       transition: { duration: 0.38, times: [0, 0.45, 1], ease: 'easeOut' },
