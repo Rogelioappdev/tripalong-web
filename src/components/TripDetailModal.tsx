@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip } from '@/lib/queries'
 import { PublicProfileModal } from './PublicProfileModal'
+import { JoinCelebration } from './JoinCelebration'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -36,6 +38,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
+  const [showCelebration, setShowCelebration] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
@@ -63,8 +66,10 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
   const joinMutation = useMutation({
     mutationFn: () => joinTrip(trip.id, userId!),
     onSuccess: () => {
+      haptic([15, 30, 15, 30, 60])
       queryClient.invalidateQueries({ queryKey: ['membership', trip.id, userId] })
       queryClient.invalidateQueries({ queryKey: ['trips'] })
+      setShowCelebration(true)
     },
   })
 
@@ -307,6 +312,16 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
     {profileUserId && (
       <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
     )}
+
+    <AnimatePresence>
+      {showCelebration && (
+        <JoinCelebration
+          trip={displayTrip}
+          onOpenChat={() => { setShowCelebration(false); openChat() }}
+          onClose={() => { setShowCelebration(false); onClose() }}
+        />
+      )}
+    </AnimatePresence>
     </>
   )
 }

@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat, updateTripMemberStatus } from '@/lib/queries'
 import { TripDetailModal } from '@/components/TripDetailModal'
+import { JoinCelebration } from '@/components/JoinCelebration'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -31,6 +33,7 @@ export function SavedTripsModal({ userId, onClose }: Props) {
   const [viewTrip, setViewTrip] = useState<TripWithDetails | null>(null)
   const [confirmUnsave, setConfirmUnsave] = useState<TripWithDetails | null>(null)
   const [confirmLeave, setConfirmLeave] = useState<TripWithDetails | null>(null)
+  const [celebrationTrip, setCelebrationTrip] = useState<TripWithDetails | null>(null)
   const [localJoined, setLocalJoined] = useState<Set<string>>(new Set())
   const [localStatuses, setLocalStatuses] = useState<Record<string, 'in' | 'maybe'>>({})
   const [chatLoading, setChatLoading] = useState<string | null>(null)
@@ -85,7 +88,9 @@ export function SavedTripsModal({ userId, onClose }: Props) {
     setLocalJoined(s => new Set([...s, trip.id]))
     try {
       await joinTrip(trip.id, userId)
+      haptic([15, 30, 15, 30, 60])
       invalidate()
+      setCelebrationTrip(trip)
     } catch {}
   }
 
@@ -317,6 +322,16 @@ export function SavedTripsModal({ userId, onClose }: Props) {
         <TripDetailModal trip={viewTrip} onClose={() => setViewTrip(null)} />,
         document.body
       )}
+
+      <AnimatePresence>
+        {celebrationTrip && (
+          <JoinCelebration
+            trip={celebrationTrip}
+            onOpenChat={() => { setCelebrationTrip(null); handleOpenChat(celebrationTrip) }}
+            onClose={() => setCelebrationTrip(null)}
+          />
+        )}
+      </AnimatePresence>
     </>
   )
 }
