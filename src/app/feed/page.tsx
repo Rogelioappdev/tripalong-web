@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, useAnimation, AnimatePresence } from 'framer-motion'
@@ -21,6 +21,7 @@ const TAB_BAR_CLEARANCE = 82
 
 export default function FeedPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -65,6 +66,20 @@ export default function FeedPage() {
       body.style.overflow = ''
     }
   }, [])
+
+  // Invalidate trip cards whenever anyone joins or leaves any trip
+  useEffect(() => {
+    const channel = supabase
+      .channel('feed-trip-members')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_members' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['trips'] })
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'trip_members' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['trips'] })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [queryClient])
 
   const { data: trips, isLoading, isError, refetch } = useQuery({
     queryKey: ['trips'],
