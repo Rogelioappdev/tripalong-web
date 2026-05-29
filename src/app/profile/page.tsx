@@ -546,8 +546,6 @@ export default function ProfilePage() {
               items={profile?.places_visited ?? []}
               onAdd={v => save({ places_visited: [...(profile?.places_visited ?? []), v] })}
               onRemove={v => save({ places_visited: (profile?.places_visited ?? []).filter(x => x !== v) })}
-              saving={saving}
-              saved={saved}
               addLabel="+ Add country"
             />
           </Section>
@@ -558,8 +556,6 @@ export default function ProfilePage() {
               items={profile?.bucket_list ?? []}
               onAdd={v => save({ bucket_list: [...(profile?.bucket_list ?? []), v] })}
               onRemove={v => save({ bucket_list: (profile?.bucket_list ?? []).filter(x => x !== v) })}
-              saving={saving}
-              saved={saved}
               addLabel="+ Add dream destination"
               chipColor="rgba(240,235,227,0.1)"
             />
