@@ -8,9 +8,10 @@ interface JoinCelebrationProps {
   trip: TripWithDetails
   onOpenChat: () => void
   onClose: () => void
+  inChat?: boolean
 }
 
-export function JoinCelebration({ trip, onOpenChat, onClose }: JoinCelebrationProps) {
+export function JoinCelebration({ trip, onOpenChat, onClose, inChat = false }: JoinCelebrationProps) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -94,22 +95,35 @@ export function JoinCelebration({ trip, onOpenChat, onClose }: JoinCelebrationPr
         className="relative px-5 flex flex-col gap-3"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)' }}
       >
-        <button
-          type="button"
-          onClick={() => { haptic(10); onOpenChat() }}
-          className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
-          style={{ backgroundColor: '#F0EBE3', color: '#000' }}
-        >
-          Open Group Chat →
-        </button>
-        <button
-          type="button"
-          onClick={() => { haptic(8); onClose() }}
-          className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
-          style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.55)', border: '0.5px solid rgba(255,255,255,0.1)' }}
-        >
-          Keep Exploring
-        </button>
+        {inChat ? (
+          <button
+            type="button"
+            onClick={() => { haptic(10); onOpenChat() }}
+            className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
+            style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+          >
+            Nice! 🙌
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => { haptic(10); onOpenChat() }}
+              className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
+              style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+            >
+              Open Group Chat →
+            </button>
+            <button
+              type="button"
+              onClick={() => { haptic(8); onClose() }}
+              className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
+              style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.55)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+            >
+              Keep Exploring
+            </button>
+          </>
+        )}
       </motion.div>
     </motion.div>
   )

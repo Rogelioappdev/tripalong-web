@@ -936,7 +936,14 @@ export default function ChatPage() {
         {showCelebration && tripInfo && (
           <JoinCelebration
             trip={tripInfo}
-            onOpenChat={() => setShowCelebration(false)}
+            inChat
+            onOpenChat={() => {
+              setShowCelebration(false)
+              // Refresh trip header so joined user's profile appears
+              getTripInfoByChatId(chatId).then(setTripInfo)
+              queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+              queryClient.invalidateQueries({ queryKey: ['chatReadPositions', chatId] })
+            }}
             onClose={() => setShowCelebration(false)}
           />
         )}
