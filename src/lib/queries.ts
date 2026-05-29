@@ -640,6 +640,33 @@ export async function getUserJoinedTripIds(userId: string): Promise<string[]> {
   } catch { return [] }
 }
 
+export async function recordProfileView(viewedUserId: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid || uid === viewedUserId) return
+  await supabase.from('profile_views').upsert(
+    { viewer_id: uid, viewed_user_id: viewedUserId, viewed_at: new Date().toISOString() },
+    { onConflict: 'viewer_id,viewed_user_id' }
+  )
+}
+
+export async function getProfileViewers(limit = 50): Promise<{ id: string; name: string; profile_photo: string | null; viewed_at: string }[]> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return []
+  const { data, error } = await supabase
+    .from('profile_views')
+    .select('viewer_id, viewed_at, viewer:users!viewer_id(id, name, profile_photo)')
+    .eq('viewed_user_id', uid)
+    .order('viewed_at', { ascending: false })
+    .limit(limit)
+  if (error) return []
+  return (data ?? []).map((row: any) => ({
+    id: row.viewer_id,
+    name: row.viewer?.name ?? 'Unknown',
+    profile_photo: row.viewer?.profile_photo ?? null,
+    viewed_at: row.viewed_at,
+  }))
+}
+
 export async function createProfile(userId: string, email: string, name: string, age: number) {
   const { error } = await supabase
     .from('users')

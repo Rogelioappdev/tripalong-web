@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getProfile, getTrip, getOrCreateDM } from '@/lib/queries'
+import { getProfile, getTrip, getOrCreateDM, recordProfileView } from '@/lib/queries'
 import { BlockReportSheet } from './BlockReportSheet'
 import { getFlag } from '@/lib/countries'
 import { TripDetailModal } from './TripDetailModal'
@@ -197,8 +197,12 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null))
-  }, [])
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id ?? null
+      setCurrentUserId(uid)
+      if (uid && uid !== userId) recordProfileView(userId)
+    })
+  }, [userId])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }

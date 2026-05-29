@@ -5,12 +5,14 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
+import { AnimatePresence } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getUserTripChats, getDMConversations } from '@/lib/queries'
+import { getUserTripChats, getDMConversations, getProfileViewers } from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
+import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -44,6 +46,8 @@ export default function MessagesPage() {
   const [pushState, setPushState] = useState<'unsupported' | 'granted' | 'denied' | 'default' | null>(null)
   const [pushLoading, setPushLoading] = useState(false)
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string | null>>({})
+  const [showViews, setShowViews] = useState(false)
+  const [viewerCount, setViewerCount] = useState(0)
   const onlineUsers = useOnlineUsers()
 
   useEffect(() => {
@@ -63,6 +67,7 @@ export default function MessagesPage() {
       if (!session) { router.replace('/'); return }
       setUserId(session.user.id)
       initPresence(session.user.id)
+      getProfileViewers(50).then(v => setViewerCount(v.length))
     })
   }, [router])
 
@@ -96,11 +101,34 @@ export default function MessagesPage() {
   return (
     <>
       <NavBar />
+      <AnimatePresence>
+        {showViews && (
+          <ProfileViewsSheet onClose={() => { setShowViews(false) }} />
+        )}
+      </AnimatePresence>
       <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>
         <div className="max-w-2xl mx-auto">
           {/* Mobile header */}
-          <div className="md:hidden px-5 pt-6 pb-4">
+          <div className="md:hidden flex items-center justify-between px-5 pt-6 pb-4">
             <h1 className="text-white font-extrabold text-2xl">Messages</h1>
+            <button
+              onClick={() => { haptic(8); setShowViews(true) }}
+              className="relative w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+              style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="12" cy="12" r="3" stroke="white" strokeWidth="2"/>
+              </svg>
+              {viewerCount > 0 && (
+                <div
+                  className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 rounded-full flex items-center justify-center font-bold text-black px-1"
+                  style={{ backgroundColor: '#F0EBE3', fontSize: 9 }}
+                >
+                  {viewerCount > 99 ? '99+' : viewerCount}
+                </div>
+              )}
+            </button>
           </div>
 
           {/* Push notification banner */}
