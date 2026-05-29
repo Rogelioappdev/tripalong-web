@@ -243,9 +243,9 @@ export default function SettingsPage() {
           {/* ── Support ── */}
           <Group title="Support">
             <Row label="Help & FAQ" chevron border
-              onPress={() => window.open('mailto:support@tripalong.app', '_blank')} />
+              onPress={() => router.push('/faq')} />
             <Row label="Report a bug" chevron border
-              onPress={() => window.open('mailto:bugs@tripalong.app?subject=Bug report', '_blank')} />
+              onPress={() => router.push('/report-bug')} />
             <Row label="Terms of Service" chevron border onPress={() => router.push('/terms')} />
             <Row label="Privacy Policy" chevron border={false} onPress={() => router.push('/privacy')} />
           </Group>
