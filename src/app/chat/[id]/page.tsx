@@ -3,14 +3,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence } from 'framer-motion'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
+import { JoinCelebration } from '@/components/JoinCelebration'
 import { supabase } from '@/lib/supabase'
 import { registerPush, sendPushNotification } from '@/lib/push'
 import { initPresence, useOnlineUsers } from '@/lib/presence'
+import { haptic } from '@/lib/haptics'
 import {
   getChatMessages,
   getOlderChatMessages,
@@ -20,6 +22,8 @@ import {
   toggleReaction,
   markTripChatRead,
   getTripInfoByChatId,
+  getTripMembership,
+  joinTrip,
   getChatMemberReadPositions,
   searchChatMessages,
 } from '@/lib/queries'
@@ -98,6 +102,9 @@ export default function ChatPage() {
   const [viewingImage, setViewingImage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Join from chat
+  const [showCelebration, setShowCelebration] = useState(false)
+
   // Search
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -131,6 +138,25 @@ export default function ChatPage() {
   useEffect(() => {
     if (chatId && userId) getTripInfoByChatId(chatId).then(setTripInfo)
   }, [chatId, userId])
+
+  // ── Membership status ─────────────────────────────────────────────────────
+  const { data: membership, refetch: refetchMembership } = useQuery({
+    queryKey: ['membership', tripInfo?.id, userId],
+    queryFn: () => getTripMembership(tripInfo!.id, userId!),
+    enabled: !!tripInfo?.id && !!userId,
+  })
+
+  const isFullMember = membership?.status === 'in'
+
+  const joinMutation = useMutation({
+    mutationFn: () => joinTrip(tripInfo!.id, userId!),
+    onSuccess: () => {
+      haptic([15, 30, 15, 30, 60])
+      refetchMembership()
+      queryClient.invalidateQueries({ queryKey: ['trips'] })
+      setShowCelebration(true)
+    },
+  })
 
   // ── Mark read ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -745,6 +771,34 @@ export default function ChatPage() {
             </div>
           )}
 
+          {/* Join this trip banner — shown when user is 'maybe' or guest in the chat */}
+          {!isFullMember && tripInfo && !showCelebration && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+              className="shrink-0 flex items-center gap-3 px-3 py-2.5"
+              style={{ backgroundColor: 'rgba(240,235,227,0.06)', borderTop: '0.5px solid rgba(240,235,227,0.12)' }}
+            >
+              <span style={{ fontSize: 20 }}>🎒</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-semibold text-sm leading-tight">Want to officially join?</p>
+                <p className="text-white/40 text-xs mt-0.5">
+                  {membership?.status === 'maybe' ? "You're set to Maybe on this trip" : "You're viewing this trip's chat"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { haptic(10); joinMutation.mutate() }}
+                disabled={joinMutation.isPending}
+                className="shrink-0 font-bold text-sm rounded-2xl active:scale-[0.97] transition-transform disabled:opacity-40 px-4 py-2"
+                style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+              >
+                {joinMutation.isPending ? 'Joining…' : 'Join Trip'}
+              </button>
+            </motion.div>
+          )}
+
           {/* Input */}
           <form
             onSubmit={handleSend}
@@ -863,6 +917,16 @@ export default function ChatPage() {
           30% { transform: translateY(-4px); }
         }
       `}</style>
+
+      <AnimatePresence>
+        {showCelebration && tripInfo && (
+          <JoinCelebration
+            trip={tripInfo}
+            onOpenChat={() => setShowCelebration(false)}
+            onClose={() => setShowCelebration(false)}
+          />
+        )}
+      </AnimatePresence>
     </>
   )
 }
