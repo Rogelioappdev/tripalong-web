@@ -649,12 +649,12 @@ export async function recordProfileView(viewedUserId: string): Promise<void> {
   )
 }
 
-export async function getProfileViewers(limit = 50): Promise<{ id: string; name: string; profile_photo: string | null; viewed_at: string }[]> {
+export async function getProfileViewers(limit = 50): Promise<{ id: string; name: string; profile_photo: string | null; travel_styles: string[]; country: string | null; viewed_at: string }[]> {
   const uid = (await supabase.auth.getUser()).data.user?.id
   if (!uid) return []
   const { data, error } = await supabase
     .from('profile_views')
-    .select('viewer_id, viewed_at, viewer:users!viewer_id(id, name, profile_photo)')
+    .select('viewer_id, viewed_at, viewer:users!viewer_id(id, name, profile_photo, travel_styles, country)')
     .eq('viewed_user_id', uid)
     .order('viewed_at', { ascending: false })
     .limit(limit)
@@ -663,6 +663,8 @@ export async function getProfileViewers(limit = 50): Promise<{ id: string; name:
     id: row.viewer_id,
     name: row.viewer?.name ?? 'Unknown',
     profile_photo: row.viewer?.profile_photo ?? null,
+    travel_styles: row.viewer?.travel_styles ?? [],
+    country: row.viewer?.country ?? null,
     viewed_at: row.viewed_at,
   }))
 }
