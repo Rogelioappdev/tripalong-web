@@ -182,7 +182,17 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
   const [showPaywall, setShowPaywall] = useState(false)
   const displayCount = useCountUp(viewers.length)
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+    // One-time migration: wipe data from the old flag-based system so
+    // everyone gets their 1 free reveal under the new count-based gate.
+    try {
+      if (localStorage.getItem('pv_free_reveal_used') !== null) {
+        localStorage.removeItem('pv_free_reveal_used')
+        localStorage.removeItem(LS_IDS_KEY)
+      }
+    } catch {}
+  }, [])
   useEffect(() => {
     getProfileViewers().then(v => { setViewers(v as Viewer[]); setLoading(false) })
   }, [])
