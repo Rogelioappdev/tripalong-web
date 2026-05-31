@@ -278,40 +278,49 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
               {/* ── Hero ── */}
               <div className="relative shrink-0" style={{ height: '45dvh' }}>
 
-                {/* Photo with slide animation — blur wrapper for locked mode */}
-                <div
-                  className="absolute inset-0 overflow-hidden"
-                  style={{
-                    filter: isLocked ? 'blur(22px)' : 'none',
-                    transform: isLocked ? 'scale(1.12)' : 'scale(1)',
-                    transition: 'filter 1s ease-out, transform 1s ease-out',
-                  }}
-                >
-                  <AnimatePresence initial={false} custom={photoDirection} mode="popLayout">
-                    {mainPhoto ? (
-                      <motion.img
-                        key={photoIndex}
-                        src={mainPhoto}
-                        alt={profile.name}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        custom={photoDirection}
-                        initial={{ x: photoDirection * 60, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: photoDirection * -60, opacity: 0 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.8 }}
-                        draggable={false}
-                      />
-                    ) : (
-                      <motion.div
-                        key="placeholder"
-                        className="absolute inset-0 flex items-center justify-center"
-                        style={{ backgroundColor: '#111' }}
-                      >
-                        <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                {/* Photo with slide animation */}
+                <AnimatePresence initial={false} custom={photoDirection} mode="popLayout">
+                  {mainPhoto ? (
+                    <motion.img
+                      key={photoIndex}
+                      src={mainPhoto}
+                      alt={profile.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      custom={photoDirection}
+                      initial={{ x: photoDirection * 60, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      exit={{ x: photoDirection * -60, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.8 }}
+                      draggable={false}
+                    />
+                  ) : (
+                    <motion.div
+                      key="placeholder"
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{ backgroundColor: '#111' }}
+                    >
+                      <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Blur overlay — only when locked, fades out on reveal */}
+                <AnimatePresence>
+                  {isLocked && (
+                    <motion.div
+                      key="blur-overlay"
+                      className="absolute inset-0 pointer-events-none"
+                      initial={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.9, ease: 'easeOut' }}
+                      style={{
+                        backdropFilter: 'blur(20px)',
+                        WebkitBackdropFilter: 'blur(20px)',
+                        backgroundColor: 'rgba(0,0,0,0.15)',
+                      } as React.CSSProperties}
+                    />
+                  )}
+                </AnimatePresence>
 
                 {/* Gradient */}
                 <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 20%, rgba(0,0,0,0.95) 100%)' }} />
