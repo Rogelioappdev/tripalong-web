@@ -167,65 +167,6 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
   return createPortal(content, document.body)
 }
 
-// ── Locked body placeholder ─────────────────────────────────────────────────
-function LockedProfileBody() {
-  const bar = (w: string | number, h = 14, opacity = 0.07) => (
-    <div className="rounded-full" style={{ width: w, height: h, backgroundColor: `rgba(255,255,255,${opacity})` }} />
-  )
-  const pill = (w: number) => (
-    <div className="rounded-full" style={{ width: w, height: 32, backgroundColor: 'rgba(255,255,255,0.06)' }} />
-  )
-  const tile = (w: number) => (
-    <div className="rounded-2xl" style={{ width: w, height: 52, backgroundColor: 'rgba(255,255,255,0.05)' }} />
-  )
-
-  return (
-    <div className="px-6 pt-6 pb-6 flex flex-col gap-8">
-      {/* About skeleton */}
-      <div>
-        {bar(52, 13, 0.1)}
-        <div className="flex flex-col gap-2.5 mt-3">
-          {bar('88%')}
-          {bar('74%')}
-          {bar('52%')}
-        </div>
-      </div>
-
-      {/* Travel Style skeleton */}
-      <div>
-        {bar(80, 13, 0.1)}
-        <div className="flex flex-wrap gap-2 mt-3">
-          {[68, 90, 62, 75].map((w, i) => <div key={i}>{pill(w)}</div>)}
-        </div>
-      </div>
-
-      {/* Preferences skeleton */}
-      <div>
-        {bar(110, 13, 0.1)}
-        <div className="flex flex-wrap gap-2 mt-3">
-          {[92, 80, 100, 76, 88].map((w, i) => <div key={i}>{tile(w)}</div>)}
-        </div>
-      </div>
-
-      {/* Lock hint */}
-      <div className="flex flex-col items-center py-4 gap-3 text-center">
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="11" width="18" height="11" rx="2" fill="rgba(255,255,255,0.28)" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="rgba(255,255,255,0.38)" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </div>
-        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
-          Unlock to see their full profile
-        </p>
-      </div>
-    </div>
-  )
-}
-
 // ── Main modal ──────────────────────────────────────────────────────────────
 export function PublicProfileModal({ userId, onClose, locked = false, onRevealRequest, onSendMessageLocked }: PublicProfileModalProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -442,8 +383,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
 
               {/* ── Scrollable body ── */}
               <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                {isLocked && <LockedProfileBody />}
-                <div className="px-6 pt-6 pb-6 flex flex-col gap-7" style={{ display: isLocked ? 'none' : undefined }}>
+                <div className="px-6 pt-6 pb-6 flex flex-col gap-7">
 
                   {/* Bio */}
                   {profile.bio && (
