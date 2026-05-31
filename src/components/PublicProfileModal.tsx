@@ -562,7 +562,6 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                         <path d="M7 11V7a5 5 0 0 1 9.9-1" stroke="black" strokeWidth="2" strokeLinecap="round"/>
                       </svg>
                       Unlock to Reveal
-                      <span className="font-medium opacity-50 text-xs">· 1 free</span>
                     </button>
                     {/* Send Message — opens paywall */}
                     <button
