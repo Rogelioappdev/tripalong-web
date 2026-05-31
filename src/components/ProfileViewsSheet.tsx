@@ -81,7 +81,6 @@ function Paywall({ count, onClose }: { count: number; onClose: () => void }) {
       className="fixed inset-0 z-[80] flex flex-col overflow-y-auto"
       style={{ backgroundColor: '#050505' }}
     >
-      {/* Close */}
       <div className="flex justify-end px-5 shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
         <button
           onClick={() => { haptic(6); onClose() }}
@@ -94,14 +93,12 @@ function Paywall({ count, onClose }: { count: number; onClose: () => void }) {
         </button>
       </div>
 
-      {/* Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-7 text-center py-8">
-        {/* Icon */}
         <motion.div
           initial={{ scale: 0.7, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 360, damping: 26, delay: 0.08 }}
-          className="mb-6 w-18 h-18 flex items-center justify-center rounded-3xl"
+          className="mb-6 flex items-center justify-center rounded-3xl"
           style={{
             width: 72, height: 72,
             background: 'linear-gradient(145deg, rgba(240,235,227,0.14) 0%, rgba(240,235,227,0.04) 100%)',
@@ -141,7 +138,6 @@ function Paywall({ count, onClose }: { count: number; onClose: () => void }) {
           Unlock to see exactly who's interested in your profile
         </motion.p>
 
-        {/* Feature list */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -168,7 +164,6 @@ function Paywall({ count, onClose }: { count: number; onClose: () => void }) {
           ))}
         </motion.div>
 
-        {/* CTA */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -215,166 +210,161 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[60] flex items-end justify-center">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
-          className="absolute inset-0"
-          style={{ backgroundColor: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' } as React.CSSProperties}
-          onClick={() => { haptic(6); onClose() }}
-        />
-
-        {/* Sheet */}
-        <motion.div
-          initial={{ y: '100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '100%' }}
-          transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-          className="relative w-full max-w-lg rounded-t-[28px] flex flex-col"
-          style={{ backgroundColor: '#0A0A0A', maxHeight: '88dvh' }}
-          onClick={e => e.stopPropagation()}
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', stiffness: 340, damping: 36, mass: 0.85 }}
+        className="fixed inset-0 z-[60] flex flex-col"
+        style={{ backgroundColor: '#000' }}
+      >
+        {/* Top bar */}
+        <div
+          className="shrink-0 flex items-center gap-3 px-4 border-b"
+          style={{
+            paddingTop: 'calc(env(safe-area-inset-top) + 10px)',
+            paddingBottom: 12,
+            borderColor: 'rgba(255,255,255,0.08)',
+          }}
         >
-          {/* Handle */}
-          <div className="flex justify-center pt-3 pb-0 shrink-0">
-            <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.16)' }} />
+          <button
+            onClick={() => { haptic(8); onClose() }}
+            className="flex items-center gap-1.5 active:scale-90 transition-transform shrink-0"
+            style={{ color: 'rgba(255,255,255,0.4)' }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-white font-bold text-base truncate">Profile Views</h1>
           </div>
+        </div>
 
-          {/* Scrollable body */}
-          <div className="overflow-y-auto flex-1" style={{ paddingBottom: viewers.length > 0 && !loading ? 100 : 0 }}>
+        {/* Scrollable body */}
+        <div className="flex-1 min-h-0 overflow-y-auto" style={{ paddingBottom: viewers.length > 0 && !loading ? 100 : 0 }}>
 
-            {/* Header */}
-            <div className="px-5 pt-4 pb-5">
-              <div className="flex items-center gap-2 mb-1">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="rgba(240,235,227,0.65)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="12" cy="12" r="3" stroke="rgba(240,235,227,0.65)" strokeWidth="2" />
-                </svg>
-                <h2 className="text-white font-bold text-lg">Profile Views</h2>
-              </div>
-              {!loading && (
-                <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>
-                  {viewers.length === 0
-                    ? 'No views yet'
-                    : `${viewers.length} ${viewers.length === 1 ? 'person' : 'people'} checked out your profile`}
-                </p>
-              )}
-
-              {/* Blurred preview row */}
-              {!loading && viewers.length > 0 && (
-                <button
-                  onClick={openPaywall}
-                  className="flex items-center mt-4 gap-0 active:opacity-80 transition-opacity"
-                >
-                  <div className="flex -space-x-3">
-                    {previewViewers.map((v, i) => (
-                      <div
-                        key={v.id}
-                        className="relative rounded-full overflow-hidden"
-                        style={{ width: 38, height: 38, zIndex: 10 - i, border: '2.5px solid #0A0A0A', backgroundColor: '#1e1e1e' }}
-                      >
-                        {v.profile_photo ? (
-                          <img
-                            src={v.profile_photo}
-                            alt=""
-                            className="absolute inset-0 w-full h-full object-cover"
-                            style={{ filter: 'blur(8px)', transform: 'scale(1.3)' }}
-                          />
-                        ) : (
-                          <div className="absolute inset-0" style={{ background: '#2a2a2a' }} />
-                        )}
-                        <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }} />
-                      </div>
-                    ))}
-                  </div>
-                  {remaining > 0 && (
-                    <span className="ml-3 text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      +{remaining} more
-                    </span>
-                  )}
-                </button>
-              )}
-            </div>
-
-            {/* Divider */}
-            {!loading && viewers.length > 0 && (
-              <div style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 4 }} />
-            )}
-
-            {/* Viewer rows */}
-            {loading ? (
-              <div className="flex items-center justify-center py-14">
-                <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-              </div>
-            ) : viewers.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 px-8 text-center gap-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 40px)' }}>
-                <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="rgba(255,255,255,0.25)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <circle cx="12" cy="12" r="3" stroke="rgba(255,255,255,0.25)" strokeWidth="2" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-semibold text-base" style={{ color: 'rgba(255,255,255,0.55)' }}>No views yet</p>
-                  <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                    When someone views your profile, they'll show up here
-                  </p>
-                </div>
-              </div>
-            ) : (
-              viewers.map((viewer) => (
-                <button
-                  key={viewer.id}
-                  onClick={openPaywall}
-                  className="w-full flex items-center gap-3.5 px-5 py-4 text-left active:bg-white/4 transition-colors border-b"
-                  style={{ borderColor: 'rgba(255,255,255,0.05)' }}
-                >
-                  <BlurredAvatar photo={viewer.profile_photo} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm mb-0.5 tracking-wider" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                      ● ● ● ● ● ●
-                    </p>
-                    <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 12 }}>
-                      {hintText(viewer.travel_styles, viewer.country)} · {timeAgo(viewer.viewed_at)}
-                    </p>
-                  </div>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                    <rect x="3" y="11" width="18" height="11" rx="2" fill="rgba(255,255,255,0.18)" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="rgba(255,255,255,0.32)" strokeWidth="2.5" strokeLinecap="round" />
-                  </svg>
-                </button>
-              ))
-            )}
-          </div>
-
-          {/* Sticky bottom CTA */}
+          {/* Count + blurred preview */}
           {!loading && viewers.length > 0 && (
-            <div
-              className="absolute bottom-0 left-0 right-0 px-4 shrink-0"
-              style={{
-                paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
-                paddingTop: 20,
-                background: 'linear-gradient(to bottom, transparent 0%, #0A0A0A 28%)',
-              }}
-            >
+            <div className="px-5 pt-6 pb-5">
+              <p className="text-white font-extrabold tracking-tight mb-1" style={{ fontSize: 28, lineHeight: '32px', letterSpacing: '-0.6px' }}>
+                {viewers.length}
+              </p>
+              <p className="mb-5" style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14 }}>
+                {viewers.length === 1 ? 'person checked out your profile' : 'people checked out your profile'}
+              </p>
+
+              {/* Blurred stacked circles */}
               <button
                 onClick={openPaywall}
-                className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
-                style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+                className="flex items-center gap-0 active:opacity-75 transition-opacity"
               >
-                ✦ Unlock Profile Views
+                <div className="flex -space-x-3">
+                  {previewViewers.map((v, i) => (
+                    <div
+                      key={v.id}
+                      className="relative rounded-full overflow-hidden"
+                      style={{ width: 42, height: 42, zIndex: 10 - i, border: '2.5px solid #000', backgroundColor: '#1e1e1e' }}
+                    >
+                      {v.profile_photo ? (
+                        <img
+                          src={v.profile_photo}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover"
+                          style={{ filter: 'blur(8px)', transform: 'scale(1.3)' }}
+                        />
+                      ) : (
+                        <div className="absolute inset-0" style={{ background: '#2a2a2a' }} />
+                      )}
+                      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.28)' }} />
+                    </div>
+                  ))}
+                </div>
+                {remaining > 0 && (
+                  <span className="ml-3 font-semibold text-sm" style={{ color: 'rgba(255,255,255,0.38)' }}>
+                    +{remaining} more
+                  </span>
+                )}
               </button>
-              <p className="text-center mt-2 text-xs" style={{ color: 'rgba(255,255,255,0.22)' }}>
-                See exactly who's interested in traveling with you
-              </p>
             </div>
           )}
-        </motion.div>
-      </div>
 
-      {/* Paywall */}
+          {/* Divider */}
+          {!loading && viewers.length > 0 && (
+            <div style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+          )}
+
+          {/* List */}
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+            </div>
+          ) : viewers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center px-8 text-center gap-4" style={{ paddingTop: 80 }}>
+              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="rgba(255,255,255,0.25)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="12" cy="12" r="3" stroke="rgba(255,255,255,0.25)" strokeWidth="2" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-base" style={{ color: 'rgba(255,255,255,0.5)' }}>No views yet</p>
+                <p className="text-sm mt-1.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.22)' }}>
+                  When someone views your profile, they'll show up here
+                </p>
+              </div>
+            </div>
+          ) : (
+            viewers.map((viewer) => (
+              <button
+                key={viewer.id}
+                onClick={openPaywall}
+                className="w-full flex items-center gap-3.5 px-5 py-4 text-left active:bg-white/4 transition-colors border-b"
+                style={{ borderColor: 'rgba(255,255,255,0.05)' }}
+              >
+                <BlurredAvatar photo={viewer.profile_photo} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm mb-0.5 tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    ● ● ● ● ● ●
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 12 }}>
+                    {hintText(viewer.travel_styles, viewer.country)} · {timeAgo(viewer.viewed_at)}
+                  </p>
+                </div>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                  <rect x="3" y="11" width="18" height="11" rx="2" fill="rgba(255,255,255,0.18)" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="rgba(255,255,255,0.32)" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            ))
+          )}
+        </div>
+
+        {/* Sticky bottom CTA */}
+        {!loading && viewers.length > 0 && (
+          <div
+            className="absolute bottom-0 left-0 right-0 px-4"
+            style={{
+              paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+              paddingTop: 20,
+              background: 'linear-gradient(to bottom, transparent 0%, #000 28%)',
+            }}
+          >
+            <button
+              onClick={openPaywall}
+              className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
+              style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+            >
+              ✦ Unlock Profile Views
+            </button>
+            <p className="text-center mt-2 text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              See exactly who's interested in traveling with you
+            </p>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Paywall on top */}
       <AnimatePresence>
         {showPaywall && (
           <Paywall count={viewers.length} onClose={() => setShowPaywall(false)} />
