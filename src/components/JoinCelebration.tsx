@@ -49,6 +49,18 @@ function FloatingPlane() {
   )
 }
 
+async function shareTrip(trip: TripWithDetails) {
+  const text = `I just joined a trip to ${trip.destination}${trip.country ? `, ${trip.country}` : ''} on TripAlong. Join me! 🌍✈️`
+  const url = `${window.location.origin}/trip/${trip.id}`
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: `Join me in ${trip.destination}!`, text, url })
+    } else {
+      await navigator.clipboard.writeText(`${text}\n${url}`)
+    }
+  } catch {}
+}
+
 export function JoinCelebration({ trip, onOpenChat, onClose, inChat = false }: JoinCelebrationProps) {
   return (
     <motion.div
@@ -144,9 +156,23 @@ export function JoinCelebration({ trip, onOpenChat, onClose, inChat = false }: J
             </button>
             <button
               type="button"
-              onClick={() => { haptic(8); onClose() }}
-              className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
-              style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.55)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+              onClick={() => { haptic(8); shareTrip(trip) }}
+              className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+              style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.75)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <circle cx="18" cy="5" r="3" stroke="currentColor" strokeWidth="2"/>
+                <circle cx="6" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
+                <circle cx="18" cy="19" r="3" stroke="currentColor" strokeWidth="2"/>
+                <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              Invite friends to this trip
+            </button>
+            <button
+              type="button"
+              onClick={() => { haptic(6); onClose() }}
+              className="w-full py-2 text-sm font-medium active:opacity-60 transition-opacity"
+              style={{ color: 'rgba(255,255,255,0.25)' }}
             >
               Keep Exploring
             </button>

@@ -73,6 +73,19 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
     },
   })
 
+  const handleShare = async () => {
+    haptic(8)
+    const text = `Check out this ${displayTrip.destination}${displayTrip.country ? `, ${displayTrip.country}` : ''} trip on TripAlong 🌍✈️`
+    const url = `${window.location.origin}/trip/${displayTrip.id}`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${displayTrip.destination} — TripAlong`, text, url })
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${url}`)
+      }
+    } catch {}
+  }
+
   const openChat = async () => {
     if (!userId) return
     try {
@@ -146,6 +159,25 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M6 9l6 6 6-6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+
+          {/* Share */}
+          <button
+            onClick={handleShare}
+            className="absolute flex items-center justify-center active:scale-90 transition-transform"
+            style={{
+              top: 16, right: 16,
+              width: 36, height: 36, borderRadius: 18,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              border: '0.5px solid rgba(255,255,255,0.15)',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <circle cx="18" cy="5" r="3" stroke="white" strokeWidth="2"/>
+              <circle cx="6" cy="12" r="3" stroke="white" strokeWidth="2"/>
+              <circle cx="18" cy="19" r="3" stroke="white" strokeWidth="2"/>
+              <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" stroke="white" strokeWidth="2" strokeLinecap="round"/>
             </svg>
           </button>
 

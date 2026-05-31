@@ -130,6 +130,8 @@ function TravelDNAContent() {
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
   const [loaded, setLoaded] = useState(false)
+  const [dnaComplete, setDnaComplete] = useState(false)
+  const [userName, setUserName] = useState('')
   const [data, setData] = useState<DNAData>({
     gender: '',
     travel_styles: [],
@@ -147,6 +149,7 @@ function TravelDNAContent() {
       if (!user) return
       const profile = await getProfile(user.id)
       if (profile) {
+        setUserName(profile.name ?? '')
         setData({
           gender: profile.gender ?? '',
           travel_styles: profile.travel_styles ?? [],
@@ -202,7 +205,7 @@ function TravelDNAContent() {
           experience_level: data.experience_level as 'beginner' | 'intermediate' | 'experienced' | 'expert',
           travel_with: data.travel_with as 'male' | 'female' | 'everyone',
         })
-        router.replace(returnTo)
+        setDnaComplete(true)
       } finally {
         setSaving(false)
       }
@@ -218,10 +221,116 @@ function TravelDNAContent() {
     setStep(s => s - 1)
   }
 
+  const handleShareDNA = async () => {
+    const styleLabels = data.travel_styles
+      .map(s => STEPS[1].options.find(o => o.value === s)?.label ?? s)
+      .join(' · ')
+    const text = `My Travel DNA: ${styleLabels} traveler. Find your perfect travel match on TripAlong 🌍✈️`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'My Travel DNA — TripAlong', text, url: window.location.origin })
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${window.location.origin}`)
+      }
+    } catch {}
+  }
+
   if (!loaded) {
     return (
       <main className="min-h-screen bg-black flex items-center justify-center">
         <div className="w-7 h-7 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+      </main>
+    )
+  }
+
+  if (dnaComplete) {
+    const styleOptions = STEPS[1].options
+    const paceOpt = STEPS.find(s => s.key === 'travel_pace')?.options.find(o => o.value === data.travel_pace)
+    const energyOpt = STEPS.find(s => s.key === 'social_energy')?.options.find(o => o.value === data.social_energy)
+    const expOpt = STEPS.find(s => s.key === 'experience_level')?.options.find(o => o.value === data.experience_level)
+
+    return (
+      <main className="min-h-screen bg-black flex flex-col items-center justify-center px-6 py-12">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 340, damping: 30 }}
+          className="w-full max-w-sm"
+        >
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-4">🧬</div>
+            <h1 className="text-white font-extrabold text-2xl mb-1">Your Travel DNA</h1>
+            <p className="text-white/40 text-sm">Share your travel personality with the world</p>
+          </div>
+
+          {/* DNA card */}
+          <div
+            className="w-full rounded-3xl p-5 mb-6"
+            style={{ backgroundColor: '#0D0D0D', border: '0.5px solid rgba(255,255,255,0.1)' }}
+          >
+            {userName && (
+              <p className="text-white font-bold text-lg mb-4">{userName}</p>
+            )}
+
+            {/* Travel styles */}
+            {data.travel_styles.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {data.travel_styles.map(s => {
+                  const opt = styleOptions.find(o => o.value === s)
+                  return opt ? (
+                    <span
+                      key={s}
+                      className="rounded-full px-3 py-1.5 text-sm font-semibold"
+                      style={{ backgroundColor: 'rgba(240,235,227,0.1)', border: '0.5px solid rgba(240,235,227,0.2)', color: '#F0EBE3' }}
+                    >
+                      {opt.emoji} {opt.label}
+                    </span>
+                  ) : null
+                })}
+              </div>
+            )}
+
+            {/* Traits row */}
+            <div className="flex gap-2">
+              {[
+                paceOpt && { label: 'Pace', value: `${paceOpt.emoji} ${paceOpt.label}` },
+                energyOpt && { label: 'Energy', value: `${energyOpt.emoji} ${energyOpt.label}` },
+                expOpt && { label: 'Level', value: `${expOpt.emoji} ${expOpt.label}` },
+              ].filter(Boolean).map((item: any) => (
+                <div
+                  key={item.label}
+                  className="flex-1 rounded-2xl p-3"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
+                >
+                  <p className="text-white/30 text-xs mb-1">{item.label}</p>
+                  <p className="text-white text-xs font-semibold leading-snug">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5 mt-4 pt-3" style={{ borderTop: '0.5px solid rgba(255,255,255,0.07)' }}>
+              <span className="text-white/20 text-xs">✈️</span>
+              <span className="text-white/20 text-xs font-medium">TripAlong</span>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <button
+            onClick={handleShareDNA}
+            className="w-full py-4 rounded-2xl font-bold text-base mb-3 active:scale-[0.98] transition-transform"
+            style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+          >
+            Share my Travel DNA ✈️
+          </button>
+          <button
+            onClick={() => router.replace(returnTo)}
+            className="w-full py-3 text-sm font-medium active:opacity-60 transition-opacity"
+            style={{ color: 'rgba(255,255,255,0.28)' }}
+          >
+            Continue to feed →
+          </button>
+        </motion.div>
       </main>
     )
   }
