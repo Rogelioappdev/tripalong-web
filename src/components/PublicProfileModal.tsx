@@ -340,7 +340,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                     onPointerUp={(e) => {
                       const dx = Math.abs(e.clientX - heroPtrRef.current.x)
                       const dy = Math.abs(e.clientY - heroPtrRef.current.y)
-                      if (dx < 6 && dy < 6) setLightboxOpen(true)
+                      if (dx < 6 && dy < 6 && !isLocked) setLightboxOpen(true)
                     }}
                     style={{ touchAction: 'pan-y', cursor: 'pointer' } as React.CSSProperties}
                   />
