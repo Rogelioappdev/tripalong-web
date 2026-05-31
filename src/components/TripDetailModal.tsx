@@ -14,6 +14,8 @@ import type { TripWithDetails } from '@/lib/types'
 interface TripDetailModalProps {
   trip: TripWithDetails
   onClose: () => void
+  isGuest?: boolean
+  onAuthRequired?: (destination?: string) => void
 }
 
 const VIBE_EMOJI: Record<string, string> = {
@@ -33,7 +35,7 @@ function formatDates(start: string | null, end: string | null, flexible: boolean
   return `${s.toLocaleDateString('en-US', opts)} – ${e.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
 }
 
-export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
+export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: TripDetailModalProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
@@ -326,7 +328,7 @@ export function TripDetailModal({ trip, onClose }: TripDetailModalProps) {
             </button>
           ) : (
             <button
-              onClick={() => { haptic(10); joinMutation.mutate() }}
+              onClick={() => { haptic(10); isGuest ? onAuthRequired?.(displayTrip.destination) : joinMutation.mutate() }}
               disabled={joinMutation.isPending || spotsLeft <= 0}
               className="w-full font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-40"
               style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: '#000', padding: '16px' }}

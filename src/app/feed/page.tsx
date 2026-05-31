@@ -11,6 +11,7 @@ import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
 import { TripDetailModal } from '@/components/TripDetailModal'
 import { CreateTripModal } from '@/components/CreateTripModal'
+import { AuthGate } from '@/components/AuthGate'
 import { getTrips, getUserSavedTripIds } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import { SavedTripsModal } from '@/components/SavedTripsModal'
@@ -23,6 +24,9 @@ export default function FeedPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
+  const [isGuest, setIsGuest] = useState(false)
+  const [authGateDestination, setAuthGateDestination] = useState<string | undefined>(undefined)
+  const [showAuthGate, setShowAuthGate] = useState(false)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
@@ -48,12 +52,17 @@ export default function FeedPage() {
     })
   }
 
+  const triggerAuthGate = (destination?: string) => {
+    setAuthGateDestination(destination)
+    setShowAuthGate(true)
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.replace('/'); return }
+      if (!session) { setIsGuest(true); return }
       setUserId(session.user.id)
     })
-  }, [router])
+  }, [])
 
   // Lock page scroll — feed is a fixed app screen, not a scrollable document
   useEffect(() => {
@@ -84,6 +93,7 @@ export default function FeedPage() {
   const { data: trips, isLoading, isError, refetch } = useQuery({
     queryKey: ['trips'],
     queryFn: getTrips,
+    enabled: !!userId || isGuest,
   })
 
   return (
@@ -94,15 +104,30 @@ export default function FeedPage() {
         className="bg-black flex flex-col md:pt-14"
         style={{ height: '100dvh', overflow: 'hidden' }}
       >
+        {/* Guest banner */}
+        {isGuest && (
+          <button
+            onClick={() => triggerAuthGate()}
+            className="mx-4 mt-2 mb-1 flex items-center justify-between px-4 py-3 rounded-2xl shrink-0 active:scale-[0.98] transition-transform"
+            style={{ backgroundColor: 'rgba(240,235,227,0.07)', border: '0.5px solid rgba(240,235,227,0.15)' }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-base">✈️</span>
+              <p className="text-white/70 text-sm font-medium">Join any trip — it's free</p>
+            </div>
+            <span className="text-white/40 text-xs font-semibold">Sign up →</span>
+          </button>
+        )}
+
         {/* Mobile header */}
         <div className="md:hidden flex items-center justify-between px-5 shrink-0"
-          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
+          style={{ paddingTop: isGuest ? 8 : 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
           <h1 className="text-white font-extrabold text-2xl tracking-tight">TripAlong</h1>
           <div className="flex items-center gap-2">
             <motion.button
               whileTap={{ scale: 0.88 }}
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-              onClick={() => { haptic(8); setShowSaved(true) }}
+              onClick={() => { haptic(8); isGuest ? triggerAuthGate() : setShowSaved(true) }}
               className="relative w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
               <motion.div animate={bookmarkControls}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -129,7 +154,7 @@ export default function FeedPage() {
             <motion.button
               whileTap={{ scale: 0.88 }}
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-              onClick={() => { haptic(8); setShowCreate(true) }}
+              onClick={() => { haptic(8); isGuest ? triggerAuthGate() : setShowCreate(true) }}
               className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
               style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.12)' }}
             >
@@ -181,7 +206,14 @@ export default function FeedPage() {
             </div>
           ) : trips && trips.length > 0 ? (
             <div className="w-full max-w-sm flex flex-col">
-              <SwipeStack trips={trips} userId={userId} onTripTap={setSelectedTrip} onSave={handleTripSaved} />
+              <SwipeStack
+              trips={trips}
+              userId={userId}
+              isGuest={isGuest}
+              onAuthRequired={triggerAuthGate}
+              onTripTap={setSelectedTrip}
+              onSave={handleTripSaved}
+            />
             </div>
           ) : (
             <div className="flex items-center justify-center w-full">
@@ -192,8 +224,22 @@ export default function FeedPage() {
       </main>
 
       {selectedTrip && (
-        <TripDetailModal trip={selectedTrip} onClose={() => setSelectedTrip(null)} />
+        <TripDetailModal
+          trip={selectedTrip}
+          onClose={() => setSelectedTrip(null)}
+          isGuest={isGuest}
+          onAuthRequired={triggerAuthGate}
+        />
       )}
+
+      <AnimatePresence>
+        {showAuthGate && (
+          <AuthGate
+            destination={authGateDestination}
+            onClose={() => setShowAuthGate(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {showCreate && (
         <CreateTripModal onClose={() => setShowCreate(false)} userId={userId} />

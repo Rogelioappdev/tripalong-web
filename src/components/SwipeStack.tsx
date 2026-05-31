@@ -12,11 +12,13 @@ import type { TripWithDetails, UserProfile } from '@/lib/types'
 interface SwipeStackProps {
   trips: TripWithDetails[]
   userId: string | null
+  isGuest?: boolean
+  onAuthRequired?: (destination?: string) => void
   onTripTap: (trip: TripWithDetails) => void
   onSave?: (trip: TripWithDetails) => void
 }
 
-export function SwipeStack({ trips, userId, onTripTap, onSave }: SwipeStackProps) {
+export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, onSave }: SwipeStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set())
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
@@ -42,6 +44,7 @@ export function SwipeStack({ trips, userId, onTripTap, onSave }: SwipeStackProps
   }
 
   const handleSwipeRight = async (trip: TripWithDetails) => {
+    if (isGuest) { onAuthRequired?.(trip.destination); return }
     advance()
     if (userId && !savedIds.has(trip.id)) {
       setSavedIds(s => new Set([...s, trip.id]))
@@ -63,12 +66,14 @@ export function SwipeStack({ trips, userId, onTripTap, onSave }: SwipeStackProps
 
   const handleJoin = async () => {
     if (!currentTrip) return
+    if (isGuest) { onAuthRequired?.(currentTrip.destination); return }
     haptic(18)
     await topCardRef.current?.swipeRight()
   }
 
   const handleSave = async () => {
     if (!currentTrip) return
+    if (isGuest) { onAuthRequired?.(currentTrip.destination); return }
     haptic(8)
     await topCardRef.current?.swipeRight()
   }
