@@ -273,8 +273,8 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
           const placesVisited = profile.places_visited ?? []
           const bucketList = profile.bucket_list ?? []
           const contentBlur: React.CSSProperties = isLocked
-            ? { filter: 'blur(7px)', userSelect: 'none', pointerEvents: 'none' }
-            : {}
+            ? { filter: 'blur(7px)', userSelect: 'none', pointerEvents: 'none', transition: 'filter 1.1s ease-out 0.2s' }
+            : { filter: 'blur(0px)', transition: 'filter 1.1s ease-out 0.2s' }
 
           return (
             <>
