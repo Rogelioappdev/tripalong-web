@@ -272,6 +272,9 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
           const languages = profile.languages ?? []
           const placesVisited = profile.places_visited ?? []
           const bucketList = profile.bucket_list ?? []
+          const contentBlur: React.CSSProperties = isLocked
+            ? { filter: 'blur(7px)', userSelect: 'none', pointerEvents: 'none' }
+            : {}
 
           return (
             <>
@@ -398,7 +401,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   {profile.bio && (
                     <div>
                       <p className="text-white font-semibold text-lg mb-3">About</p>
-                      <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 15, lineHeight: '26px' }}>{profile.bio}</p>
+                      <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 15, lineHeight: '26px', ...contentBlur }}>{profile.bio}</p>
                     </div>
                   )}
 
@@ -409,7 +412,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                         <span>✨</span>
                         <p className="text-white font-semibold text-lg">Travel Style</p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2" style={contentBlur}>
                         {travelStyles.map((s, i) => {
                           const st = TRAVEL_STYLES.find(x => x.id === s)
                           return (
@@ -426,7 +429,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   {(profile.gender || profile.travel_with || profile.social_energy || profile.travel_pace || profile.planning_style) && (
                     <div>
                       <p className="text-white font-semibold text-lg mb-3">Travel Preferences</p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2" style={contentBlur}>
                         {profile.gender && <PrefTile title="Gender" value={profile.gender === 'male' ? '👨 Man' : profile.gender === 'female' ? '👩 Woman' : '🌟 Non-binary'} />}
                         {profile.travel_with && <PrefTile title="Travels With" value={profile.travel_with === 'everyone' ? '🌍 Everyone' : profile.travel_with === 'female' ? '👩 Women Only' : '👨 Men Only'} />}
                         {label(PERSONALITY_OPT, profile.social_energy) && <PrefTile title="Personality" value={label(PERSONALITY_OPT, profile.social_energy)!} />}
@@ -438,7 +441,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
 
                   {/* Experience Level */}
                   {label(EXPERIENCE_OPT, profile.experience_level) && (
-                    <div className="flex items-center rounded-2xl px-4 py-3.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}>
+                    <div className="flex items-center rounded-2xl px-4 py-3.5" style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)', ...contentBlur }}>
                       <span className="mr-2">🏆</span>
                       <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>Experience Level</span>
                       <span className="text-white font-semibold text-sm ml-auto">{label(EXPERIENCE_OPT, profile.experience_level)}</span>
@@ -456,7 +459,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                           {placesVisited.length}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2" style={contentBlur}>
                         {placesVisited.slice(0, 10).map((p, i) => (
                           <span key={i}
                             className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-white"
@@ -482,7 +485,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                         <span className="text-sm">🗣️</span>
                         <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>Languages</span>
                       </div>
-                      <p className="text-white font-medium text-sm">{languages.join(', ')}</p>
+                      <p className="text-white font-medium text-sm" style={contentBlur}>{languages.join(', ')}</p>
                     </div>
                   )}
 
@@ -497,7 +500,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                           {bucketList.length}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2" style={contentBlur}>
                         {bucketList.slice(0, 10).map((p, i) => (
                           <span key={i}
                             className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-white"
@@ -520,7 +523,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   {savedTrips.length > 0 && (
                     <div>
                       <p className="uppercase font-semibold mb-3" style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, letterSpacing: '1.4px' }}>Saved Adventures</p>
-                      <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-6 px-6">
+                      <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-6 px-6" style={contentBlur}>
                         {savedTrips.map((t: any, i: number) => (
                           <button
                             key={i}
