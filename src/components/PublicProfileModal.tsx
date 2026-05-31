@@ -15,6 +15,9 @@ import type { UserProfile, TripWithDetails } from '@/lib/types'
 interface PublicProfileModalProps {
   userId: string
   onClose: () => void
+  locked?: boolean
+  onRevealRequest?: () => boolean
+  onSendMessageLocked?: () => void
 }
 
 const TRAVEL_STYLES = [
@@ -165,7 +168,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
 }
 
 // ── Main modal ──────────────────────────────────────────────────────────────
-export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps) {
+export function PublicProfileModal({ userId, onClose, locked = false, onRevealRequest, onSendMessageLocked }: PublicProfileModalProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [photoIndex, setPhotoIndex] = useState(0)
@@ -179,6 +182,16 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
   const heroPtrRef = useRef({ x: 0, y: 0 })
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [dmLoading, setDmLoading] = useState(false)
+  const [revealed, setRevealed] = useState(!locked)
+
+  const isLocked = locked && !revealed
+
+  const handleReveal = () => {
+    haptic(14)
+    if (onRevealRequest?.()) {
+      setRevealed(true)
+    }
+  }
 
   const handleSendMessage = async () => {
     if (dmLoading || !currentUserId) return
@@ -265,31 +278,40 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
               {/* ── Hero ── */}
               <div className="relative shrink-0" style={{ height: '45dvh' }}>
 
-                {/* Photo with slide animation */}
-                <AnimatePresence initial={false} custom={photoDirection} mode="popLayout">
-                  {mainPhoto ? (
-                    <motion.img
-                      key={photoIndex}
-                      src={mainPhoto}
-                      alt={profile.name}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      custom={photoDirection}
-                      initial={{ x: photoDirection * 60, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      exit={{ x: photoDirection * -60, opacity: 0 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.8 }}
-                      draggable={false}
-                    />
-                  ) : (
-                    <motion.div
-                      key="placeholder"
-                      className="absolute inset-0 flex items-center justify-center"
-                      style={{ backgroundColor: '#111' }}
-                    >
-                      <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* Photo with slide animation — blur wrapper for locked mode */}
+                <div
+                  className="absolute inset-0 overflow-hidden"
+                  style={{
+                    filter: isLocked ? 'blur(22px)' : 'none',
+                    transform: isLocked ? 'scale(1.12)' : 'scale(1)',
+                    transition: 'filter 1s ease-out, transform 1s ease-out',
+                  }}
+                >
+                  <AnimatePresence initial={false} custom={photoDirection} mode="popLayout">
+                    {mainPhoto ? (
+                      <motion.img
+                        key={photoIndex}
+                        src={mainPhoto}
+                        alt={profile.name}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        custom={photoDirection}
+                        initial={{ x: photoDirection * 60, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: photoDirection * -60, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.8 }}
+                        draggable={false}
+                      />
+                    ) : (
+                      <motion.div
+                        key="placeholder"
+                        className="absolute inset-0 flex items-center justify-center"
+                        style={{ backgroundColor: '#111' }}
+                      >
+                        <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
 
                 {/* Gradient */}
                 <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 20%, rgba(0,0,0,0.95) 100%)' }} />
@@ -360,7 +382,15 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
               </div>
 
               {/* ── Scrollable body ── */}
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+              <div
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+                style={{
+                  filter: isLocked ? 'blur(9px)' : 'none',
+                  transition: 'filter 1s ease-out',
+                  userSelect: isLocked ? 'none' : 'auto',
+                  pointerEvents: isLocked ? 'none' : 'auto',
+                }}
+              >
                 <div className="px-6 pt-6 pb-6 flex flex-col gap-7">
 
                   {/* Bio */}
@@ -514,25 +544,56 @@ export function PublicProfileModal({ userId, onClose }: PublicProfileModalProps)
                 className="px-4 pt-3 shrink-0"
                 style={{ borderTop: '0.5px solid rgba(255,255,255,0.07)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
               >
-                <button
-                  type="button"
-                  onClick={() => { haptic(10); handleSendMessage() }}
-                  disabled={dmLoading || !currentUserId || currentUserId === userId}
-                  className="w-full font-semibold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
-                  style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.15)', color: '#F0EBE3', padding: '13px' }}
-                >
-                  {dmLoading ? 'Opening...' : 'Send Message'}
-                  {!dmLoading && <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#F0EBE3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                </button>
-                {currentUserId && currentUserId !== userId && (
-                  <button
-                    type="button"
-                    onClick={() => { haptic(8); setShowBlockReport(true) }}
-                    className="w-full text-center text-xs mt-3 py-1 transition-opacity active:opacity-60"
-                    style={{ color: 'rgba(255,255,255,0.22)' }}
-                  >
-                    Block or Report {profile.name}
-                  </button>
+                {isLocked ? (
+                  <>
+                    {/* Unlock to Reveal — primary CTA */}
+                    <button
+                      type="button"
+                      onClick={handleReveal}
+                      className="w-full font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-2 mb-3"
+                      style={{ backgroundColor: '#F0EBE3', color: '#000', padding: '14px' }}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="11" width="18" height="11" rx="2" stroke="black" strokeWidth="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 9.9-1" stroke="black" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                      Unlock to Reveal
+                      <span className="font-medium opacity-50 text-xs">· 1 free</span>
+                    </button>
+                    {/* Send Message — opens paywall */}
+                    <button
+                      type="button"
+                      onClick={() => { haptic(8); onSendMessageLocked?.() }}
+                      className="w-full font-semibold text-sm rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                      style={{ backgroundColor: 'rgba(240,235,227,0.06)', border: '1px solid rgba(240,235,227,0.12)', color: 'rgba(240,235,227,0.55)', padding: '13px' }}
+                    >
+                      Send Message
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => { haptic(10); handleSendMessage() }}
+                      disabled={dmLoading || !currentUserId || currentUserId === userId}
+                      className="w-full font-semibold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
+                      style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.15)', color: '#F0EBE3', padding: '13px' }}
+                    >
+                      {dmLoading ? 'Opening...' : 'Send Message'}
+                      {!dmLoading && <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#F0EBE3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                    </button>
+                    {currentUserId && currentUserId !== userId && (
+                      <button
+                        type="button"
+                        onClick={() => { haptic(8); setShowBlockReport(true) }}
+                        className="w-full text-center text-xs mt-3 py-1 transition-opacity active:opacity-60"
+                        style={{ color: 'rgba(255,255,255,0.22)' }}
+                      >
+                        Block or Report {profile.name}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
 

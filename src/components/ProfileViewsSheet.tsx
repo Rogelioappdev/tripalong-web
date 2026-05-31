@@ -20,6 +20,31 @@ interface ProfileViewsSheetProps {
   onClose: () => void
 }
 
+// ── localStorage helpers ────────────────────────────────────────────────────
+const LS_USED_KEY = 'pv_free_reveal_used'
+const LS_IDS_KEY  = 'pv_revealed_ids'
+
+function hasUsedFreeReveal(): boolean {
+  try { return localStorage.getItem(LS_USED_KEY) === 'true' } catch { return false }
+}
+function markFreeRevealUsed(): void {
+  try { localStorage.setItem(LS_USED_KEY, 'true') } catch {}
+}
+function getRevealedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LS_IDS_KEY)
+    return new Set(raw ? JSON.parse(raw) : [])
+  } catch { return new Set() }
+}
+function addRevealedId(id: string): void {
+  try {
+    const ids = getRevealedIds()
+    ids.add(id)
+    localStorage.setItem(LS_IDS_KEY, JSON.stringify([...ids]))
+  } catch {}
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
   if (diff < 60) return 'just now'
@@ -39,30 +64,154 @@ function useCountUp(target: number, duration = 900) {
     let current = 0
     const timer = setInterval(() => {
       current += increment
-      if (current >= target) {
-        setCount(target)
-        clearInterval(timer)
-      } else {
-        setCount(Math.floor(current))
-      }
+      if (current >= target) { setCount(target); clearInterval(timer) }
+      else setCount(Math.floor(current))
     }, stepTime)
     return () => clearInterval(timer)
   }, [target, duration])
   return count
 }
 
+// ── Paywall ─────────────────────────────────────────────────────────────────
+function Paywall({ count, onClose }: { count: number; onClose: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 28 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 18 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+      className="fixed inset-0 z-[80] flex flex-col overflow-y-auto"
+      style={{ backgroundColor: '#050505' }}
+    >
+      <div className="flex justify-end px-5 shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
+        <button
+          onClick={() => { haptic(6); onClose() }}
+          className="w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-7 text-center py-8">
+        <motion.div
+          initial={{ scale: 0.7, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 360, damping: 26, delay: 0.08 }}
+          className="mb-6 flex items-center justify-center rounded-3xl"
+          style={{ width: 72, height: 72, background: 'linear-gradient(145deg, rgba(240,235,227,0.14) 0%, rgba(240,235,227,0.04) 100%)', border: '0.5px solid rgba(240,235,227,0.22)' }}
+        >
+          <span style={{ fontSize: 34 }}>✦</span>
+        </motion.div>
+
+        <motion.p
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.14 }}
+          className="font-bold tracking-widest mb-3"
+          style={{ color: 'rgba(240,235,227,0.5)', fontSize: 11 }}
+        >
+          TRIPALONG PLUS
+        </motion.p>
+
+        <motion.h2
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.32, delay: 0.18 }}
+          className="text-white font-extrabold tracking-tight mb-3"
+          style={{ fontSize: 30, lineHeight: '34px', letterSpacing: '-0.8px' }}
+        >
+          {count} {count === 1 ? 'person wants' : 'people want'} to travel with you
+        </motion.h2>
+
+        <motion.p
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.24 }}
+          className="mb-8"
+          style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14, lineHeight: '22px' }}
+        >
+          Unlock unlimited reveals and see exactly who's interested
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.34, delay: 0.28 }}
+          className="w-full flex flex-col gap-2.5 mb-8"
+        >
+          {[
+            { icon: '👁', text: 'Unlimited profile view reveals' },
+            { icon: '💬', text: 'Message anyone who viewed you' },
+            { icon: '🔖', text: 'See who saved your trips' },
+            { icon: '⚡', text: 'Priority in travel matching' },
+          ].map((f) => (
+            <div key={f.text} className="flex items-center gap-3 px-4 py-3 rounded-2xl text-left"
+              style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
+              <span style={{ fontSize: 17 }}>{f.icon}</span>
+              <span className="text-white font-medium flex-1" style={{ fontSize: 13 }}>{f.text}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="rgba(240,235,227,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          ))}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.34 }}
+          className="w-full"
+        >
+          <button
+            onClick={() => haptic(14)}
+            className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
+            style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+          >
+            ✦ Upgrade to Plus
+          </button>
+          <button
+            onClick={() => { haptic(6); onClose() }}
+            className="w-full mt-4 py-2 text-sm active:opacity-60 transition-opacity"
+            style={{ color: 'rgba(255,255,255,0.28)' }}
+          >
+            Maybe later
+          </button>
+        </motion.div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ── Main sheet ───────────────────────────────────────────────────────────────
 export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
   const [viewers, setViewers] = useState<Viewer[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [selectedViewer, setSelectedViewer] = useState<{ id: string; locked: boolean } | null>(null)
+  const [showPaywall, setShowPaywall] = useState(false)
   const displayCount = useCountUp(viewers.length)
 
   useEffect(() => { setMounted(true) }, [])
-
   useEffect(() => {
     getProfileViewers().then(v => { setViewers(v as Viewer[]); setLoading(false) })
   }, [])
+
+  const handleViewerTap = (viewer: Viewer) => {
+    haptic(8)
+    const revealedIds = getRevealedIds()
+    setSelectedViewer({ id: viewer.id, locked: !revealedIds.has(viewer.id) })
+  }
+
+  const handleRevealRequest = (): boolean => {
+    if (!selectedViewer) return false
+    const revealedIds = getRevealedIds()
+    if (revealedIds.has(selectedViewer.id)) return true
+    if (!hasUsedFreeReveal()) {
+      markFreeRevealUsed()
+      addRevealedId(selectedViewer.id)
+      return true
+    }
+    setShowPaywall(true)
+    return false
+  }
 
   if (!mounted) return null
 
@@ -79,11 +228,7 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
         {/* Top bar */}
         <div
           className="shrink-0 flex items-center gap-3 px-4 border-b"
-          style={{
-            paddingTop: 'calc(env(safe-area-inset-top) + 10px)',
-            paddingBottom: 12,
-            borderColor: 'rgba(255,255,255,0.08)',
-          }}
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)', paddingBottom: 12, borderColor: 'rgba(255,255,255,0.08)' }}
         >
           <button
             onClick={() => { haptic(8); onClose() }}
@@ -105,10 +250,7 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
             </div>
           ) : viewers.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-4">
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
-              >
+              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="rgba(255,255,255,0.25)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   <circle cx="12" cy="12" r="3" stroke="rgba(255,255,255,0.25)" strokeWidth="2" />
@@ -137,7 +279,6 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
                   </svg>
                 </motion.div>
 
-                {/* Big animated number */}
                 <motion.p
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -159,61 +300,69 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
                 </motion.p>
               </div>
 
-              {/* Divider */}
               <div style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.07)' }} />
 
               {/* ── Profile grid ── */}
               <div className="grid grid-cols-3 gap-x-3 gap-y-7 px-5 pt-7 pb-10">
-                {viewers.map((viewer, i) => (
-                  <motion.button
-                    key={viewer.id}
-                    initial={{ opacity: 0, y: 18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.32, delay: 0.14 + i * 0.05 }}
-                    onClick={() => { haptic(8); setSelectedUserId(viewer.id) }}
-                    className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
-                  >
-                    {/* Avatar */}
-                    <div
-                      className="rounded-full overflow-hidden"
-                      style={{
-                        width: 80,
-                        height: 80,
-                        backgroundColor: '#1a1a1a',
-                        boxShadow: '0 0 0 2.5px rgba(255,255,255,0.08)',
-                      }}
+                {viewers.map((viewer, i) => {
+                  const isRevealed = getRevealedIds().has(viewer.id)
+                  return (
+                    <motion.button
+                      key={viewer.id}
+                      initial={{ opacity: 0, y: 18 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.32, delay: 0.14 + i * 0.05 }}
+                      onClick={() => handleViewerTap(viewer)}
+                      className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
                     >
-                      {viewer.profile_photo ? (
-                        <img
-                          src={viewer.profile_photo}
-                          alt={viewer.name}
-                          className="w-full h-full object-cover"
-                          draggable={false}
-                        />
-                      ) : (
-                        <div
-                          className="w-full h-full flex items-center justify-center font-bold text-white/50"
-                          style={{ fontSize: 28 }}
-                        >
-                          {viewer.name?.[0]?.toUpperCase() ?? '?'}
-                        </div>
-                      )}
-                    </div>
+                      {/* Avatar with subtle blur */}
+                      <div
+                        className="rounded-full overflow-hidden"
+                        style={{
+                          width: 80,
+                          height: 80,
+                          backgroundColor: '#1a1a1a',
+                          boxShadow: '0 0 0 2.5px rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        {viewer.profile_photo ? (
+                          <img
+                            src={viewer.profile_photo}
+                            alt={viewer.name}
+                            className="w-full h-full object-cover"
+                            draggable={false}
+                            style={
+                              isRevealed
+                                ? undefined
+                                : { filter: 'blur(2px) brightness(0.82)', transform: 'scale(1.08)' }
+                            }
+                          />
+                        ) : (
+                          <div
+                            className="w-full h-full flex items-center justify-center font-bold"
+                            style={{
+                              fontSize: 28,
+                              color: isRevealed ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)',
+                            }}
+                          >
+                            {viewer.name?.[0]?.toUpperCase() ?? '?'}
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Name */}
-                    <p
-                      className="font-semibold text-xs text-center w-full truncate"
-                      style={{ color: 'rgba(255,255,255,0.85)', maxWidth: 84, paddingLeft: 2, paddingRight: 2 }}
-                    >
-                      {viewer.name}
-                    </p>
+                      <p
+                        className="font-semibold text-xs text-center w-full truncate"
+                        style={{ color: 'rgba(255,255,255,0.85)', maxWidth: 84, paddingLeft: 2, paddingRight: 2 }}
+                      >
+                        {viewer.name}
+                      </p>
 
-                    {/* Time */}
-                    <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.28)', marginTop: -4 }}>
-                      {timeAgo(viewer.viewed_at)}
-                    </p>
-                  </motion.button>
-                ))}
+                      <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.28)', marginTop: -4 }}>
+                        {timeAgo(viewer.viewed_at)}
+                      </p>
+                    </motion.button>
+                  )
+                })}
               </div>
 
               <div style={{ height: 'calc(env(safe-area-inset-bottom) + 24px)' }} />
@@ -222,13 +371,24 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
         </div>
       </motion.div>
 
-      {/* PublicProfileModal on top */}
+      {/* PublicProfileModal (locked or revealed) */}
       <AnimatePresence>
-        {selectedUserId && (
+        {selectedViewer && (
           <PublicProfileModal
-            userId={selectedUserId}
-            onClose={() => setSelectedUserId(null)}
+            key={selectedViewer.id}
+            userId={selectedViewer.id}
+            onClose={() => setSelectedViewer(null)}
+            locked={selectedViewer.locked}
+            onRevealRequest={handleRevealRequest}
+            onSendMessageLocked={() => setShowPaywall(true)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Paywall */}
+      <AnimatePresence>
+        {showPaywall && (
+          <Paywall count={viewers.length} onClose={() => setShowPaywall(false)} />
         )}
       </AnimatePresence>
     </>,
