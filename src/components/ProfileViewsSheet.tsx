@@ -21,15 +21,8 @@ interface ProfileViewsSheetProps {
 }
 
 // ── localStorage helpers ────────────────────────────────────────────────────
-const LS_USED_KEY = 'pv_free_reveal_used'
-const LS_IDS_KEY  = 'pv_revealed_ids'
+const LS_IDS_KEY = 'pv_revealed_ids'
 
-function hasUsedFreeReveal(): boolean {
-  try { return localStorage.getItem(LS_USED_KEY) === 'true' } catch { return false }
-}
-function markFreeRevealUsed(): void {
-  try { localStorage.setItem(LS_USED_KEY, 'true') } catch {}
-}
 function getRevealedIds(): Set<string> {
   try {
     const raw = localStorage.getItem(LS_IDS_KEY)
@@ -204,8 +197,7 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
     if (!selectedViewer) return false
     const revealedIds = getRevealedIds()
     if (revealedIds.has(selectedViewer.id)) return true
-    if (!hasUsedFreeReveal()) {
-      markFreeRevealUsed()
+    if (revealedIds.size < 1) {
       addRevealedId(selectedViewer.id)
       return true
     }
