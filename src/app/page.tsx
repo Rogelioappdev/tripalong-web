@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, useAnimation } from 'framer-motion'
 import { Playfair_Display } from 'next/font/google'
 import { supabase } from '@/lib/supabase'
 import { haptic } from '@/lib/haptics'
@@ -23,18 +23,21 @@ const SOCIAL_AVATARS = [
   'https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/profile-photos/avatar-0-1778603906132.jpg',
 ]
 
-// Stack slot styles (back → front)
-const SLOT = [
-  { scale: 0.86, y: 26, opacity: 0.55 }, // slot 2 — back
-  { scale: 0.93, y: 13, opacity: 0.82 }, // slot 1 — middle
-  { scale: 1.00, y:  0, opacity: 1.00 }, // slot 0 — front
-]
+const CARD_GRADIENT = 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, transparent 30%, rgba(0,0,0,0.7) 62%, rgba(0,0,0,0.97) 100%)'
 
 export default function SplashPage() {
   const router = useRouter()
   const [cards, setCards] = useState<TripCard[]>([])
-  const [frontIdx, setFrontIdx] = useState(0)
-  const [exitingIdx, setExitingIdx] = useState<number | null>(null)
+  const [isAnimating, setIsAnimating] = useState(false)
+
+  // Two slots — A and B — swap the "front" role on each swipe
+  const [slotA, setSlotA] = useState(0)
+  const [slotB, setSlotB] = useState(1)
+  const [frontIsA, setFrontIsA] = useState(true)
+  const [showStamp, setShowStamp] = useState(false)
+
+  const controlsA = useAnimation()
+  const controlsB = useAnimation()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -47,37 +50,54 @@ export default function SplashPage() {
       .from('trips')
       .select('id, destination, country, cover_image')
       .not('cover_image', 'is', null)
-      .limit(6)
+      .limit(8)
       .then(({ data }) => {
         if (data && data.length > 0) setCards(data as TripCard[])
       })
   }, [])
 
-  const doSwipe = useCallback(() => {
-    if (exitingIdx !== null || cards.length < 2) return
-    const leaving = frontIdx
-    setExitingIdx(leaving)
-    setFrontIdx(i => (i + 1) % cards.length)   // advance stack immediately
-    setTimeout(() => setExitingIdx(null), 550)
-  }, [exitingIdx, frontIdx, cards.length])
-
-  // Auto-swipe every 3.5s
+  // Set initial slot positions once cards load
   useEffect(() => {
     if (cards.length < 2) return
-    const t = setInterval(doSwipe, 3500)
+    controlsA.set({ x: 0, y: 0, rotate: 0, scale: 1, opacity: 1 })
+    controlsB.set({ x: 0, y: 10, scale: 0.97, opacity: 1 })
+  }, [cards.length, controlsA, controlsB])
+
+  const triggerSwipe = useCallback(async () => {
+    if (isAnimating || cards.length < 2) return
+    setIsAnimating(true)
+    setShowStamp(true)
+
+    const frontCtrl  = frontIsA ? controlsA : controlsB
+    const behindCtrl = frontIsA ? controlsB : controlsA
+    const currentBehindSlot = frontIsA ? slotB : slotA
+    const nextCard = (currentBehindSlot + 1) % cards.length
+
+    // Same values as the real SwipeCard
+    await Promise.all([
+      frontCtrl.start({ x: 700, opacity: 0, rotate: 20, transition: { duration: 0.3, ease: 'easeOut' } }),
+      behindCtrl.start({ scale: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } }),
+    ])
+
+    setShowStamp(false)
+
+    // Reset old-front slot to behind position, load next card into it
+    frontCtrl.set({ x: 0, opacity: 1, rotate: 0, scale: 0.97, y: 10 })
+    if (frontIsA) setSlotA(nextCard); else setSlotB(nextCard)
+
+    // Toggle which slot is front
+    setFrontIsA(f => !f)
+    setIsAnimating(false)
+  }, [isAnimating, cards.length, frontIsA, controlsA, controlsB, slotA, slotB])
+
+  useEffect(() => {
+    if (cards.length < 2) return
+    const t = setInterval(triggerSwipe, 3200)
     return () => clearInterval(t)
-  }, [doSwipe, cards.length])
+  }, [triggerSwipe, cards.length])
 
-  // Get slot (0=front, 1=middle, 2=back) for a given card index
-  const getSlot = (idx: number) => {
-    const rel = ((idx - frontIdx) % cards.length + cards.length) % cards.length
-    return rel  // 0=front, 1=middle, 2=back, ≥3=not rendered
-  }
-
-  const visibleCards = cards.filter((_, i) => {
-    if (i === exitingIdx) return true   // still visible while swiping out
-    return getSlot(i) <= 2
-  })
+  const frontCard  = cards[frontIsA ? slotA : slotB] ?? null
+  const behindCard = cards[frontIsA ? slotB : slotA] ?? null
 
   return (
     <main style={{ background: '#000', height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -90,7 +110,8 @@ export default function SplashPage() {
         style={{
           flexShrink: 0,
           paddingTop: 'calc(env(safe-area-inset-top) + 18px)',
-          paddingLeft: 28, paddingBottom: 14,
+          paddingLeft: 28,
+          paddingBottom: 14,
         }}
       >
         <span style={{ color: '#fff', fontSize: 24, fontWeight: 800, letterSpacing: '-0.6px' }}>
@@ -100,101 +121,88 @@ export default function SplashPage() {
 
       {/* ── Card stack ── */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.12 }}
-        style={{ flexShrink: 0, height: '52dvh', position: 'relative' }}
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+        style={{ flexShrink: 0, height: '52dvh', position: 'relative', paddingLeft: 20, paddingRight: 20 }}
       >
-        <AnimatePresence>
-          {visibleCards.map((card, _, arr) => {
-            const cardIdx = cards.indexOf(card)
-            const isExiting = cardIdx === exitingIdx
-            const slot = isExiting ? -1 : getSlot(cardIdx)
-            const slotStyle = SLOT[slot] ?? SLOT[2]
+        {/* Inner container — cards fill this, matching SwipeStack's inset-0 pattern */}
+        <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 22, overflow: 'hidden' }}>
 
-            if (isExiting) {
-              return (
-                <motion.div
-                  key={card.id}
-                  initial={{ x: 0, rotate: 0, opacity: 1, scale: 1, y: 0 }}
-                  animate={{ x: '130%', rotate: 16, opacity: 0 }}
-                  transition={{ duration: 0.48, ease: [0.55, 0.055, 0.675, 0.19] }}
-                  style={{
-                    position: 'absolute', top: 0, left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: '76vw', maxWidth: 320, height: '100%',
-                    borderRadius: 22, overflow: 'hidden',
-                    boxShadow: '0 24px 72px rgba(0,0,0,0.9)',
-                    zIndex: 10,
-                    transformOrigin: 'bottom center',
-                  }}
-                >
-                  <img src={card.cover_image!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, transparent 28%, rgba(0,0,0,0.78) 100%)' }} />
-                  {/* "JOIN" flash on exit */}
-                  <div style={{
-                    position: 'absolute', top: 20, left: 20,
-                    background: 'rgba(48,209,88,0.92)', borderRadius: 10,
-                    padding: '5px 12px', fontWeight: 700, fontSize: 14,
-                    color: '#fff', letterSpacing: '0.5px',
-                    border: '2px solid #30D158',
-                  }}>
-                    JOIN ✓
-                  </div>
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, padding: '14px 16px', zIndex: 2 }}>
-                    <p style={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2, margin: 0 }}>{card.destination}</p>
-                    {card.country && <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12.5, margin: '3px 0 0' }}>{card.country}</p>}
-                  </div>
-                </motion.div>
-              )
-            }
+          {/* Behind card (slot B or A depending on frontIsA) */}
+          {behindCard ? (
+            <motion.div
+              animate={frontIsA ? controlsB : controlsA}
+              style={{
+                position: 'absolute', inset: 0,
+                borderRadius: 22, overflow: 'hidden',
+                zIndex: 0, transformOrigin: 'bottom center',
+              }}
+            >
+              <img src={behindCard.cover_image!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable={false} />
+              <div style={{ position: 'absolute', inset: 0, background: CARD_GRADIENT }} />
+            </motion.div>
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 22, background: '#161616', zIndex: 0 }} />
+          )}
 
-            return (
+          {/* Front card */}
+          {frontCard ? (
+            <motion.div
+              animate={frontIsA ? controlsA : controlsB}
+              style={{
+                position: 'absolute', inset: 0,
+                borderRadius: 22, overflow: 'hidden',
+                zIndex: 10, transformOrigin: 'bottom center',
+              }}
+            >
+              <img src={frontCard.cover_image!} alt={frontCard.destination} style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable={false} />
+              <div style={{ position: 'absolute', inset: 0, background: CARD_GRADIENT }} />
+
+              {/* SAVE stamp — matches real app */}
               <motion.div
-                key={card.id}
-                animate={{
-                  scale: slotStyle.scale,
-                  y: slotStyle.y,
-                  opacity: slotStyle.opacity,
-                }}
-                transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+                animate={{ opacity: showStamp ? 1 : 0 }}
+                transition={{ duration: 0.12 }}
                 style={{
-                  position: 'absolute', top: 0, left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: '76vw', maxWidth: 320, height: '100%',
-                  borderRadius: 22, overflow: 'hidden',
-                  boxShadow: slot === 0 ? '0 24px 72px rgba(0,0,0,0.9)' : '0 12px 40px rgba(0,0,0,0.7)',
-                  zIndex: 3 - slot,
-                  willChange: 'transform',
+                  position: 'absolute', top: 28, right: 20, zIndex: 20,
+                  border: '2.5px solid #F0EBE3', borderRadius: 12,
+                  padding: '6px 14px', transform: 'rotate(15deg)',
                 }}
               >
-                <img src={card.cover_image!} alt={card.destination} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, transparent 28%, rgba(0,0,0,0.80) 100%)' }} />
-                {slot === 0 && (
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, padding: '14px 16px', zIndex: 2 }}>
-                    <p style={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2, margin: 0 }}>{card.destination}</p>
-                    {card.country && <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12.5, margin: '3px 0 0' }}>{card.country}</p>}
+                <span style={{ color: '#F0EBE3', fontWeight: 900, fontSize: 20, letterSpacing: '1.5px' }}>SAVE</span>
+              </motion.div>
+
+              {/* Destination — matches real CardContent */}
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px', zIndex: 10 }}>
+                {frontCard.country && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="rgba(240,235,227,0.7)" />
+                    </svg>
+                    <span style={{ color: 'rgba(240,235,227,0.7)', fontSize: 12, fontWeight: 500, letterSpacing: '0.3px' }}>
+                      {frontCard.country.toLowerCase()}
+                    </span>
                   </div>
                 )}
-              </motion.div>
-            )
-          })}
-        </AnimatePresence>
+                <h2 style={{
+                  color: '#fff', fontWeight: 800,
+                  fontSize: 'clamp(26px, 7.5vw, 38px)',
+                  lineHeight: 1, letterSpacing: '-1px', margin: 0,
+                }}>
+                  {frontCard.destination}
+                </h2>
+              </div>
+            </motion.div>
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 22, background: '#1e1e1e', zIndex: 10 }} />
+          )}
+        </div>
 
-        {/* Skeleton while loading */}
-        {cards.length === 0 && (
-          <>
-            <div style={{ position: 'absolute', top: 26, left: '50%', transform: 'translateX(-50%) scale(0.86)', width: '76vw', maxWidth: 320, height: '100%', borderRadius: 22, background: '#111', opacity: 0.55, zIndex: 1 }} />
-            <div style={{ position: 'absolute', top: 13, left: '50%', transform: 'translateX(-50%) scale(0.93)', width: '76vw', maxWidth: 320, height: '100%', borderRadius: 22, background: '#161616', opacity: 0.82, zIndex: 2 }} />
-            <div style={{ position: 'absolute', top: 0,  left: '50%', transform: 'translateX(-50%)',          width: '76vw', maxWidth: 320, height: '100%', borderRadius: 22, background: '#1e1e1e', zIndex: 3 }} />
-          </>
-        )}
-
-        {/* Black fade at bottom */}
+        {/* Gradient fade into text area */}
         <div style={{
-          position: 'absolute', bottom: -1, left: 0, right: 0, height: 64,
+          position: 'absolute', bottom: -1, left: 0, right: 0, height: 56,
           background: 'linear-gradient(to bottom, transparent, #000)',
-          zIndex: 20, pointerEvents: 'none',
+          zIndex: 30, pointerEvents: 'none',
         }} />
       </motion.div>
 
