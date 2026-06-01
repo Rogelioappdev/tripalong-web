@@ -64,8 +64,7 @@ export default function SplashPage() {
         }}
       >
         <span
-          className={playfair.className}
-          style={{ color: '#F0EBE3', fontSize: 22, fontWeight: 700, letterSpacing: '-0.2px' }}
+          style={{ color: '#fff', fontSize: 24, fontWeight: 800, letterSpacing: '-0.6px', fontFamily: 'inherit' }}
         >
           TripAlong
         </span>
@@ -248,26 +247,33 @@ export default function SplashPage() {
           >
             Go alone if you have to.
             <br />
-            <span style={{ color: '#C8B99A' }}>
+            <span style={{ color: '#F0EBE3' }}>
               But now, you don't.
             </span>
           </h1>
 
           {/* Social proof */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 14 }}>
-            {/* Stacked warm-tone circles */}
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              {['#B8997A', '#9E8060', '#C4A882', '#8A7050'].map((c, i) => (
+              {[
+                'https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/avatars/a50cfe93-fd2d-4676-b4da-8c970f696690/avatar.jpg',
+                'https://staticfiles.net/XlP32QmlVxrNYg4ib9lZAe5LJGxfaFgVp0_tbJ3VKYw/p/oDi6PJlREVk.jpg',
+                'https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/avatars/422890b6-f24c-44a1-aa83-fc29611120ea/avatar.jpg',
+                'https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/profile-photos/avatar-0-1778603906132.jpg',
+              ].map((src, i) => (
                 <div
                   key={i}
                   style={{
-                    width: 22, height: 22, borderRadius: 11,
-                    backgroundColor: c,
+                    width: 26, height: 26, borderRadius: 13,
                     border: '1.5px solid #000',
-                    marginLeft: i > 0 ? -7 : 0,
+                    marginLeft: i > 0 ? -8 : 0,
                     flexShrink: 0,
+                    overflow: 'hidden',
+                    backgroundColor: '#1a1a1a',
                   }}
-                />
+                >
+                  <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
               ))}
             </div>
             <p
