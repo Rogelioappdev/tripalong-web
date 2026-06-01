@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Playfair_Display } from 'next/font/google'
@@ -23,10 +23,18 @@ const SOCIAL_AVATARS = [
   'https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/profile-photos/avatar-0-1778603906132.jpg',
 ]
 
+// Stack slot styles (back → front)
+const SLOT = [
+  { scale: 0.86, y: 26, opacity: 0.55 }, // slot 2 — back
+  { scale: 0.93, y: 13, opacity: 0.82 }, // slot 1 — middle
+  { scale: 1.00, y:  0, opacity: 1.00 }, // slot 0 — front
+]
+
 export default function SplashPage() {
   const router = useRouter()
   const [cards, setCards] = useState<TripCard[]>([])
-  const [activeIdx, setActiveIdx] = useState(0)
+  const [frontIdx, setFrontIdx] = useState(0)
+  const [exitingIdx, setExitingIdx] = useState<number | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -45,16 +53,31 @@ export default function SplashPage() {
       })
   }, [])
 
-  // Auto-cycle front card every 3.5s
+  const doSwipe = useCallback(() => {
+    if (exitingIdx !== null || cards.length < 2) return
+    const leaving = frontIdx
+    setExitingIdx(leaving)
+    setFrontIdx(i => (i + 1) % cards.length)   // advance stack immediately
+    setTimeout(() => setExitingIdx(null), 550)
+  }, [exitingIdx, frontIdx, cards.length])
+
+  // Auto-swipe every 3.5s
   useEffect(() => {
     if (cards.length < 2) return
-    const t = setInterval(() => setActiveIdx(i => (i + 1) % cards.length), 3500)
+    const t = setInterval(doSwipe, 3500)
     return () => clearInterval(t)
-  }, [cards.length])
+  }, [doSwipe, cards.length])
 
-  const front = cards.length > 0 ? cards[activeIdx] : null
-  const left  = cards.length > 1 ? cards[(activeIdx + 1) % cards.length] : null
-  const right = cards.length > 2 ? cards[(activeIdx + 2) % cards.length] : null
+  // Get slot (0=front, 1=middle, 2=back) for a given card index
+  const getSlot = (idx: number) => {
+    const rel = ((idx - frontIdx) % cards.length + cards.length) % cards.length
+    return rel  // 0=front, 1=middle, 2=back, ≥3=not rendered
+  }
+
+  const visibleCards = cards.filter((_, i) => {
+    if (i === exitingIdx) return true   // still visible while swiping out
+    return getSlot(i) <= 2
+  })
 
   return (
     <main style={{ background: '#000', height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -67,8 +90,7 @@ export default function SplashPage() {
         style={{
           flexShrink: 0,
           paddingTop: 'calc(env(safe-area-inset-top) + 18px)',
-          paddingLeft: 28,
-          paddingBottom: 14,
+          paddingLeft: 28, paddingBottom: 14,
         }}
       >
         <span style={{ color: '#fff', fontSize: 24, fontWeight: 800, letterSpacing: '-0.6px' }}>
@@ -77,188 +99,112 @@ export default function SplashPage() {
       </motion.div>
 
       {/* ── Card stack ── */}
-      <div style={{ flexShrink: 0, height: '50dvh', position: 'relative' }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.12 }}
+        style={{ flexShrink: 0, height: '52dvh', position: 'relative' }}
+      >
+        <AnimatePresence>
+          {visibleCards.map((card, _, arr) => {
+            const cardIdx = cards.indexOf(card)
+            const isExiting = cardIdx === exitingIdx
+            const slot = isExiting ? -1 : getSlot(cardIdx)
+            const slotStyle = SLOT[slot] ?? SLOT[2]
 
-        {/* Left peeker — slides in + floats */}
-        {left ? (
-          <motion.div
-            initial={{ opacity: 0, x: -24 }}
-            animate={{ opacity: 0.68, x: 0, y: [0, -6, 0] }}
-            transition={{
-              opacity: { duration: 0.55, delay: 0.22 },
-              x:       { duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.22 },
-              y:       { duration: 3.4, repeat: Infinity, ease: 'easeInOut', delay: 1.6 },
-            }}
-            style={{
-              position: 'absolute', top: '8%', left: '-14%',
-              width: '52vw', height: '88%',
-              borderRadius: 18, overflow: 'hidden',
-              transform: 'rotate(-11deg)',
-              boxShadow: '0 20px 56px rgba(0,0,0,0.9)',
-              zIndex: 1,
-            }}
-          >
-            <img src={left.cover_image!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 35%, rgba(0,0,0,0.65) 100%)' }} />
-          </motion.div>
-        ) : (
-          <div style={{
-            position: 'absolute', top: '8%', left: '-14%',
-            width: '52vw', height: '88%', borderRadius: 18,
-            background: '#141414', transform: 'rotate(-11deg)', zIndex: 1,
-          }} />
-        )}
-
-        {/* Right peeker — slides in + floats */}
-        {right ? (
-          <motion.div
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 0.68, x: 0, y: [0, -5, 0] }}
-            transition={{
-              opacity: { duration: 0.55, delay: 0.28 },
-              x:       { duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.28 },
-              y:       { duration: 3.9, repeat: Infinity, ease: 'easeInOut', delay: 2.1 },
-            }}
-            style={{
-              position: 'absolute', top: '5%', right: '-12%',
-              width: '52vw', height: '88%',
-              borderRadius: 18, overflow: 'hidden',
-              transform: 'rotate(9deg)',
-              boxShadow: '0 20px 56px rgba(0,0,0,0.9)',
-              zIndex: 1,
-            }}
-          >
-            <img src={right.cover_image!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 35%, rgba(0,0,0,0.65) 100%)' }} />
-          </motion.div>
-        ) : (
-          <div style={{
-            position: 'absolute', top: '5%', right: '-12%',
-            width: '52vw', height: '88%', borderRadius: 18,
-            background: '#141414', transform: 'rotate(9deg)', zIndex: 1,
-          }} />
-        )}
-
-        {/* Front card — float wrapper */}
-        <motion.div
-          animate={{ y: [0, -5, 0] }}
-          transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut', delay: 1.2 }}
-          style={{
-            position: 'absolute', top: '3%', left: '50%',
-            transform: 'translateX(-50%)',
-            width: '74vw', maxWidth: 310, height: '94%',
-            zIndex: 3,
-          }}
-        >
-          {/* Entrance + card shell */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.93, y: 24 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            style={{
-              width: '100%', height: '100%',
-              borderRadius: 22, overflow: 'hidden',
-              transform: 'rotate(-1.5deg)',
-              boxShadow: '0 28px 80px rgba(0,0,0,0.95)',
-            }}
-          >
-            {/* Cycling photo */}
-            <AnimatePresence mode="sync">
-              {front && (
-                <motion.img
-                  key={front.id}
-                  src={front.cover_image!}
-                  alt={front.destination}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 1.0 }}
-                  style={{
-                    position: 'absolute', inset: 0,
-                    width: '100%', height: '100%', objectFit: 'cover',
-                  }}
-                />
-              )}
-            </AnimatePresence>
-
-            {/* Gradient overlay */}
-            <div
-              style={{
-                position: 'absolute', inset: 0, zIndex: 1,
-                background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, transparent 28%, rgba(0,0,0,0.80) 100%)',
-              }}
-            />
-
-            {/* Cycling destination label */}
-            <AnimatePresence mode="wait">
-              {front && (
+            if (isExiting) {
+              return (
                 <motion.div
-                  key={`lbl-${front.id}`}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.38 }}
-                  style={{ position: 'absolute', bottom: 0, left: 0, padding: '14px 16px', zIndex: 2 }}
+                  key={card.id}
+                  initial={{ x: 0, rotate: 0, opacity: 1, scale: 1, y: 0 }}
+                  animate={{ x: '130%', rotate: 16, opacity: 0 }}
+                  transition={{ duration: 0.48, ease: [0.55, 0.055, 0.675, 0.19] }}
+                  style={{
+                    position: 'absolute', top: 0, left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '76vw', maxWidth: 320, height: '100%',
+                    borderRadius: 22, overflow: 'hidden',
+                    boxShadow: '0 24px 72px rgba(0,0,0,0.9)',
+                    zIndex: 10,
+                    transformOrigin: 'bottom center',
+                  }}
                 >
-                  <p style={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2, margin: 0 }}>
-                    {front.destination}
-                  </p>
-                  {front.country && (
-                    <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12.5, margin: '3px 0 0' }}>
-                      {front.country}
-                    </p>
-                  )}
+                  <img src={card.cover_image!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, transparent 28%, rgba(0,0,0,0.78) 100%)' }} />
+                  {/* "JOIN" flash on exit */}
+                  <div style={{
+                    position: 'absolute', top: 20, left: 20,
+                    background: 'rgba(48,209,88,0.92)', borderRadius: 10,
+                    padding: '5px 12px', fontWeight: 700, fontSize: 14,
+                    color: '#fff', letterSpacing: '0.5px',
+                    border: '2px solid #30D158',
+                  }}>
+                    JOIN ✓
+                  </div>
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, padding: '14px 16px', zIndex: 2 }}>
+                    <p style={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2, margin: 0 }}>{card.destination}</p>
+                    {card.country && <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12.5, margin: '3px 0 0' }}>{card.country}</p>}
+                  </div>
                 </motion.div>
-              )}
-            </AnimatePresence>
+              )
+            }
 
-            {/* Dot indicators */}
-            {cards.length > 1 && (
-              <div
+            return (
+              <motion.div
+                key={card.id}
+                animate={{
+                  scale: slotStyle.scale,
+                  y: slotStyle.y,
+                  opacity: slotStyle.opacity,
+                }}
+                transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
                 style={{
-                  position: 'absolute', top: 12, left: 0, right: 0,
-                  display: 'flex', justifyContent: 'center', gap: 4, zIndex: 2,
+                  position: 'absolute', top: 0, left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '76vw', maxWidth: 320, height: '100%',
+                  borderRadius: 22, overflow: 'hidden',
+                  boxShadow: slot === 0 ? '0 24px 72px rgba(0,0,0,0.9)' : '0 12px 40px rgba(0,0,0,0.7)',
+                  zIndex: 3 - slot,
+                  willChange: 'transform',
                 }}
               >
-                {cards.map((_, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      height: 3, borderRadius: 2,
-                      width: i === activeIdx ? 16 : 4,
-                      backgroundColor: i === activeIdx ? '#fff' : 'rgba(255,255,255,0.35)',
-                      transition: 'width 0.3s ease, background-color 0.3s ease',
-                    }}
-                  />
-                ))}
-              </div>
-            )}
+                <img src={card.cover_image!} alt={card.destination} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, transparent 28%, rgba(0,0,0,0.80) 100%)' }} />
+                {slot === 0 && (
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, padding: '14px 16px', zIndex: 2 }}>
+                    <p style={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2, margin: 0 }}>{card.destination}</p>
+                    {card.country && <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12.5, margin: '3px 0 0' }}>{card.country}</p>}
+                  </div>
+                )}
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
 
-            {/* Skeleton fallback bg */}
-            {!front && <div style={{ position: 'absolute', inset: 0, background: '#161616' }} />}
-          </motion.div>
-        </motion.div>
+        {/* Skeleton while loading */}
+        {cards.length === 0 && (
+          <>
+            <div style={{ position: 'absolute', top: 26, left: '50%', transform: 'translateX(-50%) scale(0.86)', width: '76vw', maxWidth: 320, height: '100%', borderRadius: 22, background: '#111', opacity: 0.55, zIndex: 1 }} />
+            <div style={{ position: 'absolute', top: 13, left: '50%', transform: 'translateX(-50%) scale(0.93)', width: '76vw', maxWidth: 320, height: '100%', borderRadius: 22, background: '#161616', opacity: 0.82, zIndex: 2 }} />
+            <div style={{ position: 'absolute', top: 0,  left: '50%', transform: 'translateX(-50%)',          width: '76vw', maxWidth: 320, height: '100%', borderRadius: 22, background: '#1e1e1e', zIndex: 3 }} />
+          </>
+        )}
 
-        {/* Black fade at bottom of card area */}
-        <div
-          style={{
-            position: 'absolute', bottom: -1, left: 0, right: 0,
-            height: 72, background: 'linear-gradient(to bottom, transparent, #000)',
-            zIndex: 5, pointerEvents: 'none',
-          }}
-        />
-      </div>
+        {/* Black fade at bottom */}
+        <div style={{
+          position: 'absolute', bottom: -1, left: 0, right: 0, height: 64,
+          background: 'linear-gradient(to bottom, transparent, #000)',
+          zIndex: 20, pointerEvents: 'none',
+        }} />
+      </motion.div>
 
       {/* ── Copy + CTAs ── */}
-      <div
-        style={{
-          flex: 1, minHeight: 0,
-          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-          padding: '20px 28px',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 36px)',
-        }}
-      >
-        {/* Headline + social proof */}
+      <div style={{
+        flex: 1, minHeight: 0,
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        padding: '18px 28px',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 36px)',
+      }}>
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
@@ -280,16 +226,13 @@ export default function SplashPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               {SOCIAL_AVATARS.map((src, i) => (
-                <div
-                  key={i}
-                  style={{
-                    width: 26, height: 26, borderRadius: 13,
-                    border: '1.5px solid #000',
-                    marginLeft: i > 0 ? -8 : 0,
-                    flexShrink: 0, overflow: 'hidden',
-                    backgroundColor: '#1a1a1a',
-                  }}
-                >
+                <div key={i} style={{
+                  width: 26, height: 26, borderRadius: 13,
+                  border: '1.5px solid #000',
+                  marginLeft: i > 0 ? -8 : 0,
+                  flexShrink: 0, overflow: 'hidden',
+                  backgroundColor: '#1a1a1a',
+                }}>
                   <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ))}
@@ -300,7 +243,6 @@ export default function SplashPage() {
           </div>
         </motion.div>
 
-        {/* Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
