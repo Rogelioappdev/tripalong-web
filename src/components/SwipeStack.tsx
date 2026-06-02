@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion, useMotionValue } from 'framer-motion'
+import { motion, useMotionValue, AnimatePresence } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/haptics'
 import { useQueryClient } from '@tanstack/react-query'
 import { SwipeCard, type SwipeCardHandle } from './SwipeCard'
@@ -18,14 +19,223 @@ interface SwipeStackProps {
   onSave?: (trip: TripWithDetails) => void
 }
 
+// ── DNA helpers ──────────────────────────────────────────────────────────────
+
+function dnaProgress(profile: UserProfile | null): number {
+  if (!profile) return 0
+  const fields = [
+    profile.gender,
+    (profile.travel_styles?.length ?? 0) > 0,
+    profile.travel_pace,
+    profile.social_energy,
+    profile.planning_style,
+    profile.experience_level,
+    profile.travel_with,
+  ]
+  return Math.round((fields.filter(Boolean).length / fields.length) * 100)
+}
+
+// ── Progress ring ─────────────────────────────────────────────────────────────
+
+function ProgressRing({ pct }: { pct: number }) {
+  const r = 26
+  const circ = 2 * Math.PI * r
+  const offset = circ - (pct / 100) * circ
+  return (
+    <svg width="68" height="68" viewBox="0 0 68 68" style={{ display: 'block' }}>
+      <circle cx="34" cy="34" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3.5" />
+      <circle
+        cx="34" cy="34" r={r} fill="none"
+        stroke="#F0EBE3" strokeWidth="3.5"
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round"
+        transform="rotate(-90 34 34)"
+        style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+      />
+      <text x="34" y="39" textAnchor="middle" fill="white" fontSize="13" fontWeight="700">{pct}%</text>
+    </svg>
+  )
+}
+
+// ── DNA nudge card ────────────────────────────────────────────────────────────
+
+function DnaNudgeCard({ pct, onDismiss, onOpen }: { pct: number; onDismiss: () => void; onOpen: () => void }) {
+  const x = useMotionValue(0)
+
+  return (
+    <motion.div
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.25}
+      style={{ x, position: 'absolute', inset: 0, zIndex: 30, cursor: 'grab', touchAction: 'pan-y' }}
+      onDragEnd={(_, info) => {
+        if (Math.abs(info.offset.x) > 72) { haptic(6); onDismiss() }
+      }}
+      initial={{ scale: 0.96, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ opacity: 0, scale: 0.94 }}
+      transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+    >
+      {/* Card background */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        borderRadius: 24, overflow: 'hidden',
+        background: 'linear-gradient(160deg, #0D0D0D 0%, #141414 60%, #1a1006 100%)',
+        border: '0.5px solid rgba(240,235,227,0.10)',
+      }}>
+        {/* Subtle texture */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'radial-gradient(ellipse at 60% 30%, rgba(240,235,227,0.04) 0%, transparent 65%)',
+        }} />
+
+        {/* Content */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '28px 24px', gap: 20, textAlign: 'center',
+        }}>
+          <ProgressRing pct={pct} />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ color: '#F0EBE3', fontWeight: 800, fontSize: 22, lineHeight: '26px', letterSpacing: '-0.4px' }}>
+              Unlock better<br />trip matches
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 13, lineHeight: '18px' }}>
+              Your Travel DNA helps us find trips<br />and crews that actually fit you.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); haptic(10); onOpen() }}
+            style={{
+              backgroundColor: '#F0EBE3', color: '#000',
+              fontWeight: 700, fontSize: 14,
+              padding: '13px 28px', borderRadius: 18,
+              border: 'none', cursor: 'pointer',
+            }}
+          >
+            Complete Travel DNA →
+          </button>
+
+          <p style={{ color: 'rgba(255,255,255,0.18)', fontSize: 11 }}>
+            Takes about 2 minutes · Swipe to skip
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ── Swipe hint overlay ────────────────────────────────────────────────────────
+
+function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      style={{
+        position: 'absolute', inset: 0, zIndex: 40,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'flex-end',
+        paddingBottom: 32,
+        background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.72) 100%)',
+        borderRadius: 24,
+        pointerEvents: 'none',
+      }}
+    >
+      {/* Left arrow */}
+      <motion.div
+        animate={{ x: [-6, 0, -6] }}
+        transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          position: 'absolute', left: 20, top: '50%',
+          transform: 'translateY(-50%)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+        }}
+      >
+        <div style={{
+          width: 36, height: 36, borderRadius: 18,
+          backgroundColor: 'rgba(255,69,58,0.22)',
+          border: '1px solid rgba(255,69,58,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18l-6-6 6-6" stroke="#FF453A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 600 }}>Pass</span>
+      </motion.div>
+
+      {/* Right arrow */}
+      <motion.div
+        animate={{ x: [6, 0, 6] }}
+        transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          position: 'absolute', right: 20, top: '50%',
+          transform: 'translateY(-50%)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+        }}
+      >
+        <div style={{
+          width: 36, height: 36, borderRadius: 18,
+          backgroundColor: 'rgba(240,235,227,0.12)',
+          border: '1px solid rgba(240,235,227,0.3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M9 18l6-6-6-6" stroke="#F0EBE3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 600 }}>Save</span>
+      </motion.div>
+
+      {/* Bottom center */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+        <div style={{
+          backgroundColor: 'rgba(255,255,255,0.08)',
+          border: '0.5px solid rgba(255,255,255,0.15)',
+          borderRadius: 20, padding: '6px 14px',
+        }}>
+          <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: 600 }}>
+            Tap card to explore
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, onSave }: SwipeStackProps) {
+  const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set())
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [hintVisible, setHintVisible] = useState(false)
+  const [dnaNudgeActive, setDnaNudgeActive] = useState(false)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
   const qc = useQueryClient()
+  // Capture whether swipe hint was already seen before this session
+  const hintWasSeenBeforeMount = useRef(false)
+  const dnaNudgeTriggered = useRef(false)
+
+  useEffect(() => {
+    hintWasSeenBeforeMount.current = !!localStorage.getItem('ta_swipe_hint')
+    if (!hintWasSeenBeforeMount.current) {
+      setHintVisible(true)
+      const t = setTimeout(dismissHint, 2800)
+      return () => clearTimeout(t)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!userId) return
@@ -34,13 +244,34 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
     getProfile(userId).then(p => setUserProfile(p))
   }, [userId])
 
-  const visibleTrips = trips.slice(currentIndex, currentIndex + 2)
-  const hasMore = currentIndex < trips.length
-  const currentTrip = visibleTrips[0]
+  // Show DNA nudge at card 3 — only on return visits (hint already dismissed before)
+  useEffect(() => {
+    if (dnaNudgeTriggered.current) return
+    if (currentIndex < 2) return
+    if (!hintWasSeenBeforeMount.current) return // first-ever session — don't stack nudges
+    if (isGuest) return
+    if (localStorage.getItem('ta_dna_nudge')) return
+    if (!userProfile) return
+    if (dnaProgress(userProfile) === 100) return
+    dnaNudgeTriggered.current = true
+    setDnaNudgeActive(true)
+  }, [currentIndex, userProfile, isGuest])
+
+  const dismissHint = () => {
+    setHintVisible(false)
+    localStorage.setItem('ta_swipe_hint', '1')
+  }
+
+  const dismissDnaNudge = () => {
+    setDnaNudgeActive(false)
+    localStorage.setItem('ta_dna_nudge', '1')
+  }
 
   const advance = () => {
     setCurrentIndex(i => i + 1)
     topCardX.set(0)
+    // Also dismiss hint on first real swipe
+    if (hintVisible) dismissHint()
   }
 
   const handleSwipeRight = async (trip: TripWithDetails) => {
@@ -78,6 +309,10 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
     await topCardRef.current?.swipeRight()
   }
 
+  const visibleTrips = trips.slice(currentIndex, currentIndex + 2)
+  const hasMore = currentIndex < trips.length
+  const currentTrip = visibleTrips[0]
+
   if (!hasMore) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
@@ -100,11 +335,16 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
 
   const isCurrentJoined = currentTrip ? joinedIds.has(currentTrip.id) : false
   const matchPct = currentTrip ? calculateTripMatch(userProfile, currentTrip) : undefined
+  const pct = dnaProgress(userProfile)
 
   return (
     <div className="flex flex-col items-center w-full h-full gap-0">
-      {/* Card */}
-      <div className="relative w-full flex-1 min-h-0 overflow-hidden" style={{ backgroundColor: '#111' }}>
+      {/* Card area */}
+      <div
+        className="relative w-full flex-1 min-h-0 overflow-hidden"
+        style={{ backgroundColor: '#111' }}
+        onPointerDown={() => { if (hintVisible) dismissHint() }}
+      >
         {visibleTrips[1] && (
           <SwipeCard
             key={visibleTrips[1].id}
@@ -130,11 +370,28 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
             onTap={() => onTripTap(currentTrip)}
           />
         )}
+
+        {/* DNA nudge card — overlays the current trip card */}
+        <AnimatePresence>
+          {dnaNudgeActive && (
+            <DnaNudgeCard
+              pct={pct}
+              onDismiss={dismissDnaNudge}
+              onOpen={() => { dismissDnaNudge(); router.push('/travel-dna?from=nudge') }}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Swipe hint overlay */}
+        <AnimatePresence>
+          {hintVisible && !dnaNudgeActive && (
+            <SwipeHint onDismiss={dismissHint} />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Pass / Join / Save buttons */}
       <div className="flex items-center justify-center gap-7 py-3 shrink-0">
-        {/* Pass */}
         <motion.button
           whileTap={{ scale: 0.80 }}
           transition={{ type: 'spring', stiffness: 400, damping: 15 }}
@@ -149,7 +406,6 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
           <span className="text-white/35 text-[10px] font-semibold">Pass</span>
         </motion.button>
 
-        {/* Join */}
         <motion.button
           whileTap={{ scale: 0.80 }}
           transition={{ type: 'spring', stiffness: 400, damping: 15 }}
@@ -164,7 +420,6 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
           <span className="text-white/35 text-[10px] font-semibold">Join</span>
         </motion.button>
 
-        {/* Save */}
         <motion.button
           whileTap={{ scale: 0.80 }}
           transition={{ type: 'spring', stiffness: 400, damping: 15 }}
