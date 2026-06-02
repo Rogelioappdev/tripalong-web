@@ -301,14 +301,22 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
 
   const handleJoin = async () => {
     if (!currentTrip) return
-    if (isGuest) { onAuthRequired?.(currentTrip.destination); return }
+    if (isGuest) {
+      localStorage.setItem('ta_pending_save', currentTrip.id)
+      onAuthRequired?.(currentTrip.destination)
+      return
+    }
     haptic(18)
     await topCardRef.current?.swipeRight()
   }
 
   const handleSave = async () => {
     if (!currentTrip) return
-    if (isGuest) { onAuthRequired?.(currentTrip.destination); return }
+    if (isGuest) {
+      localStorage.setItem('ta_pending_save', currentTrip.id)
+      onAuthRequired?.(currentTrip.destination)
+      return
+    }
     haptic(8)
     await topCardRef.current?.swipeRight()
   }
