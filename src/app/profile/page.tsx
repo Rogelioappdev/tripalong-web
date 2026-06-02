@@ -278,6 +278,28 @@ export default function ProfilePage() {
 
   if (loading) return <ProfileSkeleton />
 
+  if (!profile) {
+    return (
+      <main className="min-h-screen bg-black flex flex-col items-center justify-center px-8 text-center gap-6">
+        <span style={{ fontSize: 56 }}>⚠️</span>
+        <div>
+          <h2 className="text-white font-bold text-xl mb-2">Account not found</h2>
+          <p className="text-white/40 text-sm leading-relaxed">
+            Your account may have been removed or there was an error loading your profile.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={async () => { haptic(18); await supabase.auth.signOut(); router.replace('/') }}
+          className="w-full max-w-xs py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
+          style={{ backgroundColor: '#FF3B30', color: '#fff' }}
+        >
+          Sign Out
+        </button>
+      </main>
+    )
+  }
+
   return (
     <>
       <NavBar />

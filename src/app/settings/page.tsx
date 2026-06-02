@@ -218,6 +218,16 @@ export default function SettingsPage() {
             )}
           </Group>
 
+          {/* ── Sign Out ── */}
+          <button
+            type="button"
+            onClick={async () => { haptic(18); await supabase.auth.signOut(); router.replace('/') }}
+            className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
+            style={{ backgroundColor: 'rgba(255,59,48,0.10)', color: '#FF3B30', border: '0.5px solid rgba(255,59,48,0.25)' }}
+          >
+            Sign Out
+          </button>
+
           {/* ── Notifications ── */}
           <Group title="Notifications">
             <Row label="New messages" sub="Someone sent you a message"
