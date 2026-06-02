@@ -398,11 +398,28 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
               <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                 <div className="px-6 pt-6 pb-6 flex flex-col gap-7">
 
-                  {/* Bio */}
-                  {profile.bio && (
+                  {/* Bio + Instagram */}
+                  {(profile.bio || (profile.instagram_handle && currentUserId)) && (
                     <div>
-                      <p className="text-white font-semibold text-lg mb-3">About</p>
-                      <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 15, lineHeight: '26px', ...contentBlur }}>{profile.bio}</p>
+                      {profile.bio && (
+                        <>
+                          <p className="text-white font-semibold text-lg mb-3">About</p>
+                          <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 15, lineHeight: '26px', ...contentBlur }}>{profile.bio}</p>
+                        </>
+                      )}
+                      {profile.instagram_handle && currentUserId && (
+                        <a
+                          href={`https://instagram.com/${profile.instagram_handle}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 active:opacity-70 transition-opacity"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: profile.bio ? 12 : 0 }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+                          @{profile.instagram_handle}
+                        </a>
+                      )}
                     </div>
                   )}
 

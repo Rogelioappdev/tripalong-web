@@ -180,6 +180,7 @@ export default function ProfilePage() {
   const [city, setCity] = useState('')
   const [countryVal, setCountryVal] = useState('')
   const [ageVal, setAgeVal] = useState('')
+  const [instagramVal, setInstagramVal] = useState('')
   const [editingBasic, setEditingBasic] = useState(false)
 
   // DNA per-field edit
@@ -200,6 +201,7 @@ export default function ProfilePage() {
         setCity(p.city ?? '')
         setCountryVal(p.country ?? '')
         setAgeVal(p.age != null ? String(p.age) : '')
+        setInstagramVal(p.instagram_handle ?? '')
       }
       setMyTrips(trips)
       setLoading(false)
@@ -374,8 +376,14 @@ export default function ProfilePage() {
                 <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} placeholder="Bio..."
                   className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30 resize-none placeholder-white/25"
                   style={{ fontSize: 16 }} />
+                <div className="flex items-center gap-2 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 focus-within:border-white/30">
+                  <span className="text-white/40 text-sm select-none">@</span>
+                  <input value={instagramVal} onChange={e => setInstagramVal(e.target.value.replace(/^@/, ''))} placeholder="instagram_username"
+                    className="flex-1 bg-transparent text-white text-sm outline-none placeholder-white/25"
+                    style={{ fontSize: 16 }} />
+                </div>
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => { haptic(10); save({ name, bio, city, country: countryVal, age: ageVal ? parseInt(ageVal, 10) : null }); setEditingBasic(false) }}
+                  <button type="button" onClick={() => { haptic(10); save({ name, bio, city, country: countryVal, age: ageVal ? parseInt(ageVal, 10) : null, instagram_handle: instagramVal.trim() || null }); setEditingBasic(false) }}
                     disabled={saving}
                     className="flex-1 bg-white text-black font-semibold py-3 rounded-2xl text-sm disabled:opacity-40 active:scale-[0.98] transition-transform">
                     {saving ? 'Saving...' : 'Save'}
@@ -404,6 +412,18 @@ export default function ProfilePage() {
                   <p className="text-white/50 text-sm leading-relaxed">{profile.bio}</p>
                 ) : (
                   <p className="text-white/20 text-sm italic">No bio yet — tap Edit to add one</p>
+                )}
+                {profile?.instagram_handle && (
+                  <a
+                    href={`https://instagram.com/${profile.instagram_handle}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-2 text-white/40 text-xs hover:text-white/60 transition-opacity"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+                    @{profile.instagram_handle}
+                  </a>
                 )}
               </div>
             )}
