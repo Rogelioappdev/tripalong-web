@@ -229,11 +229,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
 
   useEffect(() => {
     hintWasSeenBeforeMount.current = !!localStorage.getItem('ta_swipe_hint')
-    if (!hintWasSeenBeforeMount.current) {
-      setHintVisible(true)
-      const t = setTimeout(dismissHint, 2800)
-      return () => clearTimeout(t)
-    }
+    // Hint removed — observing natural user behaviour
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
