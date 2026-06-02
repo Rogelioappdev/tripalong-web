@@ -18,6 +18,7 @@ interface PublicProfileModalProps {
   locked?: boolean
   onRevealRequest?: () => boolean
   onSendMessageLocked?: () => void
+  onAuthRequired?: () => void
 }
 
 const TRAVEL_STYLES = [
@@ -168,7 +169,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
 }
 
 // ── Main modal ──────────────────────────────────────────────────────────────
-export function PublicProfileModal({ userId, onClose, locked = false, onRevealRequest, onSendMessageLocked }: PublicProfileModalProps) {
+export function PublicProfileModal({ userId, onClose, locked = false, onRevealRequest, onSendMessageLocked, onAuthRequired }: PublicProfileModalProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [photoIndex, setPhotoIndex] = useState(0)
@@ -574,12 +575,22 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     </button>
                   </>
+                ) : !currentUserId ? (
+                  <button
+                    type="button"
+                    onClick={() => { haptic(8); onAuthRequired?.() }}
+                    className="w-full font-semibold text-sm rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                    style={{ backgroundColor: '#F0EBE3', color: '#000', padding: '14px' }}
+                  >
+                    Sign in to message
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="black" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
                 ) : (
                   <>
                     <button
                       type="button"
                       onClick={() => { haptic(10); handleSendMessage() }}
-                      disabled={dmLoading || !currentUserId || currentUserId === userId}
+                      disabled={dmLoading || currentUserId === userId}
                       className="w-full font-semibold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
                       style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.15)', color: '#F0EBE3', padding: '13px' }}
                     >

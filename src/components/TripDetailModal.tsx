@@ -351,7 +351,11 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
     </div>
 
     {profileUserId && (
-      <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      <PublicProfileModal
+        userId={profileUserId}
+        onClose={() => setProfileUserId(null)}
+        onAuthRequired={isGuest ? () => { setProfileUserId(null); onAuthRequired?.() } : undefined}
+      />
     )}
 
     <AnimatePresence>

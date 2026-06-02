@@ -275,7 +275,11 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   }
 
   const handleSwipeRight = async (trip: TripWithDetails) => {
-    if (isGuest) { onAuthRequired?.(trip.destination); return }
+    if (isGuest) {
+      localStorage.setItem('ta_pending_save', trip.id)
+      onAuthRequired?.(trip.destination)
+      return
+    }
     advance()
     if (userId && !savedIds.has(trip.id)) {
       setSavedIds(s => new Set([...s, trip.id]))

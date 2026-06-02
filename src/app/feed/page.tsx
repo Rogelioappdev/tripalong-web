@@ -12,7 +12,7 @@ import { SwipeStack } from '@/components/SwipeStack'
 import { TripDetailModal } from '@/components/TripDetailModal'
 import { CreateTripModal } from '@/components/CreateTripModal'
 import { AuthGate } from '@/components/AuthGate'
-import { getTrips, getUserSavedTripIds } from '@/lib/queries'
+import { getTrips, getUserSavedTripIds, saveTrip } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import { SavedTripsModal } from '@/components/SavedTripsModal'
 import type { TripWithDetails } from '@/lib/types'
@@ -32,6 +32,7 @@ export default function FeedPage() {
   const [showSaved, setShowSaved] = useState(false)
   const [savedToast, setSavedToast] = useState<TripWithDetails | null>(null)
   const [savedCount, setSavedCount] = useState(0)
+  const [pendingTripId, setPendingTripId] = useState<string | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
 
@@ -40,6 +41,22 @@ export default function FeedPage() {
     if (!userId) return
     getUserSavedTripIds(userId).then(ids => setSavedCount(ids.length))
   }, [userId])
+
+  // After login: auto-save the trip the guest tried to save, then show it
+  useEffect(() => {
+    if (!pendingTripId || !trips || !userId) return
+    const trip = trips.find(t => t.id === pendingTripId)
+    setPendingTripId(null)
+    if (!trip) return
+    saveTrip(pendingTripId, userId).catch(() => {})
+    queryClient.invalidateQueries({ queryKey: ['saved-trips', userId] })
+    setSavedCount(c => c + 1)
+    setSavedToast(trip)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setSavedToast(null), 3500)
+    bookmarkControls.start({ scale: [1, 1.55, 1], transition: { duration: 0.38, times: [0, 0.45, 1], ease: 'easeOut' } })
+    setTimeout(() => setShowSaved(true), 800)
+  }, [pendingTripId, trips, userId])
 
   const handleTripSaved = (trip: TripWithDetails) => {
     setSavedToast(trip)
@@ -61,6 +78,11 @@ export default function FeedPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { setIsGuest(true); return }
       setUserId(session.user.id)
+      const pending = localStorage.getItem('ta_pending_save')
+      if (pending) {
+        localStorage.removeItem('ta_pending_save')
+        setPendingTripId(pending)
+      }
     })
   }, [])
 
