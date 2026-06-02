@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip } from '@/lib/queries'
+import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip, getProfile } from '@/lib/queries'
 import { PublicProfileModal } from './PublicProfileModal'
 import { JoinCelebration } from './JoinCelebration'
+import { ProfilePhotoNudge } from './ProfilePhotoNudge'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -41,6 +42,7 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
   const [userId, setUserId] = useState<string | null>(null)
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
+  const [showPhotoNudge, setShowPhotoNudge] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
@@ -67,11 +69,16 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
 
   const joinMutation = useMutation({
     mutationFn: () => joinTrip(trip.id, userId!),
-    onSuccess: () => {
+    onSuccess: async () => {
       haptic([15, 30, 15, 30, 60])
       queryClient.invalidateQueries({ queryKey: ['membership', trip.id, userId] })
       queryClient.invalidateQueries({ queryKey: ['trips'] })
-      setShowCelebration(true)
+      const profile = userId ? await getProfile(userId) : null
+      if (!profile?.profile_photo) {
+        setShowPhotoNudge(true)
+      } else {
+        setShowCelebration(true)
+      }
     },
   })
 
@@ -346,6 +353,16 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
     {profileUserId && (
       <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
     )}
+
+    <AnimatePresence>
+      {showPhotoNudge && userId && (
+        <ProfilePhotoNudge
+          trip={displayTrip}
+          userId={userId}
+          onDone={() => { setShowPhotoNudge(false); setShowCelebration(true) }}
+        />
+      )}
+    </AnimatePresence>
 
     <AnimatePresence>
       {showCelebration && (
