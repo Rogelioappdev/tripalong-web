@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
+import { ReportMessageSheet } from '@/components/ReportMessageSheet'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { BlockReportSheet } from '@/components/BlockReportSheet'
 import { supabase } from '@/lib/supabase'
@@ -83,6 +84,7 @@ export default function DMPage() {
 
   // Action sheet
   const [actionMsg, setActionMsg] = useState<DMMessage | null>(null)
+  const [reportMsg, setReportMsg] = useState<DMMessage | null>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdFired = useRef(false)
 
@@ -791,7 +793,7 @@ export default function DMPage() {
             }}
             onReport={() => {
               setActionMsg(null)
-              if (actionMsg.sender_id !== userId) setShowBlockReport(true)
+              if (actionMsg.sender_id !== userId) setReportMsg(actionMsg)
             }}
           />
         )}
@@ -806,6 +808,17 @@ export default function DMPage() {
             userPhoto={otherUser.profile_photo}
             onClose={() => setShowBlockReport(false)}
             onBlocked={() => { setIsBlockedByMe(true); setShowBlockReport(false) }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {reportMsg && reportMsg.sender_id !== userId && otherUser && (
+          <ReportMessageSheet
+            senderId={reportMsg.sender_id}
+            senderName={otherUser.name}
+            messageContent={reportMsg.content}
+            onClose={() => setReportMsg(null)}
           />
         )}
       </AnimatePresence>

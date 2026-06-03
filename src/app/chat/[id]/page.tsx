@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
+import { ReportMessageSheet } from '@/components/ReportMessageSheet'
 import { JoinCelebration } from '@/components/JoinCelebration'
 import { supabase } from '@/lib/supabase'
 import { registerPush, sendPushNotification } from '@/lib/push'
@@ -94,6 +95,7 @@ export default function ChatPage() {
 
   // Long-press / action sheet
   const [actionMsg, setActionMsg] = useState<TripMessage | null>(null)
+  const [reportMsg, setReportMsg] = useState<TripMessage | null>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdFired = useRef(false)
 
@@ -420,13 +422,8 @@ export default function ChatPage() {
     navigator.clipboard.writeText(msg.content).catch(() => {})
   }
 
-  const handleReport = async (msg: TripMessage) => {
-    if (!userId) return
-    await supabase.from('user_reports').insert({
-      reporter_id: userId,
-      reported_user_id: msg.sender_id,
-      reason: 'Inappropriate message in trip chat',
-    })
+  const handleReport = (msg: TripMessage) => {
+    setReportMsg(msg)
   }
 
   // ── Read receipt helpers ──────────────────────────────────────────────────
@@ -893,7 +890,18 @@ export default function ChatPage() {
             onReply={() => { setReplyTo(actionMsg); setActionMsg(null) }}
             onCopy={() => handleCopy(actionMsg)}
             onDelete={() => handleDelete(actionMsg)}
-            onReport={() => handleReport(actionMsg)}
+            onReport={() => { setActionMsg(null); handleReport(actionMsg) }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {reportMsg && reportMsg.sender_id && (
+          <ReportMessageSheet
+            senderId={reportMsg.sender_id}
+            senderName={reportMsg.sender?.name ?? 'This user'}
+            messageContent={reportMsg.content}
+            onClose={() => setReportMsg(null)}
           />
         )}
       </AnimatePresence>
