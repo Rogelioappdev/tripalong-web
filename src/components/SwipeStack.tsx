@@ -13,6 +13,31 @@ import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 const DAILY_LIMIT = 30
 const todayKey = () => `ta_swipes_${new Date().toISOString().slice(0, 10)}`
+
+function useMidnightCountdown() {
+  const getMsUntilMidnight = () => {
+    const now = new Date()
+    const midnight = new Date(now)
+    midnight.setHours(24, 0, 0, 0)
+    return midnight.getTime() - now.getTime()
+  }
+  const fmt = (ms: number) => {
+    const totalSecs = Math.floor(ms / 1000)
+    const h = Math.floor(totalSecs / 3600)
+    const m = Math.floor((totalSecs % 3600) / 60)
+    const s = totalSecs % 60
+    if (h > 0) return `${h}h ${m}m`
+    if (m > 0) return `${m}m ${s}s`
+    return `${s}s`
+  }
+  const [display, setDisplay] = useState(() => fmt(getMsUntilMidnight()))
+  useEffect(() => {
+    const tick = () => setDisplay(fmt(getMsUntilMidnight()))
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+  return display
+}
 const getDailySwipes = () => parseInt(localStorage.getItem(todayKey()) ?? '0', 10)
 const incrementDailySwipes = () => {
   const key = todayKey()
@@ -231,6 +256,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [hintVisible, setHintVisible] = useState(false)
   const [dnaNudgeActive, setDnaNudgeActive] = useState(false)
+  const resetCountdown = useMidnightCountdown()
   const [swipeLimitReached, setSwipeLimitReached] = useState(
     () => typeof window !== 'undefined' && getDailySwipes() >= DAILY_LIMIT
   )
@@ -388,9 +414,13 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
             >
               Unlock unlimited →
             </button>
-            <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>
-              Or come back tomorrow for more free swipes
-            </p>
+            <div className="flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              <span>Resets in <span style={{ color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>{resetCountdown}</span></span>
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-center gap-7 py-3 shrink-0 opacity-25 pointer-events-none">
