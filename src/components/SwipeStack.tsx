@@ -12,7 +12,7 @@ import { calculateTripMatch } from '@/lib/matching'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 const DAILY_LIMIT = 30
-const todayKey = () => `ta_swipes_${new Date().toISOString().slice(0, 10)}`
+const todayKey = (uid: string) => `ta_swipes_${uid}_${new Date().toISOString().slice(0, 10)}`
 
 function useMidnightCountdown() {
   const getSecsUntilMidnight = () => {
@@ -32,10 +32,10 @@ function useMidnightCountdown() {
   const pad = (n: number) => String(n).padStart(2, '0')
   return { h: pad(h), m: pad(m), s: pad(s) }
 }
-const getDailySwipes = () => parseInt(localStorage.getItem(todayKey()) ?? '0', 10)
-const incrementDailySwipes = () => {
-  const key = todayKey()
-  const next = getDailySwipes() + 1
+const getDailySwipes = (uid: string) => parseInt(localStorage.getItem(todayKey(uid)) ?? '0', 10)
+const incrementDailySwipes = (uid: string) => {
+  const key = todayKey(uid)
+  const next = getDailySwipes(uid) + 1
   localStorage.setItem(key, String(next))
   return next
 }
@@ -244,16 +244,18 @@ function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
 
 export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, onSave }: SwipeStackProps) {
   const router = useRouter()
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    if (typeof window === 'undefined') return 0
+    return parseInt(sessionStorage.getItem('ta_feed_index') ?? '0', 10)
+  })
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set())
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [hintVisible, setHintVisible] = useState(false)
   const [dnaNudgeActive, setDnaNudgeActive] = useState(false)
   const { h, m, s } = useMidnightCountdown()
-  const [swipeLimitReached, setSwipeLimitReached] = useState(
-    () => typeof window !== 'undefined' && getDailySwipes() >= DAILY_LIMIT
-  )
+  const [swipeLimitReached, setSwipeLimitReached] = useState(false)
+  const [limitChecked, setLimitChecked] = useState(false)
   const [showPaywall, setShowPaywall] = useState(false)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
@@ -274,13 +276,17 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
     getProfile(userId).then(p => setUserProfile(p))
   }, [userId])
 
-  // Once profile loads, clear the limit for paid users
+  // Check limit once userId + profile are known — user-specific key prevents cross-account bleed
   useEffect(() => {
-    if (!userProfile || isGuest) return
+    if (isGuest) { setLimitChecked(true); return }
+    if (!userId || !userProfile) return
     if (userProfile.subscription_tier !== 'free') {
       setSwipeLimitReached(false)
+    } else {
+      setSwipeLimitReached(getDailySwipes(userId) >= DAILY_LIMIT)
     }
-  }, [userProfile, isGuest])
+    setLimitChecked(true)
+  }, [userId, userProfile, isGuest])
 
   // Show DNA nudge at card 3 — only on return visits (hint already dismissed before)
   useEffect(() => {
@@ -306,19 +312,19 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   }
 
   const advance = () => {
-    if (!isGuest && userProfile?.subscription_tier === 'free') {
-      const count = incrementDailySwipes()
+    if (!isGuest && userId && userProfile?.subscription_tier === 'free') {
+      const count = incrementDailySwipes(userId)
       if (count >= DAILY_LIMIT) {
         setSwipeLimitReached(true)
         setShowPaywall(true)
         return
       }
-    } else if (!isGuest && userProfile) {
-      // paid user — no limit, still track for analytics
-    } else if (!isGuest && !userProfile) {
-      incrementDailySwipes()
     }
-    setCurrentIndex(i => i + 1)
+    setCurrentIndex(i => {
+      const next = i + 1
+      sessionStorage.setItem('ta_feed_index', String(next))
+      return next
+    })
     topCardX.set(0)
     if (hintVisible) dismissHint()
   }
@@ -373,6 +379,8 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   const visibleTrips = trips.slice(currentIndex, currentIndex + 2)
   const hasMore = currentIndex < trips.length
   const currentTrip = visibleTrips[0]
+
+  if (!limitChecked && !isGuest) return null
 
   if (swipeLimitReached && hasMore) {
     return (
@@ -478,7 +486,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
         <motion.button
           whileTap={{ scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-          onClick={() => { haptic(8); setCurrentIndex(0) }}
+          onClick={() => { haptic(8); sessionStorage.removeItem('ta_feed_index'); setCurrentIndex(0) }}
           className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm"
         >
           Start over
