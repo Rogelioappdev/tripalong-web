@@ -181,6 +181,7 @@ export default function ProfilePage() {
   const [countryVal, setCountryVal] = useState('')
   const [ageVal, setAgeVal] = useState('')
   const [instagramVal, setInstagramVal] = useState('')
+  const [editingInstagram, setEditingInstagram] = useState(false)
   const [editingBasic, setEditingBasic] = useState(false)
 
   // DNA per-field edit
@@ -376,14 +377,8 @@ export default function ProfilePage() {
                 <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} placeholder="Bio..."
                   className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-3 text-white text-sm outline-none focus:border-white/30 resize-none placeholder-white/25"
                   style={{ fontSize: 16 }} />
-                <div className="flex items-center gap-2 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 focus-within:border-white/30">
-                  <span className="text-white/40 text-sm select-none">@</span>
-                  <input value={instagramVal} onChange={e => setInstagramVal(e.target.value.replace(/^@/, ''))} placeholder="instagram_username"
-                    className="flex-1 bg-transparent text-white text-sm outline-none placeholder-white/25"
-                    style={{ fontSize: 16 }} />
-                </div>
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => { haptic(10); save({ name, bio, city, country: countryVal, age: ageVal ? parseInt(ageVal, 10) : null, instagram_handle: instagramVal.trim() || null }); setEditingBasic(false) }}
+                  <button type="button" onClick={() => { haptic(10); save({ name, bio, city, country: countryVal, age: ageVal ? parseInt(ageVal, 10) : null }); setEditingBasic(false) }}
                     disabled={saving}
                     className="flex-1 bg-white text-black font-semibold py-3 rounded-2xl text-sm disabled:opacity-40 active:scale-[0.98] transition-transform">
                     {saving ? 'Saving...' : 'Save'}
@@ -413,19 +408,68 @@ export default function ProfilePage() {
                 ) : (
                   <p className="text-white/20 text-sm italic">No bio yet — tap Edit to add one</p>
                 )}
-                {profile?.instagram_handle && (
-                  <a
-                    href={`https://instagram.com/${profile.instagram_handle}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-2 text-white/40 text-xs hover:text-white/60 transition-opacity"
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
-                    @{profile.instagram_handle}
-                  </a>
-                )}
               </div>
+            )}
+          </Section>
+
+          {/* Instagram */}
+          <Section title="Instagram">
+            <p className="text-white/30 text-xs mb-4 leading-relaxed">
+              Link your Instagram so future travel companions can verify you're a real person before joining a trip together. Builds trust instantly.
+            </p>
+            {editingInstagram ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2 bg-white/6 border border-white/12 rounded-2xl px-4 py-3 focus-within:border-white/30">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+                  <span className="text-white/35 text-sm select-none">@</span>
+                  <input
+                    autoFocus
+                    value={instagramVal}
+                    onChange={e => setInstagramVal(e.target.value.replace(/^@/, ''))}
+                    placeholder="your_username"
+                    className="flex-1 bg-transparent text-white text-sm outline-none placeholder-white/20"
+                    style={{ fontSize: 16 }}
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button type="button"
+                    onClick={() => { haptic(10); save({ instagram_handle: instagramVal.trim() || null }); setEditingInstagram(false) }}
+                    disabled={saving}
+                    className="flex-1 bg-white text-black font-semibold py-3 rounded-2xl text-sm disabled:opacity-40 active:scale-[0.98] transition-transform">
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button type="button"
+                    onClick={() => { haptic(8); setInstagramVal(profile?.instagram_handle ?? ''); setEditingInstagram(false) }}
+                    className="flex-1 bg-white/8 text-white/60 font-medium py-3 rounded-2xl text-sm active:scale-[0.98] transition-transform">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : profile?.instagram_handle ? (
+              <div className="flex items-center justify-between">
+                <a
+                  href={`https://instagram.com/${profile.instagram_handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-2xl px-4 py-3 active:opacity-70 transition-opacity"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.55)' }}><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+                  <span className="text-white font-medium text-sm">@{profile.instagram_handle}</span>
+                </a>
+                <button onClick={() => { haptic(8); setEditingInstagram(true) }} className="text-white/40 text-sm hover:text-white active:scale-90 transition-transform">Edit</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { haptic(8); setEditingInstagram(true) }}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform"
+                style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.35)' }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+                <span className="text-sm font-medium">Add Instagram</span>
+              </button>
             )}
           </Section>
 
