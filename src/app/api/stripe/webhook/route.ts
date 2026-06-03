@@ -33,7 +33,9 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin.from('users').update({
         subscription_tier: isActive ? tier : 'free',
         subscription_status: subscription.status,
-        subscription_expires_at: new Date(subscription.current_period_end * 1000).toISOString(),
+        subscription_expires_at: (subscription as any).current_period_end
+          ? new Date((subscription as any).current_period_end * 1000).toISOString()
+          : null,
       }).eq('id', userId)
       break
     }
