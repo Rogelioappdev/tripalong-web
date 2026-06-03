@@ -158,7 +158,7 @@ export function PaywallModal({ trigger, context, onClose }: Props) {
                     </svg>
                   </div>
                 ) : (
-                  <img src="/tripalong-logo.png" alt="TripAlong" style={{ width: 64, height: 64, objectFit: 'contain', mixBlendMode: 'screen' }} />
+                  <img src="/tripalong-logo.png" alt="TripAlong" style={{ width: 100, height: 100, objectFit: 'contain', mixBlendMode: 'screen' }} />
                 )}
               </div>
             )}
