@@ -205,7 +205,7 @@ export default function SplashPage() {
       {/* ── Wordmark ── */}
       <motion.div
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        animate={{ opacity: step === 'guidelines' ? 0 : 1 }}
         transition={{ duration: 0.4, delay: 0.05 }}
         style={{
           position: 'absolute', zIndex: 20,
@@ -216,8 +216,10 @@ export default function SplashPage() {
         <span style={{ color: '#fff', fontSize: 24, fontWeight: 800, letterSpacing: '-0.6px' }}>TripAlong</span>
       </motion.div>
 
-      {/* ── Portrait card stack — centered, narrow, Tinder-style ── */}
+      {/* ── Portrait card stack — hidden on guidelines slide ── */}
       <motion.div
+        animate={{ opacity: step === 'guidelines' ? 0 : 1, scale: step === 'guidelines' ? 0.96 : 1 }}
+        transition={{ duration: 0.3 }}
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
