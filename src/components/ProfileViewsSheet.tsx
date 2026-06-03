@@ -177,7 +177,7 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
           className="mb-8"
           style={{ color: 'rgba(255,255,255,0.32)', fontSize: 14, lineHeight: '20px' }}
         >
-          See who has viewed your profile
+          They already found you. See who.
         </motion.p>
 
         {/* Plan cards — selectable */}
