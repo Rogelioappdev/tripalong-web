@@ -2,16 +2,21 @@ import { supabase } from './supabase'
 import type { PlanKey } from './stripe'
 
 export async function startCheckout(planKey: PlanKey) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) throw new Error('Not logged in')
 
   const res = await fetch('/api/stripe/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ planKey, userId: user.id, email: user.email }),
+    body: JSON.stringify({ planKey, userId: session.user.id, email: session.user.email }),
   })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `Server error ${res.status}`)
+  }
   const { url, error } = await res.json()
   if (error) throw new Error(error)
+  if (!url) throw new Error('No checkout URL returned')
   window.location.href = url
 }
 

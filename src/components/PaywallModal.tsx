@@ -48,6 +48,7 @@ function tripDates(start: string | null, end: string | null) {
 export function PaywallModal({ trigger, context, trips, onClose }: Props) {
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -66,10 +67,12 @@ export function PaywallModal({ trigger, context, trips, onClose }: Props) {
   const handleUpgrade = async () => {
     haptic(12)
     setLoading(true)
+    setError(null)
     try {
       await startCheckout(billing === 'annual' ? 'plus_annual' : 'plus_monthly')
-    } catch {
+    } catch (err: any) {
       setLoading(false)
+      setError(err?.message ?? 'Something went wrong. Try again.')
     }
   }
 
@@ -238,6 +241,9 @@ export function PaywallModal({ trigger, context, trips, onClose }: Props) {
         {/* Sticky CTA */}
         <div className="shrink-0 px-5 pt-3 border-t"
           style={{ borderColor: 'rgba(255,255,255,0.07)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)', backgroundColor: '#0A0A0A' }}>
+          {error && (
+            <p className="text-center mb-2" style={{ color: '#FF453A', fontSize: 12 }}>{error}</p>
+          )}
           <button
             type="button"
             onClick={handleUpgrade}

@@ -70,14 +70,17 @@ function useCountUp(target: number, duration = 900) {
 function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]; onClose: () => void }) {
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const checkout = useCallback(async () => {
     haptic(12)
     setLoading(true)
+    setError(null)
     try {
       await startCheckout(selected === 'annual' ? 'plus_annual' : 'plus_monthly')
-    } catch {
+    } catch (err: any) {
       setLoading(false)
+      setError(err?.message ?? 'Something went wrong. Try again.')
     }
   }, [selected])
 
@@ -276,6 +279,9 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
           ))}
         </motion.div>
 
+        {error && (
+          <p className="text-center mb-2" style={{ color: '#FF453A', fontSize: 12 }}>{error}</p>
+        )}
         <button
           onClick={checkout}
           disabled={loading}
