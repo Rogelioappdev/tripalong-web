@@ -218,12 +218,9 @@ export default function SplashPage() {
 
       {/* ── Portrait card stack — hidden on guidelines slide ── */}
       <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: step === 'guidelines' ? 0 : 1, scale: step === 'guidelines' ? 0.96 : 1 }}
         transition={{ duration: 0.3 }}
-        style={{ pointerEvents: step === 'guidelines' ? 'none' : undefined, visibility: step === 'guidelines' ? 'hidden' : 'visible' } as React.CSSProperties}
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
         style={{
           position: 'absolute',
           top: 'calc(env(safe-area-inset-top) + 54px)',
@@ -234,7 +231,9 @@ export default function SplashPage() {
           height: '58dvh',
           zIndex: 5,
           overflow: 'visible',
-        }}
+          pointerEvents: step === 'guidelines' ? 'none' : undefined,
+          visibility: step === 'guidelines' ? 'hidden' : 'visible',
+        } as React.CSSProperties}
       >
         {/* 5 stacked cards — rendered back to front */}
         {cards.length > 0 && [...Array(5)].map((_, slotIdx) => {
