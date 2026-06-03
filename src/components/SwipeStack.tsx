@@ -15,28 +15,22 @@ const DAILY_LIMIT = 30
 const todayKey = () => `ta_swipes_${new Date().toISOString().slice(0, 10)}`
 
 function useMidnightCountdown() {
-  const getMsUntilMidnight = () => {
+  const getSecsUntilMidnight = () => {
     const now = new Date()
     const midnight = new Date(now)
     midnight.setHours(24, 0, 0, 0)
-    return midnight.getTime() - now.getTime()
+    return Math.floor((midnight.getTime() - now.getTime()) / 1000)
   }
-  const fmt = (ms: number) => {
-    const totalSecs = Math.floor(ms / 1000)
-    const h = Math.floor(totalSecs / 3600)
-    const m = Math.floor((totalSecs % 3600) / 60)
-    const s = totalSecs % 60
-    if (h > 0) return `${h}h ${m}m`
-    if (m > 0) return `${m}m ${s}s`
-    return `${s}s`
-  }
-  const [display, setDisplay] = useState(() => fmt(getMsUntilMidnight()))
+  const [secs, setSecs] = useState(() => getSecsUntilMidnight())
   useEffect(() => {
-    const tick = () => setDisplay(fmt(getMsUntilMidnight()))
-    const id = setInterval(tick, 1000)
+    const id = setInterval(() => setSecs(getSecsUntilMidnight()), 1000)
     return () => clearInterval(id)
   }, [])
-  return display
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return { h: pad(h), m: pad(m), s: pad(s) }
 }
 const getDailySwipes = () => parseInt(localStorage.getItem(todayKey()) ?? '0', 10)
 const incrementDailySwipes = () => {
@@ -256,7 +250,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [hintVisible, setHintVisible] = useState(false)
   const [dnaNudgeActive, setDnaNudgeActive] = useState(false)
-  const resetCountdown = useMidnightCountdown()
+  const { h, m, s } = useMidnightCountdown()
   const [swipeLimitReached, setSwipeLimitReached] = useState(
     () => typeof window !== 'undefined' && getDailySwipes() >= DAILY_LIMIT
   )
@@ -414,12 +408,22 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
             >
               Unlock unlimited →
             </button>
-            <div className="flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              <span>Resets in <span style={{ color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>{resetCountdown}</span></span>
+            <div className="flex flex-col items-center gap-1.5">
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Resets in</p>
+              <div className="flex items-center gap-1">
+                {[h, m, s].map((val, i) => (
+                  <div key={i} className="flex items-center gap-1">
+                    <div className="flex flex-col items-center px-2.5 py-1.5 rounded-xl"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', minWidth: 38 }}>
+                      <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{val}</span>
+                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 3, letterSpacing: '0.05em' }}>
+                        {i === 0 ? 'HRS' : i === 1 ? 'MIN' : 'SEC'}
+                      </span>
+                    </div>
+                    {i < 2 && <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18, fontWeight: 700, marginBottom: 10 }}>:</span>}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
