@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, useAnimation, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { NavBar } from '@/components/NavBar'
@@ -22,6 +22,7 @@ const TAB_BAR_CLEARANCE = 82
 
 export default function FeedPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [isGuest, setIsGuest] = useState(false)
@@ -33,7 +34,9 @@ export default function FeedPage() {
   const [savedToast, setSavedToast] = useState<TripWithDetails | null>(null)
   const [savedCount, setSavedCount] = useState(0)
   const [pendingTripId, setPendingTripId] = useState<string | null>(null)
+  const [upgradeToast, setUpgradeToast] = useState(false)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
 
   // Load initial saved count once userId is known
@@ -41,6 +44,15 @@ export default function FeedPage() {
     if (!userId) return
     getUserSavedTripIds(userId).then(ids => setSavedCount(ids.length))
   }, [userId])
+
+  // Handle post-checkout success redirect
+  useEffect(() => {
+    if (searchParams.get('upgrade') !== 'success') return
+    setUpgradeToast(true)
+    router.replace('/feed', { scroll: false })
+    upgradeTimer.current = setTimeout(() => setUpgradeToast(false), 5000)
+    return () => { if (upgradeTimer.current) clearTimeout(upgradeTimer.current) }
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTripSaved = (trip: TripWithDetails) => {
     setSavedToast(trip)
@@ -273,6 +285,40 @@ export default function FeedPage() {
           onClose={() => setShowSaved(false)}
         />
       )}
+
+      {/* Upgrade success toast */}
+      <AnimatePresence>
+        {upgradeToast && (
+          <motion.div
+            key="upgrade-toast"
+            initial={{ y: 20, opacity: 0, scale: 0.94 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 12, opacity: 0, scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            className="fixed left-4 right-4 z-50 flex items-center gap-3 px-4 py-3.5 rounded-2xl"
+            style={{
+              bottom: 'calc(env(safe-area-inset-bottom) + 90px)',
+              background: 'linear-gradient(135deg, rgba(48,209,88,0.18) 0%, rgba(18,18,18,0.97) 60%)',
+              border: '0.5px solid rgba(48,209,88,0.35)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              maxWidth: 400,
+              margin: '0 auto',
+            } as React.CSSProperties}
+          >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ backgroundColor: 'rgba(48,209,88,0.15)', border: '1px solid rgba(48,209,88,0.3)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-sm">Welcome to TripAlong Plus ✈️</p>
+              <p className="text-white/40 text-xs mt-0.5">Unlimited swipes — explore away</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Save confirmation toast */}
       <AnimatePresence>

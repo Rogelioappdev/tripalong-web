@@ -19,6 +19,10 @@ export type UserProfile = {
   bucket_list: string[]
   languages: string[]
   instagram_handle: string | null
+  subscription_tier: 'free' | 'plus' | 'pro'
+  subscription_status: string | null
+  stripe_customer_id: string | null
+  subscription_expires_at: string | null
   is_verified: boolean
   created_at: string
   updated_at: string

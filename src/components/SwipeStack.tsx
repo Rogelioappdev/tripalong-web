@@ -6,9 +6,20 @@ import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/haptics'
 import { useQueryClient } from '@tanstack/react-query'
 import { SwipeCard, type SwipeCardHandle } from './SwipeCard'
+import { PaywallModal } from './PaywallModal'
 import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
 import { calculateTripMatch } from '@/lib/matching'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
+
+const DAILY_LIMIT = 30
+const todayKey = () => `ta_swipes_${new Date().toISOString().slice(0, 10)}`
+const getDailySwipes = () => parseInt(localStorage.getItem(todayKey()) ?? '0', 10)
+const incrementDailySwipes = () => {
+  const key = todayKey()
+  const next = getDailySwipes() + 1
+  localStorage.setItem(key, String(next))
+  return next
+}
 
 interface SwipeStackProps {
   trips: TripWithDetails[]
@@ -220,10 +231,11 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [hintVisible, setHintVisible] = useState(false)
   const [dnaNudgeActive, setDnaNudgeActive] = useState(false)
+  const [swipeLimitReached, setSwipeLimitReached] = useState(false)
+  const [showPaywall, setShowPaywall] = useState(false)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
   const qc = useQueryClient()
-  // Capture whether swipe hint was already seen before this session
   const hintWasSeenBeforeMount = useRef(false)
   const dnaNudgeTriggered = useRef(false)
 
@@ -239,6 +251,15 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
     getUserSavedTripIds(userId).then(ids => setSavedIds(new Set(ids)))
     getProfile(userId).then(p => setUserProfile(p))
   }, [userId])
+
+  // Check limit once profile loads (handles refresh after limit was hit)
+  useEffect(() => {
+    if (!userProfile || isGuest) return
+    if (userProfile.subscription_tier !== 'free') return
+    if (getDailySwipes() >= DAILY_LIMIT) {
+      setSwipeLimitReached(true)
+    }
+  }, [userProfile, isGuest])
 
   // Show DNA nudge at card 3 — only on return visits (hint already dismissed before)
   useEffect(() => {
@@ -264,9 +285,20 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   }
 
   const advance = () => {
+    if (!isGuest && userProfile?.subscription_tier === 'free') {
+      const count = incrementDailySwipes()
+      if (count >= DAILY_LIMIT) {
+        setSwipeLimitReached(true)
+        setShowPaywall(true)
+        return
+      }
+    } else if (!isGuest && userProfile) {
+      // paid user — no limit, still track for analytics
+    } else if (!isGuest && !userProfile) {
+      incrementDailySwipes()
+    }
     setCurrentIndex(i => i + 1)
     topCardX.set(0)
-    // Also dismiss hint on first real swipe
     if (hintVisible) dismissHint()
   }
 
@@ -320,6 +352,85 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   const visibleTrips = trips.slice(currentIndex, currentIndex + 2)
   const hasMore = currentIndex < trips.length
   const currentTrip = visibleTrips[0]
+
+  if (swipeLimitReached && hasMore) {
+    return (
+      <div className="flex flex-col items-center w-full h-full gap-0">
+        <div className="relative w-full flex-1 min-h-0 overflow-hidden rounded-3xl" style={{ backgroundColor: '#111' }}>
+          {currentTrip?.cover_image && (
+            <img
+              src={currentTrip.cover_image}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ filter: 'blur(18px)', transform: 'scale(1.1)' }}
+            />
+          )}
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.68)' }} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-8 text-center">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+              style={{ background: 'rgba(240,235,227,0.1)', border: '1px solid rgba(240,235,227,0.2)' }}>
+              <span style={{ fontSize: 28 }}>✈️</span>
+            </div>
+            <div>
+              <p className="text-white font-bold text-xl mb-1">
+                {currentTrip ? `${currentTrip.destination} is waiting` : 'More trips are waiting'}
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
+                You've used your {DAILY_LIMIT} daily swipes
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { haptic(12); setShowPaywall(true) }}
+              className="font-bold py-3.5 px-8 rounded-2xl text-sm"
+              style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+            >
+              Unlock unlimited →
+            </button>
+            <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>
+              Or come back tomorrow for more free swipes
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-7 py-3 shrink-0 opacity-25 pointer-events-none">
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6l12 12" stroke="#FF453A" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <span className="text-white/35 text-[10px] font-semibold">Pass</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <span className="text-white/35 text-[10px] font-semibold">Join</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                  stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <span className="text-white/35 text-[10px] font-semibold">Save</span>
+          </div>
+        </div>
+        <AnimatePresence>
+          {showPaywall && (
+            <PaywallModal
+              trigger="swipes"
+              context={currentTrip?.destination}
+              onClose={() => setShowPaywall(false)}
+            />
+          )}
+        </AnimatePresence>
+      </div>
+    )
+  }
 
   if (!hasMore) {
     return (
