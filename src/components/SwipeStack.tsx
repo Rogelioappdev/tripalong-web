@@ -231,7 +231,9 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [hintVisible, setHintVisible] = useState(false)
   const [dnaNudgeActive, setDnaNudgeActive] = useState(false)
-  const [swipeLimitReached, setSwipeLimitReached] = useState(false)
+  const [swipeLimitReached, setSwipeLimitReached] = useState(
+    () => typeof window !== 'undefined' && getDailySwipes() >= DAILY_LIMIT
+  )
   const [showPaywall, setShowPaywall] = useState(false)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
@@ -252,12 +254,11 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
     getProfile(userId).then(p => setUserProfile(p))
   }, [userId])
 
-  // Check limit once profile loads (handles refresh after limit was hit)
+  // Once profile loads, clear the limit for paid users
   useEffect(() => {
     if (!userProfile || isGuest) return
-    if (userProfile.subscription_tier !== 'free') return
-    if (getDailySwipes() >= DAILY_LIMIT) {
-      setSwipeLimitReached(true)
+    if (userProfile.subscription_tier !== 'free') {
+      setSwipeLimitReached(false)
     }
   }, [userProfile, isGuest])
 
