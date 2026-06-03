@@ -467,6 +467,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
             <PaywallModal
               trigger="swipes"
               context={currentTrip?.destination}
+              trips={trips.slice(currentIndex + 1, currentIndex + 4)}
               onClose={() => setShowPaywall(false)}
             />
           )}

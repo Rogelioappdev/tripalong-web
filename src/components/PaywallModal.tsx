@@ -5,10 +5,12 @@ import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { startCheckout } from '@/lib/subscription'
 import { haptic } from '@/lib/haptics'
+import type { TripWithDetails } from '@/lib/types'
 
 interface Props {
   trigger: 'swipes' | 'rewind' | 'who-viewed'
   context?: string
+  trips?: TripWithDetails[]
   onClose: () => void
 }
 
@@ -30,31 +32,20 @@ const FEATURES = [
   },
 ]
 
-const SAMPLE_TRIPS = [
-  {
-    destination: 'Bali, Indonesia',
-    dates: 'Jul 12 – Jul 26',
-    travelers: 3,
-    vibe: '🌊 Beach · Chill',
-    img: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&q=80',
-  },
-  {
-    destination: 'Tokyo, Japan',
-    dates: 'Aug 5 – Aug 18',
-    travelers: 2,
-    vibe: '🏙 City · Culture',
-    img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600&q=80',
-  },
-  {
-    destination: 'Amalfi Coast, Italy',
-    dates: 'Sep 1 – Sep 10',
-    travelers: 4,
-    vibe: '🛥 Scenic · Adventure',
-    img: 'https://images.unsplash.com/photo-1533587851505-d119e13fa0d7?w=600&q=80',
-  },
-]
+function fmtDate(iso: string | null) {
+  if (!iso) return null
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 
-export function PaywallModal({ trigger, context, onClose }: Props) {
+function tripDates(start: string | null, end: string | null) {
+  const s = fmtDate(start)
+  const e = fmtDate(end)
+  if (s && e) return `${s} – ${e}`
+  if (s) return `From ${s}`
+  return 'Flexible dates'
+}
+
+export function PaywallModal({ trigger, context, trips, onClose }: Props) {
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
 
@@ -207,27 +198,33 @@ export function PaywallModal({ trigger, context, onClose }: Props) {
                 className="flex gap-3 overflow-x-auto pb-2"
                 style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
               >
-                {SAMPLE_TRIPS.map(trip => (
+                {(trips ?? []).map(trip => (
                   <div
-                    key={trip.destination}
+                    key={trip.id}
                     className="rounded-2xl overflow-hidden shrink-0 relative"
                     style={{ width: 180, height: 240, backgroundColor: '#1a1a1a' }}
                   >
-                    <img
-                      src={trip.img}
-                      alt={trip.destination}
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
+                    {trip.cover_image && (
+                      <img
+                        src={trip.cover_image}
+                        alt={trip.destination}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    )}
                     <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.1) 50%)' }} />
                     <div className="absolute bottom-0 left-0 right-0 p-3">
                       <p className="text-white font-bold truncate" style={{ fontSize: 13 }}>{trip.destination}</p>
-                      <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 2 }}>{trip.dates}</p>
+                      <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 2 }}>
+                        {tripDates(trip.start_date, trip.end_date)}
+                      </p>
                       <div className="flex items-center gap-1.5 mt-2">
-                        <span className="px-2 py-0.5 rounded-full text-white font-medium"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.12)', fontSize: 10 }}>
-                          {trip.vibe}
-                        </span>
-                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>· {trip.travelers} going</span>
+                        {trip.vibes[0] && (
+                          <span className="px-2 py-0.5 rounded-full text-white font-medium truncate"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.12)', fontSize: 10, maxWidth: 100 }}>
+                            {trip.vibes[0]}
+                          </span>
+                        )}
+                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>· {trip.member_count} going</span>
                       </div>
                     </div>
                   </div>
