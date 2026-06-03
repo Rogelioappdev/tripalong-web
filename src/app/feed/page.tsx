@@ -3,8 +3,8 @@
 export const dynamic = 'force-dynamic'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, useEffect, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useRef, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, useAnimation, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { NavBar } from '@/components/NavBar'
@@ -20,9 +20,18 @@ import type { TripWithDetails } from '@/lib/types'
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
 
-export default function FeedPage() {
+function UpgradeToastHandler({ onUpgrade }: { onUpgrade: () => void }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('upgrade') !== 'success') return
+    onUpgrade()
+    router.replace('/feed', { scroll: false })
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
+}
+
+export default function FeedPage() {
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [isGuest, setIsGuest] = useState(false)
@@ -45,14 +54,10 @@ export default function FeedPage() {
     getUserSavedTripIds(userId).then(ids => setSavedCount(ids.length))
   }, [userId])
 
-  // Handle post-checkout success redirect
-  useEffect(() => {
-    if (searchParams.get('upgrade') !== 'success') return
+  const handleUpgradeSuccess = () => {
     setUpgradeToast(true)
-    router.replace('/feed', { scroll: false })
     upgradeTimer.current = setTimeout(() => setUpgradeToast(false), 5000)
-    return () => { if (upgradeTimer.current) clearTimeout(upgradeTimer.current) }
-  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   const handleTripSaved = (trip: TripWithDetails) => {
     setSavedToast(trip)
@@ -132,6 +137,9 @@ export default function FeedPage() {
 
   return (
     <>
+      <Suspense fallback={null}>
+        <UpgradeToastHandler onUpgrade={handleUpgradeSuccess} />
+      </Suspense>
       <NavBar />
 
       <main
