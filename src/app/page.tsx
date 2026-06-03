@@ -220,6 +220,7 @@ export default function SplashPage() {
       <motion.div
         animate={{ opacity: step === 'guidelines' ? 0 : 1, scale: step === 'guidelines' ? 0.96 : 1 }}
         transition={{ duration: 0.3 }}
+        style={{ pointerEvents: step === 'guidelines' ? 'none' : undefined, visibility: step === 'guidelines' ? 'hidden' : 'visible' } as React.CSSProperties}
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
