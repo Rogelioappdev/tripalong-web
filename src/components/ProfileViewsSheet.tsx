@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getProfileViewers } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
+import { startCheckout } from '@/lib/subscription'
 import { PublicProfileModal } from './PublicProfileModal'
 
 interface Viewer {
@@ -66,16 +67,31 @@ function useCountUp(target: number, duration = 900) {
 }
 
 // ── Paywall ─────────────────────────────────────────────────────────────────
-function Paywall({ count, onClose }: { count: number; onClose: () => void }) {
+function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]; onClose: () => void }) {
+  const [loading, setLoading] = useState<'annual' | 'monthly' | null>(null)
+
+  const checkout = useCallback(async (plan: 'annual' | 'monthly') => {
+    haptic(12)
+    setLoading(plan)
+    try {
+      await startCheckout(plan === 'annual' ? 'plus_annual' : 'plus_monthly')
+    } catch {
+      setLoading(null)
+    }
+  }, [])
+
+  const previewViewers = viewers.slice(0, 5)
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 28 }}
+      initial={{ opacity: 0, y: 32 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 18 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+      exit={{ opacity: 0, y: 20 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 36 }}
       className="fixed inset-0 z-[80] flex flex-col overflow-y-auto"
       style={{ backgroundColor: '#050505' }}
     >
+      {/* Close */}
       <div className="flex justify-end px-5 shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
         <button
           onClick={() => { haptic(6); onClose() }}
@@ -88,86 +104,170 @@ function Paywall({ count, onClose }: { count: number; onClose: () => void }) {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-7 text-center py-8">
+      <div className="flex-1 flex flex-col items-center px-6 pt-4 pb-8 text-center">
+
+        {/* Blurred avatar stack */}
         <motion.div
-          initial={{ scale: 0.7, opacity: 0 }}
+          initial={{ scale: 0.85, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 360, damping: 26, delay: 0.08 }}
-          className="mb-6 flex items-center justify-center rounded-3xl"
-          style={{ width: 72, height: 72, background: 'linear-gradient(145deg, rgba(240,235,227,0.14) 0%, rgba(240,235,227,0.04) 100%)', border: '0.5px solid rgba(240,235,227,0.22)' }}
+          transition={{ type: 'spring', stiffness: 340, damping: 28, delay: 0.06 }}
+          className="flex items-center justify-center mb-6"
         >
-          <span style={{ fontSize: 34 }}>✦</span>
+          <div className="relative flex">
+            {previewViewers.length > 0 ? previewViewers.map((v, i) => (
+              <div
+                key={v.id}
+                className="rounded-full overflow-hidden border-2"
+                style={{
+                  width: 56, height: 56,
+                  borderColor: '#050505',
+                  marginLeft: i === 0 ? 0 : -16,
+                  zIndex: 10 - i,
+                  backgroundColor: '#1a1a1a',
+                }}
+              >
+                {v.profile_photo ? (
+                  <img src={v.profile_photo} alt="" className="w-full h-full object-cover"
+                    style={{ filter: 'blur(5px) brightness(0.75)', transform: 'scale(1.1)' }} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center font-bold text-white/20" style={{ fontSize: 20 }}>
+                    {v.name?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                )}
+              </div>
+            )) : [...Array(4)].map((_, i) => (
+              <div key={i} className="rounded-full border-2"
+                style={{ width: 56, height: 56, borderColor: '#050505', marginLeft: i === 0 ? 0 : -16, zIndex: 10 - i, background: `hsl(${200 + i * 40}, 20%, 18%)` }} />
+            ))}
+            {/* Lock badge */}
+            <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: '#F0EBE3', zIndex: 20 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="11" width="18" height="11" rx="2" stroke="#000" strokeWidth="2.5"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+          </div>
         </motion.div>
 
+        {/* Eyebrow */}
         <motion.p
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.14 }}
+          transition={{ duration: 0.28, delay: 0.12 }}
           className="font-bold tracking-widest mb-3"
-          style={{ color: 'rgba(240,235,227,0.5)', fontSize: 11 }}
+          style={{ color: 'rgba(240,235,227,0.4)', fontSize: 10, letterSpacing: '0.14em' }}
         >
           TRIPALONG PLUS
         </motion.p>
 
+        {/* Headline */}
         <motion.h2
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.32, delay: 0.18 }}
-          className="text-white font-extrabold tracking-tight mb-3"
-          style={{ fontSize: 30, lineHeight: '34px', letterSpacing: '-0.8px' }}
+          transition={{ duration: 0.3, delay: 0.16 }}
+          className="font-extrabold tracking-tight mb-2"
+          style={{ fontSize: 28, lineHeight: '32px', letterSpacing: '-0.7px', color: '#fff' }}
         >
-          {count} {count === 1 ? 'person wants' : 'people want'} to travel with you
+          {count} {count === 1 ? 'traveler checked' : 'travelers checked'} your profile
         </motion.h2>
 
         <motion.p
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          transition={{ duration: 0.3, delay: 0.24 }}
+          transition={{ duration: 0.28, delay: 0.22 }}
           className="mb-8"
-          style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14, lineHeight: '22px' }}
+          style={{ color: 'rgba(255,255,255,0.32)', fontSize: 14, lineHeight: '20px' }}
         >
-          Unlock unlimited reveals and see exactly who's interested
+          Upgrade to see who they are
         </motion.p>
 
+        {/* Plan cards — one per offering */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.34, delay: 0.28 }}
-          className="w-full flex flex-col gap-2.5 mb-8"
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.32, delay: 0.26 }}
+          className="w-full flex flex-col gap-3 mb-6"
+        >
+          {/* Annual — primary */}
+          <button
+            onClick={() => checkout('annual')}
+            disabled={!!loading}
+            className="w-full text-left rounded-2xl px-4 py-4 relative active:scale-[0.98] transition-transform disabled:opacity-60"
+            style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+          >
+            <span className="absolute -top-2.5 left-4 px-2 py-0.5 rounded-full font-bold text-white"
+              style={{ backgroundColor: '#30D158', fontSize: 10, letterSpacing: '0.04em' }}>
+              SAVE 38%
+            </span>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold" style={{ fontSize: 15 }}>Annual</p>
+                <p style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 1 }}>$59.99/year · cancel anytime</p>
+              </div>
+              <div className="text-right">
+                <p className="font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$5</p>
+                <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>/month</p>
+              </div>
+            </div>
+            {loading === 'annual' && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(240,235,227,0.85)' }}>
+                <p className="font-semibold text-sm text-black">Opening checkout…</p>
+              </div>
+            )}
+          </button>
+
+          {/* Monthly — secondary */}
+          <button
+            onClick={() => checkout('monthly')}
+            disabled={!!loading}
+            className="w-full text-left rounded-2xl px-4 py-4 relative active:scale-[0.98] transition-transform disabled:opacity-60"
+            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)', color: '#fff' }}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold" style={{ fontSize: 15 }}>Monthly</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>Billed monthly · cancel anytime</p>
+              </div>
+              <div className="text-right">
+                <p className="font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$7.99</p>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/month</p>
+              </div>
+            </div>
+            {loading === 'monthly' && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(20,20,20,0.85)' }}>
+                <p className="font-semibold text-sm text-white">Opening checkout…</p>
+              </div>
+            )}
+          </button>
+        </motion.div>
+
+        {/* Features */}
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.32 }}
+          className="w-full flex flex-col gap-2 mb-8"
         >
           {[
-            { icon: '👁', text: 'Unlimited profile view reveals' },
-            { icon: '💬', text: 'Message anyone who viewed you' },
-            { icon: '🔖', text: 'See who saved your trips' },
-            { icon: '⚡', text: 'Priority in travel matching' },
-          ].map((f) => (
-            <div key={f.text} className="flex items-center gap-3 px-4 py-3 rounded-2xl text-left"
-              style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
-              <span style={{ fontSize: 17 }}>{f.icon}</span>
-              <span className="text-white font-medium flex-1" style={{ fontSize: 13 }}>{f.text}</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path d="M20 6L9 17l-5-5" stroke="rgba(240,235,227,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            { label: 'Unlimited swipes', sub: 'Never hit a wall mid-session' },
+            { label: 'See who viewed your profile', sub: 'Know who\'s already interested' },
+            { label: 'Rewind last swipe', sub: 'Take back a pass in an instant' },
+          ].map(f => (
+            <div key={f.label} className="flex items-center gap-3 text-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
+              <div>
+                <span className="text-white font-medium" style={{ fontSize: 13 }}>{f.label}</span>
+                <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}> · {f.sub}</span>
+              </div>
             </div>
           ))}
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.34 }}
-          className="w-full"
+        <button
+          onClick={() => { haptic(6); onClose() }}
+          className="py-2 active:opacity-60 transition-opacity"
+          style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13 }}
         >
-          <button
-            onClick={() => haptic(14)}
-            className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
-            style={{ backgroundColor: '#F0EBE3', color: '#000' }}
-          >
-            ✦ Upgrade to Plus
-          </button>
-          <button
-            onClick={() => { haptic(6); onClose() }}
-            className="w-full mt-4 py-2 text-sm active:opacity-60 transition-opacity"
-            style={{ color: 'rgba(255,255,255,0.28)' }}
-          >
-            Maybe later
-          </button>
-        </motion.div>
+          Maybe later
+        </button>
       </div>
     </motion.div>
   )
@@ -390,7 +490,7 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
       {/* Paywall */}
       <AnimatePresence>
         {showPaywall && (
-          <Paywall count={viewers.length} onClose={() => setShowPaywall(false)} />
+          <Paywall count={viewers.length} viewers={viewers} onClose={() => setShowPaywall(false)} />
         )}
       </AnimatePresence>
     </>,
