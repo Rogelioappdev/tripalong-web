@@ -16,6 +16,7 @@ import { getTrips, getUserSavedTripIds, saveTrip, getProfile } from '@/lib/queri
 import { supabase } from '@/lib/supabase'
 import { SavedTripsModal } from '@/components/SavedTripsModal'
 import { FoundingMemberPaywall } from '@/components/FoundingMemberPaywall'
+import { FoundingMemberScreen } from '@/components/FoundingMemberScreen'
 import { getTrialStatus, getDevTrialOverride } from '@/lib/trial'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
@@ -47,6 +48,10 @@ export default function FeedPage() {
   const [pendingTripId, setPendingTripId] = useState<string | null>(null)
   const [upgradeToast, setUpgradeToast] = useState(false)
   const [showTrialExpiredPaywall, setShowTrialExpiredPaywall] = useState(false)
+  const [showFoundingScreen, setShowFoundingScreen] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('trial') === 'none'
+  })
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
@@ -90,12 +95,14 @@ export default function FeedPage() {
       // Check trial expiry on every app open
       const profile = await getProfile(session.user.id)
       if (profile) {
-        // Dev override: ?trial=expired|day6|day3|day0
         const override = getDevTrialOverride()
-        const effectiveProfile: UserProfile = override
-          ? { ...profile, trial_start_at: override }
-          : profile
-        if (getTrialStatus(effectiveProfile) === 'expired' && effectiveProfile.subscription_tier === 'free') {
+        if (override) {
+          // Dev mode: bypass subscription check so any account can test
+          const effectiveProfile: UserProfile = { ...profile, trial_start_at: override }
+          if (getTrialStatus(effectiveProfile) === 'expired') {
+            setShowTrialExpiredPaywall(true)
+          }
+        } else if (getTrialStatus(profile) === 'expired' && profile.subscription_tier === 'free') {
           setShowTrialExpiredPaywall(true)
         }
       }
@@ -160,6 +167,18 @@ export default function FeedPage() {
       <AnimatePresence>
         {showTrialExpiredPaywall && (
           <FoundingMemberPaywall allowDismiss={false} />
+        )}
+      </AnimatePresence>
+
+      {/* Dev: ?trial=none → preview the founding member unlock screen */}
+      <AnimatePresence>
+        {showFoundingScreen && userId && (
+          <FoundingMemberScreen
+            userId={userId}
+            profile={{ subscription_tier: 'free', trial_start_at: null } as any}
+            onClaimed={() => setShowFoundingScreen(false)}
+            onDismiss={() => setShowFoundingScreen(false)}
+          />
         )}
       </AnimatePresence>
 
