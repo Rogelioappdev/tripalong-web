@@ -149,11 +149,15 @@ export function PaywallModal({ trigger, context, onClose }: Props) {
             {trigger === 'who-viewed' ? (
               <BlurredAvatars />
             ) : (
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
-                style={{ background: 'linear-gradient(135deg, rgba(240,235,227,0.15) 0%, rgba(240,235,227,0.05) 100%)', border: '1px solid rgba(240,235,227,0.15)' }}>
-                <span style={{ fontSize: 26 }}>
-                  {trigger === 'rewind' ? '↩️' : '✈️'}
-                </span>
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 overflow-hidden"
+                style={{ background: '#000', border: '1px solid rgba(240,235,227,0.15)' }}>
+                {trigger === 'rewind' ? (
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 5V1L7 6l5 5V7c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6H4c0 4.4 3.6 8 8 8s8-3.6 8-8-3.6-8-8-8z" fill="rgba(240,235,227,0.8)"/>
+                  </svg>
+                ) : (
+                  <img src="/tripalong-logo.png" alt="TripAlong" className="w-10 h-10 object-contain" />
+                )}
               </div>
             )}
             <h2 className="text-white font-bold mb-1" style={{ fontSize: 22, letterSpacing: '-0.3px' }}>{headline}</h2>
