@@ -68,17 +68,18 @@ function useCountUp(target: number, duration = 900) {
 
 // ── Paywall ─────────────────────────────────────────────────────────────────
 function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]; onClose: () => void }) {
-  const [loading, setLoading] = useState<'annual' | 'monthly' | null>(null)
+  const [selected, setSelected] = useState<'annual' | 'monthly'>('annual')
+  const [loading, setLoading] = useState(false)
 
-  const checkout = useCallback(async (plan: 'annual' | 'monthly') => {
+  const checkout = useCallback(async () => {
     haptic(12)
-    setLoading(plan)
+    setLoading(true)
     try {
-      await startCheckout(plan === 'annual' ? 'plus_annual' : 'plus_monthly')
+      await startCheckout(selected === 'annual' ? 'plus_annual' : 'plus_monthly')
     } catch {
-      setLoading(null)
+      setLoading(false)
     }
-  }, [])
+  }, [selected])
 
   const previewViewers = viewers.slice(0, 5)
 
@@ -179,18 +180,20 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
           Upgrade to see who they are
         </motion.p>
 
-        {/* Plan cards — one per offering */}
+        {/* Plan cards — selectable */}
         <motion.div
           initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, delay: 0.26 }}
           className="w-full flex flex-col gap-3 mb-6"
         >
-          {/* Annual — primary */}
+          {/* Annual */}
           <button
-            onClick={() => checkout('annual')}
-            disabled={!!loading}
-            className="w-full text-left rounded-2xl px-4 py-4 relative active:scale-[0.98] transition-transform disabled:opacity-60"
-            style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+            onClick={() => { haptic(4); setSelected('annual') }}
+            className="w-full text-left rounded-2xl px-4 py-4 relative transition-all active:scale-[0.98]"
+            style={{
+              backgroundColor: selected === 'annual' ? 'rgba(240,235,227,0.1)' : 'rgba(255,255,255,0.04)',
+              border: selected === 'annual' ? '1.5px solid rgba(240,235,227,0.6)' : '1px solid rgba(255,255,255,0.08)',
+            }}
           >
             <span className="absolute -top-2.5 left-4 px-2 py-0.5 rounded-full font-bold text-white"
               style={{ backgroundColor: '#30D158', fontSize: 10, letterSpacing: '0.04em' }}>
@@ -198,43 +201,55 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
             </span>
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-bold" style={{ fontSize: 15 }}>Annual</p>
-                <p style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 1 }}>$59.99/year · cancel anytime</p>
+                <p className="text-white font-bold" style={{ fontSize: 15 }}>Annual</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>$59.99/year · cancel anytime</p>
               </div>
-              <div className="text-right">
-                <p className="font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$5</p>
-                <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>/month</p>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$5</p>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/month</p>
+                </div>
+                <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                  style={{ border: selected === 'annual' ? 'none' : '1.5px solid rgba(255,255,255,0.2)', backgroundColor: selected === 'annual' ? '#F0EBE3' : 'transparent' }}>
+                  {selected === 'annual' && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                      <path d="M20 6L9 17l-5-5" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
               </div>
             </div>
-            {loading === 'annual' && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(240,235,227,0.85)' }}>
-                <p className="font-semibold text-sm text-black">Opening checkout…</p>
-              </div>
-            )}
           </button>
 
-          {/* Monthly — secondary */}
+          {/* Monthly */}
           <button
-            onClick={() => checkout('monthly')}
-            disabled={!!loading}
-            className="w-full text-left rounded-2xl px-4 py-4 relative active:scale-[0.98] transition-transform disabled:opacity-60"
-            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)', color: '#fff' }}
+            onClick={() => { haptic(4); setSelected('monthly') }}
+            className="w-full text-left rounded-2xl px-4 py-4 transition-all active:scale-[0.98]"
+            style={{
+              backgroundColor: selected === 'monthly' ? 'rgba(240,235,227,0.1)' : 'rgba(255,255,255,0.04)',
+              border: selected === 'monthly' ? '1.5px solid rgba(240,235,227,0.6)' : '1px solid rgba(255,255,255,0.08)',
+            }}
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-bold" style={{ fontSize: 15 }}>Monthly</p>
+                <p className="text-white font-bold" style={{ fontSize: 15 }}>Monthly</p>
                 <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>Billed monthly · cancel anytime</p>
               </div>
-              <div className="text-right">
-                <p className="font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$7.99</p>
-                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/month</p>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$7.99</p>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/month</p>
+                </div>
+                <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                  style={{ border: selected === 'monthly' ? 'none' : '1.5px solid rgba(255,255,255,0.2)', backgroundColor: selected === 'monthly' ? '#F0EBE3' : 'transparent' }}>
+                  {selected === 'monthly' && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                      <path d="M20 6L9 17l-5-5" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
               </div>
             </div>
-            {loading === 'monthly' && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(20,20,20,0.85)' }}>
-                <p className="font-semibold text-sm text-white">Opening checkout…</p>
-              </div>
-            )}
           </button>
         </motion.div>
 
@@ -262,8 +277,18 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
         </motion.div>
 
         <button
+          onClick={checkout}
+          disabled={loading}
+          className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform disabled:opacity-60"
+          style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
+        >
+          {loading
+            ? 'Opening checkout…'
+            : `Continue with ${selected === 'annual' ? 'Annual · $59.99/yr' : 'Monthly · $7.99/mo'}`}
+        </button>
+        <button
           onClick={() => { haptic(6); onClose() }}
-          className="py-2 active:opacity-60 transition-opacity"
+          className="w-full mt-3 py-2 active:opacity-60 transition-opacity"
           style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13 }}
         >
           Maybe later
