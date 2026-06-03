@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Playfair_Display } from 'next/font/google'
 import { supabase } from '@/lib/supabase'
 import { haptic } from '@/lib/haptics'
@@ -138,8 +138,17 @@ function CardFace({ trip, stamp }: { trip: SplashTrip; stamp: 'save' | 'pass' | 
   )
 }
 
+const GUIDELINES = [
+  { icon: '🤝', text: 'Be respectful — treat every traveler the way you\'d want to be treated' },
+  { icon: '🚫', text: 'No harassment, hate speech, or inappropriate messages' },
+  { icon: '📍', text: 'Meet in public places for your first meet-up with a new travel companion' },
+  { icon: '🎭', text: 'Be yourself — fake profiles or impersonation will get you banned' },
+  { icon: '🚨', text: 'Report anything that feels off — we review every report' },
+]
+
 export default function SplashPage() {
   const router = useRouter()
+  const [step, setStep] = useState<'splash' | 'guidelines'>('splash')
   const [cards, setCards] = useState<SplashTrip[]>([])
   const [topIndex, setTopIndex] = useState(0)
   const [exitingCard, setExitingCard] = useState<SplashTrip | null>(null)
@@ -277,75 +286,151 @@ export default function SplashPage() {
         }} />
       </motion.div>
 
-      {/* ── Hook + social proof + CTAs — sits below the fading cards ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut', delay: 0.38 }}
-        style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          zIndex: 10,
-          padding: '0 26px',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
-          display: 'flex', flexDirection: 'column', gap: 0,
-          // Solid black background so text is always legible
-          background: 'linear-gradient(to bottom, transparent 0%, #000 18%)',
-        }}
-      >
-        <h1 className={playfair.className} style={{
-          fontSize: 'clamp(27px, 7.8vw, 40px)',
-          fontWeight: 900, lineHeight: 1.12,
-          letterSpacing: '-0.3px', color: '#fff', margin: '0 0 12px',
-        }}>
-          Go alone if you have to.
-          <br />
-          <span style={{ color: '#F0EBE3' }}>But now, you don't.</span>
-        </h1>
+      {/* ── Slide 1: Hook + social proof + CTAs ── */}
+      <AnimatePresence mode="wait">
+        {step === 'splash' && (
+          <motion.div
+            key="splash"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.5, ease: 'easeOut', delay: 0.38 }}
+            style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              zIndex: 10,
+              padding: '0 26px',
+              paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
+              display: 'flex', flexDirection: 'column', gap: 0,
+              background: 'linear-gradient(to bottom, transparent 0%, #000 18%)',
+            }}
+          >
+            <h1 className={playfair.className} style={{
+              fontSize: 'clamp(27px, 7.8vw, 40px)',
+              fontWeight: 900, lineHeight: 1.12,
+              letterSpacing: '-0.3px', color: '#fff', margin: '0 0 12px',
+            }}>
+              Go alone if you have to.
+              <br />
+              <span style={{ color: '#F0EBE3' }}>But now, you don't.</span>
+            </h1>
 
-        {/* Social proof */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 20 }}>
-          <div style={{ display: 'flex' }}>
-            {SOCIAL_AVATARS.map((src, i) => (
-              <div key={i} style={{
-                width: 24, height: 24, borderRadius: 12,
-                border: '1.5px solid #000',
-                marginLeft: i > 0 ? -7 : 0,
-                overflow: 'hidden', backgroundColor: '#1a1a1a', flexShrink: 0,
-              }}>
-                <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {/* Social proof */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 20 }}>
+              <div style={{ display: 'flex' }}>
+                {SOCIAL_AVATARS.map((src, i) => (
+                  <div key={i} style={{
+                    width: 24, height: 24, borderRadius: 12,
+                    border: '1.5px solid #000',
+                    marginLeft: i > 0 ? -7 : 0,
+                    overflow: 'hidden', backgroundColor: '#1a1a1a', flexShrink: 0,
+                  }}>
+                    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <p style={{ color: 'rgba(255,255,255,0.30)', fontSize: 12, margin: 0 }}>
-            Travelers already planning their next trip
-          </p>
-        </div>
+              <p style={{ color: 'rgba(255,255,255,0.30)', fontSize: 12, margin: 0 }}>
+                Travelers already planning their next trip
+              </p>
+            </div>
 
-        {/* CTAs */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <button
-            onClick={() => { haptic(8); router.push('/feed') }}
+            {/* CTAs */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              <button
+                onClick={() => { haptic(8); setStep('guidelines') }}
+                style={{
+                  width: '100%', padding: '15px 0', borderRadius: 18,
+                  fontWeight: 700, fontSize: 15.5,
+                  backgroundColor: '#F0EBE3', color: '#000',
+                  border: 'none', cursor: 'pointer', letterSpacing: '-0.1px',
+                }}
+              >
+                Find my people →
+              </button>
+              <button
+                onClick={() => { haptic(6); router.push('/login') }}
+                style={{
+                  width: '100%', padding: '10px 0',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'rgba(255,255,255,0.25)', fontSize: 13, fontWeight: 500,
+                }}
+              >
+                Already have an account? Sign in
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Slide 2: Community guidelines ── */}
+        {step === 'guidelines' && (
+          <motion.div
+            key="guidelines"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
             style={{
-              width: '100%', padding: '15px 0', borderRadius: 18,
-              fontWeight: 700, fontSize: 15.5,
-              backgroundColor: '#F0EBE3', color: '#000',
-              border: 'none', cursor: 'pointer', letterSpacing: '-0.1px',
+              position: 'absolute', bottom: 0, left: 0, right: 0, top: 0,
+              zIndex: 10,
+              background: 'linear-gradient(to bottom, transparent 0%, #000 20%)',
+              display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+              padding: '0 26px',
+              paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
             }}
           >
-            Find my people →
-          </button>
-          <button
-            onClick={() => { haptic(6); router.push('/login') }}
-            style={{
-              width: '100%', padding: '10px 0',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'rgba(255,255,255,0.25)', fontSize: 13, fontWeight: 500,
-            }}
-          >
-            Already have an account? Sign in
-          </button>
-        </div>
-      </motion.div>
+            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+              Community Guidelines
+            </p>
+            <h2 className={playfair.className} style={{
+              fontSize: 'clamp(24px, 6.5vw, 34px)',
+              fontWeight: 900, lineHeight: 1.12,
+              color: '#fff', marginBottom: 20,
+            }}>
+              A few rules to<br />
+              <span style={{ color: '#F0EBE3' }}>keep everyone safe.</span>
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 28 }}>
+              {GUIDELINES.map((g, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 + i * 0.07, duration: 0.28 }}
+                  style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}
+                >
+                  <span style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>{g.icon}</span>
+                  <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 13.5, lineHeight: 1.5, margin: 0 }}>
+                    {g.text}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => { haptic(12); router.push('/feed') }}
+              style={{
+                width: '100%', padding: '15px 0', borderRadius: 18,
+                fontWeight: 700, fontSize: 15.5,
+                backgroundColor: '#F0EBE3', color: '#000',
+                border: 'none', cursor: 'pointer', letterSpacing: '-0.1px',
+                marginBottom: 10,
+              }}
+            >
+              I agree — let's go ✓
+            </button>
+            <button
+              onClick={() => { haptic(4); setStep('splash') }}
+              style={{
+                width: '100%', padding: '10px 0',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'rgba(255,255,255,0.2)', fontSize: 13, fontWeight: 500,
+              }}
+            >
+              ← Back
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </main>
   )
