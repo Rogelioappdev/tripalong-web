@@ -12,10 +12,12 @@ import { SwipeStack } from '@/components/SwipeStack'
 import { TripDetailModal } from '@/components/TripDetailModal'
 import { CreateTripModal } from '@/components/CreateTripModal'
 import { AuthGate } from '@/components/AuthGate'
-import { getTrips, getUserSavedTripIds, saveTrip } from '@/lib/queries'
+import { getTrips, getUserSavedTripIds, saveTrip, getProfile } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import { SavedTripsModal } from '@/components/SavedTripsModal'
-import type { TripWithDetails } from '@/lib/types'
+import { FoundingMemberPaywall } from '@/components/FoundingMemberPaywall'
+import { getTrialStatus, getDevTrialOverride } from '@/lib/trial'
+import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
@@ -44,6 +46,7 @@ export default function FeedPage() {
   const [savedCount, setSavedCount] = useState(0)
   const [pendingTripId, setPendingTripId] = useState<string | null>(null)
   const [upgradeToast, setUpgradeToast] = useState(false)
+  const [showTrialExpiredPaywall, setShowTrialExpiredPaywall] = useState(false)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
@@ -76,13 +79,25 @@ export default function FeedPage() {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { setIsGuest(true); return }
       setUserId(session.user.id)
       const pending = localStorage.getItem('ta_pending_save')
       if (pending) {
         localStorage.removeItem('ta_pending_save')
         setPendingTripId(pending)
+      }
+      // Check trial expiry on every app open
+      const profile = await getProfile(session.user.id)
+      if (profile) {
+        // Dev override: ?trial=expired|day6|day3|day0
+        const override = getDevTrialOverride()
+        const effectiveProfile: UserProfile = override
+          ? { ...profile, trial_start_at: override }
+          : profile
+        if (getTrialStatus(effectiveProfile) === 'expired' && effectiveProfile.subscription_tier === 'free') {
+          setShowTrialExpiredPaywall(true)
+        }
       }
     })
   }, [])
@@ -140,6 +155,14 @@ export default function FeedPage() {
       <Suspense fallback={null}>
         <UpgradeToastHandler onUpgrade={handleUpgradeSuccess} />
       </Suspense>
+
+      {/* Trial expired — show immediately on app open, no dismiss */}
+      <AnimatePresence>
+        {showTrialExpiredPaywall && (
+          <FoundingMemberPaywall allowDismiss={false} />
+        )}
+      </AnimatePresence>
+
       <NavBar />
 
       <main

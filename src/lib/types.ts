@@ -23,6 +23,7 @@ export type UserProfile = {
   subscription_status: string | null
   stripe_customer_id: string | null
   subscription_expires_at: string | null
+  trial_start_at: string | null
   is_verified: boolean
   created_at: string
   updated_at: string

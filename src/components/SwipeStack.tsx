@@ -7,11 +7,14 @@ import { haptic } from '@/lib/haptics'
 import { useQueryClient } from '@tanstack/react-query'
 import { SwipeCard, type SwipeCardHandle } from './SwipeCard'
 import { PaywallModal } from './PaywallModal'
+import { FoundingMemberScreen } from './FoundingMemberScreen'
+import { FoundingMemberPaywall } from './FoundingMemberPaywall'
 import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
 import { calculateTripMatch } from '@/lib/matching'
+import { hasPlus, getTrialStatus } from '@/lib/trial'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
-const DAILY_LIMIT = 30
+const DAILY_LIMIT = 15
 const todayKey = (uid: string) => `ta_swipes_${uid}_${new Date().toISOString().slice(0, 10)}`
 
 function useMidnightCountdown() {
@@ -257,6 +260,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   const [swipeLimitReached, setSwipeLimitReached] = useState(false)
   const [limitChecked, setLimitChecked] = useState(false)
   const [showPaywall, setShowPaywall] = useState(false)
+  const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
   const qc = useQueryClient()
@@ -280,7 +284,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   useEffect(() => {
     if (isGuest) { setLimitChecked(true); return }
     if (!userId || !userProfile) return
-    if (userProfile.subscription_tier !== 'free') {
+    if (hasPlus(userProfile)) {
       setSwipeLimitReached(false)
     } else {
       setSwipeLimitReached(getDailySwipes(userId) >= DAILY_LIMIT)
@@ -312,7 +316,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   }
 
   const advance = () => {
-    if (!isGuest && userId && userProfile?.subscription_tier === 'free') {
+    if (!isGuest && userId && !hasPlus(userProfile)) {
       const count = incrementDailySwipes(userId)
       if (count >= DAILY_LIMIT) {
         setSwipeLimitReached(true)
@@ -463,14 +467,40 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
           </div>
         </div>
         <AnimatePresence>
-          {showPaywall && (
-            <PaywallModal
-              trigger="swipes"
-              context={currentTrip?.destination}
-              trips={trips.slice(currentIndex + 1, currentIndex + 4)}
-              onClose={() => setShowPaywall(false)}
-            />
-          )}
+          {showPaywall && userId && userProfile && (() => {
+            const profile = localProfile ?? userProfile
+            const trialStatus = getTrialStatus(profile)
+            if (trialStatus === 'none') {
+              return (
+                <FoundingMemberScreen
+                  userId={userId}
+                  profile={profile}
+                  onClaimed={(updated) => {
+                    setLocalProfile(updated)
+                    setSwipeLimitReached(false)
+                    setShowPaywall(false)
+                  }}
+                  onDismiss={() => setShowPaywall(false)}
+                />
+              )
+            }
+            if (trialStatus === 'expired') {
+              return (
+                <FoundingMemberPaywall
+                  allowDismiss
+                  onClose={() => setShowPaywall(false)}
+                />
+              )
+            }
+            return (
+              <PaywallModal
+                trigger="swipes"
+                context={currentTrip?.destination}
+                trips={trips.slice(currentIndex + 1, currentIndex + 4)}
+                onClose={() => setShowPaywall(false)}
+              />
+            )
+          })()}
         </AnimatePresence>
       </div>
     )
