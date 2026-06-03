@@ -7,28 +7,21 @@ import { startCheckout } from '@/lib/subscription'
 import { haptic } from '@/lib/haptics'
 
 interface Props {
-  trigger: 'swipes' | 'messages' | 'who-joined' | 'filters' | 'passport' | 'rewind'
+  trigger: 'swipes' | 'rewind' | 'who-viewed'
   context?: string        // e.g. "Tokyo" for "Tokyo is waiting"
   onClose: () => void
 }
 
 const TRIGGER_COPY: Record<Props['trigger'], { headline: string; sub: string }> = {
-  swipes:      { headline: 'Keep exploring', sub: 'You\'ve used your swipes for today. Upgrade for unlimited.' },
-  messages:    { headline: 'You\'re in demand', sub: 'Upgrade to keep all your conversations going.' },
-  'who-joined':{ headline: 'People want in', sub: 'Upgrade to see exactly who wants to travel with you.' },
-  filters:     { headline: 'Find your match', sub: 'Filter by budget, pace, and travel style with Plus.' },
-  passport:    { headline: 'Explore anywhere', sub: 'Browse trips to any destination worldwide with Plus.' },
-  rewind:      { headline: 'Want that trip back?', sub: 'Upgrade to undo your last swipe.' },
+  swipes:   { headline: 'Keep exploring', sub: 'You\'ve used your swipes for today. Upgrade for unlimited.' },
+  rewind:   { headline: 'Want that trip back?', sub: 'Upgrade to undo your last swipe.' },
+  'who-viewed': { headline: 'Someone checked you out', sub: 'Upgrade to see who\'s been viewing your profile.' },
 }
 
 const PLUS_FEATURES = [
-  'Unlimited swipes',
-  'See who wants to join your trip',
-  'Compatibility score on every card',
-  'Advanced filters (budget, pace, style)',
-  'Browse any destination worldwide',
-  'Unlimited conversations',
-  'Rewind last swipe',
+  'Unlimited swipes — explore every trip',
+  'See who viewed your profile',
+  'Rewind — undo your last swipe',
 ]
 
 export function PaywallModal({ trigger, context, onClose }: Props) {
