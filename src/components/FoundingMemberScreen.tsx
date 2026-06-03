@@ -19,7 +19,7 @@ const SLIDES = [
   {
     icon: '🌍',
     title: 'Welcome, Founding Member',
-    sub: 'You're one of TripAlong's first travelers. We're giving you 7 days of Plus — free. No card, no catch.',
+    sub: "You're one of TripAlong's first travelers. We're giving you 7 days of Plus — free. No card, no catch.",
   },
   {
     icon: '∞',
