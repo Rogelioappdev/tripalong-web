@@ -74,9 +74,9 @@ export function getMatchingVibes(userProfile: UserProfile | null, trip: TripWith
     .map(v => v.charAt(0).toUpperCase() + v.slice(1))
 }
 
-type MemberProfile = Pick<UserProfile, 'travel_styles' | 'travel_pace' | 'social_energy' | 'planning_style' | 'experience_level'>
+export type MemberProfile = Pick<UserProfile, 'travel_styles' | 'travel_pace' | 'social_energy' | 'planning_style' | 'experience_level'>
 
-function memberCompatibility(user: UserProfile, member: MemberProfile): number {
+export function memberCompatibility(user: UserProfile, member: MemberProfile): number {
   let score = 0
   let max = 0
 

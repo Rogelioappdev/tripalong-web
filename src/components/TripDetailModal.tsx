@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip, getProfile } from '@/lib/queries'
-import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
+import { calculateTripMatch, getMatchingVibes, memberCompatibility } from '@/lib/matching'
 import { hasPlus } from '@/lib/trial'
 import { PublicProfileModal } from './PublicProfileModal'
 import { JoinCelebration } from './JoinCelebration'
@@ -360,46 +360,67 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
             {members.length > 0 && (
               <div>
                 <p className="text-white font-bold" style={{ fontSize: 17 }}>Who's Going</p>
-                <div className="flex gap-3 overflow-x-auto mt-3 pb-1">
-                  {members.map(m => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onPointerDown={(e) => { e.stopPropagation(); haptic(8); setProfileUserId(m.id) }}
-                      className="flex flex-col items-center gap-1.5 shrink-0 active:opacity-75 transition-opacity"
-                      style={{ touchAction: 'manipulation', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
-                    >
-                      <div
-                        className="overflow-hidden"
-                        style={{
-                          width: 56, height: 56, borderRadius: 28,
-                          border: m.isCreator ? '1.5px solid #F0EBE3' : '1.5px solid rgba(255,255,255,0.12)',
-                        }}
+                <div className="flex gap-4 overflow-x-auto mt-3 pb-1">
+                  {members.map(m => {
+                    const rawMember = (displayTrip.members ?? []).find(dm => dm.user_id === m.id)
+                    const score = (isPlus && userProfile && rawMember?.user && m.id !== userId)
+                      ? memberCompatibility(userProfile, rawMember.user as any)
+                      : null
+                    const scoreColor = score === null ? null
+                      : score >= 80 ? '#30D158'
+                      : score >= 60 ? '#FFD60A'
+                      : 'rgba(255,255,255,0.35)'
+                    const borderColor = m.isCreator
+                      ? '#F0EBE3'
+                      : scoreColor ?? 'rgba(255,255,255,0.12)'
+
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onPointerDown={(e) => { e.stopPropagation(); haptic(8); setProfileUserId(m.id) }}
+                        className="flex flex-col items-center shrink-0 active:opacity-75 transition-opacity"
+                        style={{ touchAction: 'manipulation', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', gap: 4 } as React.CSSProperties}
                       >
-                        {m.photo ? (
-                          <img src={m.photo} alt={m.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div
-                            className="w-full h-full flex items-center justify-center text-sm font-semibold"
-                            style={{ backgroundColor: '#222', color: 'rgba(255,255,255,0.6)' }}
-                          >
-                            {m.name[0]?.toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <span
-                        className="text-center truncate"
-                        style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, maxWidth: 60 }}
-                      >
-                        {m.name.split(' ')[0]}
-                      </span>
-                      {m.isCreator && (
-                        <span style={{ color: '#F0EBE3', fontSize: 9, letterSpacing: '0.5px', textTransform: 'uppercase', marginTop: -4, fontWeight: 600 }}>
-                          Creator
+                        <div
+                          className="overflow-hidden"
+                          style={{
+                            width: 56, height: 56, borderRadius: 28,
+                            border: `2px solid ${borderColor}`,
+                            boxShadow: scoreColor && score !== null && score >= 80
+                              ? `0 0 10px ${scoreColor}40`
+                              : undefined,
+                          }}
+                        >
+                          {m.photo ? (
+                            <img src={m.photo} alt={m.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div
+                              className="w-full h-full flex items-center justify-center text-sm font-semibold"
+                              style={{ backgroundColor: '#222', color: 'rgba(255,255,255,0.6)' }}
+                            >
+                              {m.name[0]?.toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <span
+                          className="text-center truncate"
+                          style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, maxWidth: 64 }}
+                        >
+                          {m.name.split(' ')[0]}
                         </span>
-                      )}
-                    </button>
-                  ))}
+                        {score !== null ? (
+                          <span style={{ color: scoreColor!, fontSize: 11, fontWeight: 700, marginTop: -2 }}>
+                            {score}%
+                          </span>
+                        ) : m.isCreator ? (
+                          <span style={{ color: '#F0EBE3', fontSize: 9, letterSpacing: '0.5px', textTransform: 'uppercase', marginTop: -2, fontWeight: 600 }}>
+                            Creator
+                          </span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             )}
