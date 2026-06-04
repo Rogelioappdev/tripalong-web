@@ -478,10 +478,15 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
             userId={userId}
             profile={localProfile ?? userProfile}
             onClaimed={(updated) => {
+              // Don't reset swipeLimitReached here — that would exit this
+              // early-return block and unmount FoundingMemberScreen mid-flow.
+              // Reset it in onDismiss after the onboarding completes instead.
               setLocalProfile(updated)
+            }}
+            onDismiss={() => {
+              setShowFoundingScreen(false)
               setSwipeLimitReached(false)
             }}
-            onDismiss={() => setShowFoundingScreen(false)}
           />
         )}
 
