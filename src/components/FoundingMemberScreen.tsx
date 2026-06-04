@@ -349,7 +349,7 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
   return (
     <div
       className="flex flex-col"
-      style={{ height: '100%' }}
+      style={{ position: 'absolute', inset: 0 }}
       onClick={idx > 0 && idx < TOTAL - 1 ? next : undefined}
     >
       {/* Progress bar */}
@@ -528,7 +528,7 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            className="h-full"
+            style={{ position: 'absolute', inset: 0 }}
           >
             <PlusOnboarding userId={userId} onDone={onDismiss} />
           </motion.div>

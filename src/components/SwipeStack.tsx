@@ -260,6 +260,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   const [swipeLimitReached, setSwipeLimitReached] = useState(false)
   const [limitChecked, setLimitChecked] = useState(false)
   const [showPaywall, setShowPaywall] = useState(false)
+  const [showFoundingScreen, setShowFoundingScreen] = useState(false)
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
@@ -316,11 +317,17 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   }
 
   const advance = () => {
-    if (!isGuest && userId && !hasPlus(userProfile)) {
+    if (!isGuest && userId && !hasPlus(localProfile ?? userProfile)) {
       const count = incrementDailySwipes(userId)
       if (count >= DAILY_LIMIT) {
         setSwipeLimitReached(true)
-        setShowPaywall(true)
+        const profile = localProfile ?? userProfile
+        const status = getTrialStatus(profile)
+        if (status === 'none') {
+          setShowFoundingScreen(true)
+        } else {
+          setShowPaywall(true)
+        }
         return
       }
     }
@@ -467,26 +474,28 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
           </div>
         </div>
         <AnimatePresence>
-          {showPaywall && userId && userProfile && (() => {
+          {showFoundingScreen && userId && userProfile && (
+            <FoundingMemberScreen
+              key="founding"
+              userId={userId}
+              profile={localProfile ?? userProfile}
+              onClaimed={(updated) => {
+                setLocalProfile(updated)
+                setSwipeLimitReached(false)
+              }}
+              onDismiss={() => setShowFoundingScreen(false)}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showPaywall && (() => {
             const profile = localProfile ?? userProfile
             const trialStatus = getTrialStatus(profile)
-            if (trialStatus === 'none') {
-              return (
-                <FoundingMemberScreen
-                  userId={userId}
-                  profile={profile}
-                  onClaimed={(updated) => {
-                    setLocalProfile(updated)
-                    setSwipeLimitReached(false)
-                    // don't close — let onboarding play through
-                  }}
-                  onDismiss={() => setShowPaywall(false)}
-                />
-              )
-            }
             if (trialStatus === 'expired') {
               return (
                 <FoundingMemberPaywall
+                  key="expired-paywall"
                   allowDismiss
                   onClose={() => setShowPaywall(false)}
                 />
@@ -494,6 +503,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
             }
             return (
               <PaywallModal
+                key="paywall"
                 trigger="swipes"
                 context={currentTrip?.destination}
                 trips={trips.slice(currentIndex + 1, currentIndex + 4)}
