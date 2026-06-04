@@ -11,7 +11,28 @@ interface Props {
   allowDismiss?: boolean
 }
 
-const DESTINATIONS = ['Bali', 'Tokyo', 'Medellín', 'Lisbon', 'Cape Town', 'Reykjavík', 'Kyoto', 'Porto', 'Oaxaca']
+const FEATURES = [
+  {
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M8 12h8M12 8v8" stroke="rgba(240,235,227,0.7)" strokeWidth="1.8" strokeLinecap="round"/>
+        <circle cx="12" cy="12" r="9" stroke="rgba(240,235,227,0.5)" strokeWidth="1.5"/>
+      </svg>
+    ),
+    label: 'Unlimited swipes',
+    sub: 'No daily cap — swipe as much as you want',
+  },
+  {
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="rgba(240,235,227,0.7)" strokeWidth="1.6" strokeLinecap="round"/>
+        <circle cx="12" cy="12" r="3" stroke="rgba(240,235,227,0.7)" strokeWidth="1.6"/>
+      </svg>
+    ),
+    label: 'See who viewed you',
+    sub: 'Know who\'s already interested in your trips',
+  },
+]
 
 export function FoundingMemberPaywall({ onClose, allowDismiss = false }: Props) {
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
@@ -102,37 +123,34 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false }: Props) 
             The right co-traveler is a few swipes away. Keep going until you find them.
           </p>
 
-          {/* Destination row */}
-          <div style={{ position: 'relative', width: '100%', marginTop: 22, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'nowrap' }}>
-              {DESTINATIONS.map((dest, i) => (
-                <motion.span
-                  key={dest}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: i < 5 ? 1 - i * 0.14 : 0.1 }}
-                  transition={{ delay: 0.08 + i * 0.05, duration: 0.32 }}
-                  style={{
-                    padding: '6px 13px',
-                    borderRadius: 999,
-                    flexShrink: 0,
-                    backgroundColor: 'rgba(240,235,227,0.05)',
-                    border: '0.5px solid rgba(240,235,227,0.1)',
-                    color: 'rgba(255,255,255,0.5)',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {dest}
-                </motion.span>
-              ))}
-            </div>
-            {/* Right fade — implies there are more */}
-            <div style={{
-              position: 'absolute', right: 0, top: 0, bottom: 0, width: 72,
-              background: 'linear-gradient(to right, transparent, #0A0906)',
-              pointerEvents: 'none',
-            }} />
+          {/* Feature rows */}
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
+            {FEATURES.map((f, i) => (
+              <motion.div
+                key={f.label}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 + i * 0.08, duration: 0.34, ease: 'easeOut' }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '14px 16px', borderRadius: 18,
+                  backgroundColor: 'rgba(240,235,227,0.04)',
+                  border: '0.5px solid rgba(240,235,227,0.09)',
+                }}
+              >
+                <div style={{
+                  width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                  backgroundColor: 'rgba(240,235,227,0.07)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {f.icon}
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{f.label}</p>
+                  <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, lineHeight: 1.4 }}>{f.sub}</p>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </motion.div>
 
