@@ -321,13 +321,8 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
       const count = incrementDailySwipes(userId)
       if (count >= DAILY_LIMIT) {
         setSwipeLimitReached(true)
-        const profile = localProfile ?? userProfile
-        const status = getTrialStatus(profile)
-        if (status === 'none') {
-          setShowFoundingScreen(true)
-        } else {
-          setShowPaywall(true)
-        }
+        // Don't open any modal here — user sees the limit screen first,
+        // then taps the CTA to get the founding offer or paywall.
         return
       }
     }
@@ -394,55 +389,83 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   if (!limitChecked && !isGuest) return null
 
   if (swipeLimitReached && hasMore) {
+    const effectiveProfile = localProfile ?? userProfile
+    const trialStatus = getTrialStatus(effectiveProfile)
+    const isFirstTime = trialStatus === 'none'
+
     return (
       <div className="flex flex-col items-center w-full h-full gap-0">
         <div className="relative w-full flex-1 min-h-0 overflow-hidden rounded-3xl" style={{ backgroundColor: '#111' }}>
+          {/* Blurred trip card — shows what's locked */}
           {currentTrip?.cover_image && (
             <img
               src={currentTrip.cover_image}
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
-              style={{ filter: 'blur(18px)', transform: 'scale(1.1)' }}
+              style={{ filter: 'blur(22px)', transform: 'scale(1.12)' }}
             />
           )}
-          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.68)' }} />
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-8 text-center">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ background: 'rgba(240,235,227,0.1)', border: '1px solid rgba(240,235,227,0.2)' }}>
-              <span style={{ fontSize: 28 }}>✈️</span>
-            </div>
-            <div>
-              <p className="text-white font-bold text-xl mb-1">
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.88) 60%)' }} />
+
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-7 text-center">
+            {/* Floating plane */}
+            <motion.div
+              animate={{ y: [0, -7, 0] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+              className="w-20 h-20 rounded-3xl flex items-center justify-center"
+              style={{ background: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.15)' }}
+            >
+              <span style={{ fontSize: 34 }}>✈️</span>
+            </motion.div>
+
+            {/* Headline */}
+            <div className="flex flex-col gap-1.5">
+              <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.4px', lineHeight: 1.2 }}>
                 {currentTrip ? `${currentTrip.destination} is waiting` : 'More trips are waiting'}
               </p>
-              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
-                You've used your {DAILY_LIMIT} daily swipes
+              <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, lineHeight: 1.55 }}>
+                {"You've used your "}<span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{DAILY_LIMIT} daily swipes</span>.
+                {' Resets every day at midnight.'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => { haptic(12); setShowPaywall(true) }}
-              className="font-bold py-3.5 px-8 rounded-2xl text-sm"
-              style={{ backgroundColor: '#F0EBE3', color: '#000' }}
-            >
-              Unlock unlimited →
-            </button>
-            <div className="flex flex-col items-center gap-1.5">
-              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Resets in</p>
+
+            {/* Countdown */}
+            <div className="flex flex-col items-center gap-2">
+              <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>Resets in</p>
               <div className="flex items-center gap-1">
                 {[h, m, s].map((val, i) => (
                   <div key={i} className="flex items-center gap-1">
-                    <div className="flex flex-col items-center px-2.5 py-1.5 rounded-xl"
-                      style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', minWidth: 38 }}>
-                      <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{val}</span>
-                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 3, letterSpacing: '0.05em' }}>
+                    <div className="flex flex-col items-center px-3 py-2 rounded-xl"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', minWidth: 44 }}>
+                      <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 26, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{val}</span>
+                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)', marginTop: 4, letterSpacing: '0.06em', fontWeight: 600 }}>
                         {i === 0 ? 'HRS' : i === 1 ? 'MIN' : 'SEC'}
                       </span>
                     </div>
-                    {i < 2 && <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18, fontWeight: 700, marginBottom: 10 }}>:</span>}
+                    {i < 2 && <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 20, fontWeight: 700, marginBottom: 12, marginInline: 1 }}>:</span>}
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* CTA */}
+            <div className="w-full flex flex-col gap-2">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                type="button"
+                onClick={() => {
+                  haptic(14)
+                  if (isFirstTime) setShowFoundingScreen(true)
+                  else setShowPaywall(true)
+                }}
+                className="w-full font-bold py-4 rounded-2xl text-base"
+                style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
+              >
+                {isFirstTime ? 'Get unlimited swipes — free →' : 'Unlock unlimited swipes →'}
+              </motion.button>
+              {isFirstTime && (
+                <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>No card required · 7 days free</p>
+              )}
             </div>
           </div>
         </div>
