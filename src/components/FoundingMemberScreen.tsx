@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
@@ -315,12 +315,14 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
     getProfileViewers(4).then(v => setViewers(v))
   }, [])
 
-  const next = () => {
-    if (idx >= TOTAL - 1) return
-    haptic(8)
-    setDirection(1)
-    setIdx(i => i + 1)
-  }
+  const next = useCallback(() => {
+    setIdx(i => {
+      if (i >= TOTAL - 1) return i
+      haptic(8)
+      setDirection(1)
+      return i + 1
+    })
+  }, [])
 
   const skip = () => {
     haptic(4)
@@ -393,147 +395,109 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
 export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: Props) {
   const [phase, setPhase] = useState<'offer' | 'onboarding'>('offer')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleClaim = async () => {
     haptic(18)
     setLoading(true)
+    setError(null)
     try {
       await claimFoundingTrial(userId)
-      const now = new Date().toISOString()
+      onClaimed({ ...profile, trial_start_at: new Date().toISOString() })
       setPhase('onboarding')
-      onClaimed({ ...profile, trial_start_at: now })
-    } catch {
+    } catch (err: any) {
       setLoading(false)
+      setError(err?.message ?? 'Something went wrong. Try again.')
     }
   }
 
   const content = (
     <div className="fixed inset-0 z-[100]" style={{ backgroundColor: '#050505' }}>
-      <AnimatePresence mode="wait">
-        {phase === 'offer' ? (
-          <motion.div
-            key="offer"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.25 }}
-            className="flex flex-col h-full"
-          >
-            {/* Bottom sheet offer */}
-            <div className="flex-1" onClick={undefined} />
-            <div
-              className="flex flex-col"
-              style={{
-                backgroundColor: '#0A0A0A',
-                borderTop: '0.5px solid rgba(255,255,255,0.1)',
-                borderRadius: '28px 28px 0 0',
-              }}
-            >
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-8 h-[3px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.12)' }} />
+
+      {/* ── Offer sheet — visible when phase is offer ── */}
+      {phase === 'offer' && (
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 340, damping: 36 }}
+          style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}
+        >
+          <div style={{ flex: 1 }} />
+          <div style={{ backgroundColor: '#0A0A0A', borderTop: '0.5px solid rgba(255,255,255,0.1)', borderRadius: '28px 28px 0 0' }}>
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-8 h-[3px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.12)' }} />
+            </div>
+            <div className="flex flex-col items-center px-7 pt-5 pb-2 gap-6">
+              {/* Logo + badge */}
+              <div className="flex flex-col items-center gap-3">
+                <img src="/tripalong-logo.png" alt="TripAlong"
+                  style={{ width: 80, height: 80, objectFit: 'contain', mixBlendMode: 'screen' }} />
+                <div className="px-3 py-1 rounded-full font-bold"
+                  style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.22)', color: '#F0EBE3', fontSize: 11, letterSpacing: '0.08em' }}>
+                  FOUNDING MEMBER
+                </div>
               </div>
-
-              <div className="flex flex-col items-center px-7 pt-5 pb-2 gap-6">
-                {/* Badge + logo */}
-                <motion.div
-                  initial={{ scale: 0.7, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
-                  className="flex flex-col items-center gap-3"
-                >
-                  <img
-                    src="/tripalong-logo.png"
-                    alt="TripAlong"
-                    style={{ width: 80, height: 80, objectFit: 'contain', mixBlendMode: 'screen' }}
-                  />
-                  <div
-                    className="px-3 py-1 rounded-full font-bold"
-                    style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.22)', color: '#F0EBE3', fontSize: 11, letterSpacing: '0.08em' }}
-                  >
-                    FOUNDING MEMBER
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  initial={{ y: 16, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.25, duration: 0.4 }}
-                  className="text-center"
-                >
-                  <h2 className="text-white font-bold mb-2" style={{ fontSize: 22, letterSpacing: '-0.4px', lineHeight: 1.2 }}>
-                    {"You're one of TripAlong's first travelers"}
-                  </h2>
-                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, lineHeight: 1.6 }}>
-                    {"We're giving you "}
-                    <span style={{ color: '#F0EBE3', fontWeight: 600 }}>7 days of Plus — free</span>
-                    {". No card, no catch."}
-                  </p>
-                </motion.div>
-
-                <motion.div
-                  initial={{ y: 12, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.38, duration: 0.4 }}
-                  className="w-full flex flex-col gap-2.5"
-                >
-                  {[
-                    { icon: '∞', label: 'Unlimited swipes' },
-                    { icon: '👁', label: 'See who viewed your profile' },
-                  ].map(f => (
-                    <div key={f.label} className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-                      style={{ backgroundColor: 'rgba(240,235,227,0.05)', border: '0.5px solid rgba(240,235,227,0.1)' }}>
-                      <span style={{ fontSize: 18, width: 26, textAlign: 'center' }}>{f.icon}</span>
-                      <span className="text-white font-semibold" style={{ fontSize: 14 }}>{f.label}</span>
-                      <div className="ml-auto w-4 h-4 rounded-full flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: '#30D158' }}>
-                        <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-                          <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
+              {/* Headline */}
+              <div className="text-center">
+                <h2 className="text-white font-bold mb-2" style={{ fontSize: 22, letterSpacing: '-0.4px', lineHeight: 1.2 }}>
+                  {"You're one of TripAlong's first travelers"}
+                </h2>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, lineHeight: 1.6 }}>
+                  {"We're giving you "}
+                  <span style={{ color: '#F0EBE3', fontWeight: 600 }}>7 days of Plus — free</span>
+                  {". No card, no catch."}
+                </p>
+              </div>
+              {/* Features */}
+              <div className="w-full flex flex-col gap-2.5">
+                {[
+                  { icon: '∞', label: 'Unlimited swipes' },
+                  { icon: '👁', label: 'See who viewed your profile' },
+                ].map(f => (
+                  <div key={f.label} className="flex items-center gap-3 px-4 py-3 rounded-2xl"
+                    style={{ backgroundColor: 'rgba(240,235,227,0.05)', border: '0.5px solid rgba(240,235,227,0.1)' }}>
+                    <span style={{ fontSize: 18, width: 26, textAlign: 'center' }}>{f.icon}</span>
+                    <span className="text-white font-semibold" style={{ fontSize: 14 }}>{f.label}</span>
+                    <div className="ml-auto w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: '#30D158' }}>
+                      <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                        <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     </div>
-                  ))}
-                </motion.div>
-
-                <motion.div
-                  initial={{ y: 12, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.5, duration: 0.4 }}
-                  className="w-full flex flex-col gap-2"
-                  style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}
-                >
-                  <button
-                    type="button"
-                    onClick={handleClaim}
-                    disabled={loading}
-                    className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform disabled:opacity-60"
-                    style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
-                  >
-                    {loading ? 'Claiming…' : 'Claim free Plus →'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onDismiss}
-                    className="w-full py-2.5 active:opacity-60"
-                    style={{ color: 'rgba(255,255,255,0.18)', fontSize: 13 }}
-                  >
-                    Maybe later
-                  </button>
-                </motion.div>
+                  </div>
+                ))}
+              </div>
+              {/* CTA */}
+              <div className="w-full flex flex-col gap-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}>
+                {error && <p className="text-center" style={{ color: '#FF453A', fontSize: 12 }}>{error}</p>}
+                <button type="button" onClick={handleClaim} disabled={loading}
+                  className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}>
+                  {loading ? 'Claiming…' : 'Claim free Plus →'}
+                </button>
+                <button type="button" onClick={onDismiss}
+                  className="w-full py-2.5 active:opacity-60"
+                  style={{ color: 'rgba(255,255,255,0.18)', fontSize: 13 }}>
+                  Maybe later
+                </button>
               </div>
             </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="onboarding"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-            style={{ position: 'absolute', inset: 0 }}
-          >
-            <PlusOnboarding userId={userId} onDone={onDismiss} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Onboarding — mounted instantly when phase switches ── */}
+      {phase === 'onboarding' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.25 }}
+          style={{ position: 'absolute', inset: 0 }}
+        >
+          <PlusOnboarding userId={userId} onDone={onDismiss} />
+        </motion.div>
+      )}
+
     </div>
   )
 
