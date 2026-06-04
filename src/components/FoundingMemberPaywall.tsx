@@ -123,32 +123,24 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false }: Props) 
             The right co-traveler is a few swipes away. Keep going until you find them.
           </p>
 
-          {/* Feature rows */}
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
+          {/* Feature list */}
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6, marginTop: 18 }}>
             {FEATURES.map((f, i) => (
               <motion.div
                 key={f.label}
-                initial={{ opacity: 0, x: -10 }}
+                initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 + i * 0.08, duration: 0.34, ease: 'easeOut' }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 14,
-                  padding: '14px 16px', borderRadius: 18,
-                  backgroundColor: 'rgba(240,235,227,0.04)',
-                  border: '0.5px solid rgba(240,235,227,0.09)',
-                }}
+                transition={{ delay: 0.1 + i * 0.08, duration: 0.32, ease: 'easeOut' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10 }}
               >
                 <div style={{
-                  width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-                  backgroundColor: 'rgba(240,235,227,0.07)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {f.icon}
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{f.label}</p>
-                  <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, lineHeight: 1.4 }}>{f.sub}</p>
-                </div>
+                  width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                  backgroundColor: 'rgba(240,235,227,0.35)',
+                }} />
+                <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, fontWeight: 500 }}>
+                  {f.label}
+                  <span style={{ color: 'rgba(255,255,255,0.28)', fontWeight: 400 }}> — {f.sub}</span>
+                </p>
               </motion.div>
             ))}
           </div>
