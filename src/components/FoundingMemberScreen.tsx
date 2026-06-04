@@ -697,74 +697,149 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
   const content = (
     <div className="fixed inset-0 z-[100]" style={{ backgroundColor: '#050505' }}>
 
-      {/* ── Offer sheet ── */}
+      {/* ── Offer screen — full screen ── */}
       {phase === 'offer' && (
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 340, damping: 36 }}
-          style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.32, ease: 'easeOut' }}
+          style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         >
-          <div style={{ flex: 1 }} />
-          <div style={{ backgroundColor: '#0A0A0A', borderTop: '0.5px solid rgba(255,255,255,0.1)', borderRadius: '28px 28px 0 0' }}>
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-8 h-[3px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.12)' }} />
+          {/* Travel photo background — slowly clears as you read */}
+          {travelImages[0] && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              backgroundImage: `url(${travelImages[0]})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'blur(22px) saturate(1.2) brightness(0.65)',
+              transform: 'scale(1.07)',
+            }} />
+          )}
+
+          {/* Gradient overlay — heavier at bottom so CTA is always legible */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.58) 0%, rgba(0,0,0,0.68) 45%, rgba(0,0,0,0.90) 75%, rgba(0,0,0,0.97) 100%)',
+          }} />
+
+          {/* Clearing veil — fades away over 5s, world opening up effect */}
+          <motion.div
+            initial={{ opacity: 0.45 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: 5, ease: 'easeInOut' }}
+            style={{ position: 'absolute', inset: 0, backgroundColor: '#000', pointerEvents: 'none' }}
+          />
+
+          {/* Content */}
+          <div style={{
+            position: 'relative', zIndex: 1,
+            flex: 1, display: 'flex', flexDirection: 'column',
+            paddingTop: 'calc(env(safe-area-inset-top) + 52px)',
+            paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+            paddingLeft: 28, paddingRight: 28,
+          }}>
+
+            {/* Identity badge */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12, duration: 0.38, ease: 'easeOut' }}
+              style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}
+            >
+              <div style={{
+                padding: '6px 18px', borderRadius: 999,
+                backgroundColor: 'rgba(240,235,227,0.1)',
+                border: '0.5px solid rgba(240,235,227,0.28)',
+              }}>
+                <span style={{ color: '#F0EBE3', fontSize: 10, fontWeight: 700, letterSpacing: '0.14em' }}>
+                  ✦ TRIPALONG TRAVELER ✦
+                </span>
+              </div>
+            </motion.div>
+
+            {/* Hero: "7" */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.82 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2, duration: 0.55, type: 'spring', stiffness: 260, damping: 20 }}
+              style={{ textAlign: 'center', lineHeight: 1, marginBottom: 2 }}
+            >
+              <span style={{ fontSize: 148, fontWeight: 900, letterSpacing: '-10px', color: '#ffffff', display: 'block' }}>
+                7
+              </span>
+            </motion.div>
+
+            {/* "days of Plus, free" */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.34, duration: 0.38, ease: 'easeOut' }}
+              style={{ textAlign: 'center', marginBottom: 0 }}
+            >
+              <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 20, fontWeight: 500, letterSpacing: '-0.3px' }}>
+                days of <span style={{ color: '#F0EBE3', fontWeight: 700 }}>Plus</span>, free
+              </p>
+            </motion.div>
+
+            {/* Flexible gap */}
+            <div style={{ flex: 1 }} />
+
+            {/* Divider */}
+            <motion.div
+              initial={{ opacity: 0, scaleX: 0 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              transition={{ delay: 0.44, duration: 0.38, ease: 'easeOut' }}
+              style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)', marginBottom: 22 }}
+            />
+
+            {/* Features */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginBottom: 28 }}>
+              {[
+                { icon: '∞', label: 'Unlimited swipes, every day' },
+                { icon: '👁', label: 'See who viewed your profile' },
+              ].map((f, i) => (
+                <motion.div
+                  key={f.label}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 + i * 0.1, duration: 0.36, ease: 'easeOut' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 16 }}
+                >
+                  <span style={{ fontSize: 24, width: 34, textAlign: 'center', flexShrink: 0 }}>{f.icon}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.72)', fontSize: 15, fontWeight: 500 }}>{f.label}</span>
+                </motion.div>
+              ))}
             </div>
-            <div className="flex flex-col items-center px-7 pt-5 pb-2 gap-6">
 
-              <div className="flex flex-col items-center gap-3">
-                <img src="/tripalong-logo.png" alt="TripAlong"
-                  style={{ width: 80, height: 80, objectFit: 'contain', mixBlendMode: 'screen' }} />
-                <div className="px-3 py-1 rounded-full font-bold"
-                  style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.22)', color: '#F0EBE3', fontSize: 11, letterSpacing: '0.08em' }}>
-                  TRIPALONG TRAVELER
-                </div>
-              </div>
+            {/* CTA */}
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.64, duration: 0.38, ease: 'easeOut' }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}
+            >
+              <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 12, fontWeight: 500, marginBottom: 10, letterSpacing: '0.01em' }}>
+                No card. No catch.
+              </p>
+              <button
+                type="button"
+                onClick={handleClaim}
+                className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
+                style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000', marginBottom: 4 }}
+              >
+                Claim your 7 days →
+              </button>
+              <button
+                type="button"
+                onClick={onDismiss}
+                className="w-full py-3 active:opacity-60"
+                style={{ color: 'rgba(255,255,255,0.18)', fontSize: 13 }}
+              >
+                Maybe later
+              </button>
+            </motion.div>
 
-              <div className="text-center">
-                <h2 className="text-white font-bold mb-2" style={{ fontSize: 22, letterSpacing: '-0.4px', lineHeight: 1.2 }}>
-                  {"You're a TripAlong Traveler"}
-                </h2>
-                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, lineHeight: 1.6 }}>
-                  {"We're giving you "}
-                  <span style={{ color: '#F0EBE3', fontWeight: 600 }}>7 days of Plus — free</span>
-                  {". No card, no catch."}
-                </p>
-              </div>
-
-              <div className="w-full flex flex-col gap-2.5">
-                {[
-                  { icon: '∞', label: 'Unlimited swipes' },
-                  { icon: '👁', label: 'See who viewed your profile' },
-                ].map(f => (
-                  <div key={f.label} className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-                    style={{ backgroundColor: 'rgba(240,235,227,0.05)', border: '0.5px solid rgba(240,235,227,0.1)' }}>
-                    <span style={{ fontSize: 18, width: 26, textAlign: 'center' }}>{f.icon}</span>
-                    <span className="text-white font-semibold" style={{ fontSize: 14 }}>{f.label}</span>
-                    <div className="ml-auto w-4 h-4 rounded-full flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: '#30D158' }}>
-                      <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-                        <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="w-full flex flex-col gap-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}>
-                <button type="button" onClick={handleClaim}
-                  className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
-                  style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}>
-                  Claim free Plus →
-                </button>
-                <button type="button" onClick={onDismiss}
-                  className="w-full py-2.5 active:opacity-60"
-                  style={{ color: 'rgba(255,255,255,0.18)', fontSize: 13 }}>
-                  Maybe later
-                </button>
-              </div>
-
-            </div>
           </div>
         </motion.div>
       )}
