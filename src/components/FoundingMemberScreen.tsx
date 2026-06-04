@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { claimFoundingTrial } from '@/lib/trial'
 import { registerPush } from '@/lib/push'
-import { getProfileViewers, getTravelImages } from '@/lib/queries'
+import { getProfileViewers, getTravelImages, getSampleProfiles } from '@/lib/queries'
 import type { UserProfile } from '@/lib/types'
 
 interface Props {
@@ -42,30 +42,91 @@ function ProgressBar({ total, current }: { total: number; current: number }) {
   )
 }
 
-// ── Blur-reveal avatar ────────────────────────────────────────────────────────
+// ── Reveal avatar ─────────────────────────────────────────────────────────────
 
-function BlurAvatar({ viewer, delay, revealed }: { viewer: Viewer | null; delay: number; revealed: boolean }) {
+function RevealAvatar({
+  profile,
+  revealDelay,
+  locked,
+}: {
+  profile: { id: string; name: string; profile_photo: string | null } | null
+  revealDelay: number
+  locked?: boolean
+}) {
+  const [revealed, setRevealed] = useState(false)
+  const [glowing, setGlowing] = useState(false)
+
+  useEffect(() => {
+    if (locked) return
+    const t1 = setTimeout(() => { setRevealed(true); setGlowing(true) }, revealDelay)
+    const t2 = setTimeout(() => setGlowing(false), revealDelay + 700)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [revealDelay, locked])
+
   return (
-    <motion.div
-      initial={{ scale: 0.7, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 280, damping: 22, delay }}
-      className="rounded-full overflow-hidden border-2"
-      style={{ width: 72, height: 72, borderColor: 'rgba(240,235,227,0.2)', backgroundColor: '#1a1a1a', flexShrink: 0 }}
-    >
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      {/* Reveal glow ring */}
+      <AnimatePresence>
+        {glowing && (
+          <motion.div
+            initial={{ scale: 0.85, opacity: 0.9 }}
+            animate={{ scale: 1.45, opacity: 0 }}
+            exit={{}}
+            transition={{ duration: 0.65, ease: 'easeOut' }}
+            style={{
+              position: 'absolute', inset: -4,
+              borderRadius: '50%',
+              border: '2px solid rgba(240,235,227,0.7)',
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       <motion.div
-        className="w-full h-full"
-        animate={{ filter: revealed ? 'blur(0px) saturate(1)' : 'blur(14px) saturate(0)' }}
-        transition={{ duration: 0.55, delay: revealed ? delay + 0.1 : 0, ease: 'easeOut' }}
-        style={{ filter: 'blur(14px) saturate(0)' }}
+        initial={{ scale: 0.72, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 22, delay: revealDelay / 1000 - 0.05 }}
+        style={{
+          width: 72, height: 72,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          border: `2px solid ${revealed && !locked ? 'rgba(240,235,227,0.45)' : 'rgba(240,235,227,0.12)'}`,
+          backgroundColor: '#1a1a1a',
+          position: 'relative',
+          transition: 'border-color 0.4s',
+        }}
       >
-        {viewer?.profile_photo ? (
-          <img src={viewer.profile_photo} alt={viewer.name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)' }} />
+        <motion.div
+          className="w-full h-full"
+          animate={{
+            filter: revealed && !locked ? 'blur(0px) saturate(1) brightness(1)' : 'blur(14px) saturate(0) brightness(0.7)',
+          }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          style={{ filter: 'blur(14px) saturate(0) brightness(0.7)' }}
+        >
+          {profile?.profile_photo ? (
+            <img src={profile.profile_photo} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)' }} />
+          )}
+        </motion.div>
+
+        {/* Lock overlay on the last (teaser) profile */}
+        {locked && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.28)',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(255,255,255,0.5)" strokeWidth="1.8"/>
+              <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(255,255,255,0.5)" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
+          </div>
         )}
       </motion.div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -401,42 +462,47 @@ function SlideUnlimited() {
 
 // ── Feature slide: Who viewed ─────────────────────────────────────────────────
 
-function SlideWhoViewed({ viewers }: { viewers: Viewer[] }) {
-  const [revealed, setRevealed] = useState(false)
-  const count = useCountUp(viewers.length > 0 ? viewers.length : 3, revealed)
-  const display = viewers.length > 0 ? viewers.slice(0, 4) : Array(4).fill(null)
+function SlideWhoViewed({ profiles, viewerCount }: { profiles: { id: string; name: string; profile_photo: string | null }[]; viewerCount: number }) {
+  const displayCount = viewerCount > 0 ? viewerCount : profiles.length > 0 ? profiles.length + 4 : 7
+  const count = useCountUp(displayCount, true)
 
-  useEffect(() => {
-    const t = setTimeout(() => setRevealed(true), 600)
-    return () => clearTimeout(t)
-  }, [])
+  // Reveal delays staggered — last profile stays locked as tease
+  const revealDelays = [500, 950, 1400]
 
   return (
-    <div className="flex flex-col items-center justify-center flex-1 gap-7 px-8 text-center">
-      <div className="flex gap-3 justify-center">
-        {display.map((v, i) => (
-          <BlurAvatar key={i} viewer={v} delay={i * 0.12} revealed={revealed} />
+    <div className="flex flex-col items-center justify-center flex-1 gap-8 px-8 text-center">
+
+      {/* Avatar row */}
+      <div className="flex gap-4 justify-center">
+        {[0, 1, 2, 3].map(i => (
+          <RevealAvatar
+            key={i}
+            profile={profiles[i] ?? null}
+            revealDelay={revealDelays[i] ?? 0}
+            locked={i === 3}
+          />
         ))}
       </div>
 
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2, duration: 0.45, ease: 'easeOut' }}
+        transition={{ delay: 0.15, duration: 0.45, ease: 'easeOut' }}
       >
-        <div className="flex items-baseline justify-center gap-2 mb-3">
-          <span className="text-white font-extrabold" style={{ fontSize: 48, letterSpacing: '-2px', lineHeight: 1 }}>
+        <div className="flex items-baseline justify-center gap-2 mb-2">
+          <span className="text-white font-extrabold" style={{ fontSize: 52, letterSpacing: '-2.5px', lineHeight: 1 }}>
             {count}
           </span>
           <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18 }}>travelers</span>
         </div>
-        <h2 className="text-white font-extrabold mb-3" style={{ fontSize: 28, letterSpacing: '-0.6px', lineHeight: 1.15 }}>
+        <h2 className="text-white font-extrabold mb-3" style={{ fontSize: 26, letterSpacing: '-0.5px', lineHeight: 1.2 }}>
           already found you
         </h2>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, lineHeight: 1.6 }}>
-          See exactly who viewed your profile — and who might want to travel with you.
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, lineHeight: 1.65 }}>
+          With Plus you see exactly who — so you can reach out first.
         </p>
       </motion.div>
+
     </div>
   )
 }
@@ -501,10 +567,14 @@ function PlusSlides({ userId, onDone }: { userId: string; onDone: () => void }) 
   const [idx, setIdx] = useState(0)
   const [direction, setDirection] = useState(1)
   const [viewers, setViewers] = useState<Viewer[]>([])
+  const [sampleProfiles, setSampleProfiles] = useState<{ id: string; name: string; profile_photo: string | null }[]>([])
   const TOTAL = 3
 
   useEffect(() => {
-    getProfileViewers(4).then(v => setViewers(v))
+    Promise.all([
+      getProfileViewers(4),
+      getSampleProfiles(4),
+    ]).then(([v, s]) => { setViewers(v); setSampleProfiles(s) })
   }, [])
 
   const next = useCallback(() => {
@@ -524,9 +594,14 @@ function PlusSlides({ userId, onDone }: { userId: string; onDone: () => void }) 
     onDone()
   }
 
+  // Use real viewers if available, otherwise sample profiles for the reveal demo
+  const whoViewedProfiles = viewers.length >= 3
+    ? viewers.slice(0, 4)
+    : sampleProfiles.slice(0, 4)
+
   const slides = [
     <SlideUnlimited key="unlimited" />,
-    <SlideWhoViewed key="whoviewed" viewers={viewers} />,
+    <SlideWhoViewed key="whoviewed" profiles={whoViewedProfiles} viewerCount={viewers.length} />,
     <SlideDone key="done" onDone={handleDone} />,
   ]
 

@@ -630,6 +630,22 @@ export async function getDestinationPhotos(destination: string): Promise<string[
     .flatMap(r => r.value)
 }
 
+export async function getSampleProfiles(count = 4): Promise<{ id: string; name: string; profile_photo: string | null }[]> {
+  try {
+    const uid = (await supabase.auth.getUser()).data.user?.id
+    const { data } = await supabase
+      .from('users')
+      .select('id, name, profile_photo')
+      .not('profile_photo', 'is', null)
+      .neq('id', uid ?? '')
+      .limit(count + 15)
+    if (!data?.length) return []
+    return [...data]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, count)
+  } catch { return [] }
+}
+
 export async function getTravelImages(count = 12): Promise<string[]> {
   try {
     const { data } = await supabase
