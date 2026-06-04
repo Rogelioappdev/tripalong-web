@@ -478,7 +478,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
                   onClaimed={(updated) => {
                     setLocalProfile(updated)
                     setSwipeLimitReached(false)
-                    setShowPaywall(false)
+                    // don't close — let onboarding play through
                   }}
                   onDismiss={() => setShowPaywall(false)}
                 />

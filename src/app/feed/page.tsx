@@ -176,7 +176,7 @@ export default function FeedPage() {
           <FoundingMemberScreen
             userId={userId}
             profile={{ subscription_tier: 'free', trial_start_at: null } as any}
-            onClaimed={() => setShowFoundingScreen(false)}
+            onClaimed={() => { /* profile update handled inside */ }}
             onDismiss={() => setShowFoundingScreen(false)}
           />
         )}
