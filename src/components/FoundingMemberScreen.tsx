@@ -385,7 +385,7 @@ function UnlockAnimation({ onComplete, images }: { onComplete: () => void; image
             }}
           >
             <span style={{ color: '#F0EBE3', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em' }}>
-              ✦ FOUNDING MEMBER ✦
+              ✦ TRIPALONG TRAVELER ✦
             </span>
           </motion.div>
 
@@ -542,7 +542,7 @@ function SlideDone({ onDone }: { onDone: () => void }) {
           transition={{ delay: 0.4, duration: 0.4, ease: 'easeOut' }}
           style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, lineHeight: 1.6 }}
         >
-          7 days of Plus — free. Find your next travel partner.
+          TripAlong Traveler — 7 days of Plus, free. Go find your next trip.
         </motion.p>
       </div>
 
@@ -717,13 +717,13 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
                   style={{ width: 80, height: 80, objectFit: 'contain', mixBlendMode: 'screen' }} />
                 <div className="px-3 py-1 rounded-full font-bold"
                   style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.22)', color: '#F0EBE3', fontSize: 11, letterSpacing: '0.08em' }}>
-                  FOUNDING MEMBER
+                  TRIPALONG TRAVELER
                 </div>
               </div>
 
               <div className="text-center">
                 <h2 className="text-white font-bold mb-2" style={{ fontSize: 22, letterSpacing: '-0.4px', lineHeight: 1.2 }}>
-                  {"You're one of TripAlong's first travelers"}
+                  {"You're a TripAlong Traveler"}
                 </h2>
                 <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, lineHeight: 1.6 }}>
                   {"We're giving you "}
