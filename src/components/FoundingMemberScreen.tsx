@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
@@ -22,7 +22,7 @@ interface Viewer {
   profile_photo: string | null
 }
 
-// ── Progress bar ─────────────────────────────────────────────────────────────
+// ── Progress bar ──────────────────────────────────────────────────────────────
 
 function ProgressBar({ total, current }: { total: number; current: number }) {
   return (
@@ -42,7 +42,7 @@ function ProgressBar({ total, current }: { total: number; current: number }) {
   )
 }
 
-// ── Avatar with blur reveal ───────────────────────────────────────────────────
+// ── Blur-reveal avatar ────────────────────────────────────────────────────────
 
 function BlurAvatar({ viewer, delay, revealed }: { viewer: Viewer | null; delay: number; revealed: boolean }) {
   return (
@@ -69,7 +69,7 @@ function BlurAvatar({ viewer, delay, revealed }: { viewer: Viewer | null; delay:
   )
 }
 
-// ── Count up hook ─────────────────────────────────────────────────────────────
+// ── Count-up hook ─────────────────────────────────────────────────────────────
 
 function useCountUp(target: number, active: boolean) {
   const [val, setVal] = useState(0)
@@ -89,81 +89,168 @@ function useCountUp(target: number, active: boolean) {
   return val
 }
 
-// ── Slide 0 — Welcome ─────────────────────────────────────────────────────────
+// ── Unlock Animation — the cinematic "you just got Plus" moment ───────────────
 
-function SlideWelcome({ onNext }: { onNext: () => void }) {
+function UnlockAnimation({ onComplete }: { onComplete: () => void }) {
+  // Stable random particle data — generated once on mount
+  const particles = useMemo(() =>
+    Array.from({ length: 34 }, (_, i) => {
+      const base = (i / 34) * Math.PI * 2
+      const jitter = (Math.random() - 0.5) * 0.9
+      return {
+        angle: base + jitter,
+        distance: 60 + Math.random() * 160,
+        size: 2 + Math.random() * 5,
+        delay: Math.random() * 0.38,
+        opacity: 0.35 + Math.random() * 0.65,
+        gold: Math.random() > 0.72,
+        duration: 0.85 + Math.random() * 0.55,
+      }
+    }), [])
+
   useEffect(() => {
-    const t = setTimeout(() => { haptic(6); onNext() }, 2400)
+    const t = setTimeout(() => { haptic(6); onComplete() }, 2700)
     return () => clearTimeout(t)
-  }, [onNext])
+  }, [onComplete])
 
   return (
-    <div className="flex flex-col items-center justify-center flex-1 gap-6 px-8 text-center">
-      {/* Logo with glow */}
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+
+      {/* Brief flash on entry */}
       <motion.div
-        initial={{ scale: 0.3, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 220, damping: 18, delay: 0.1 }}
-        style={{ position: 'relative' }}
-      >
+        initial={{ opacity: 0.28 }}
+        animate={{ opacity: 0 }}
+        transition={{ duration: 0.55, ease: 'easeOut' }}
+        style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(240,235,227,0.2)', pointerEvents: 'none' }}
+      />
+
+      {/* Expanding warm background glow */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.15 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          position: 'absolute',
+          width: 750,
+          height: 750,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(240,235,227,0.14) 0%, rgba(200,168,110,0.06) 38%, transparent 66%)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Shockwave rings */}
+      {[0, 1, 2].map(i => (
         <motion.div
-          animate={{ opacity: [0.3, 0.7, 0.3] }}
-          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+          key={i}
+          initial={{ scale: 0.12, opacity: 0.8 - i * 0.15 }}
+          animate={{ scale: 5, opacity: 0 }}
+          transition={{ duration: 1.7 + i * 0.12, delay: i * 0.2, ease: 'easeOut' }}
           style={{
-            position: 'absolute', inset: -20,
+            position: 'absolute',
+            width: 108,
+            height: 108,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(240,235,227,0.18) 0%, transparent 70%)',
+            border: `${1 - i * 0.25}px solid rgba(240,235,227,${0.55 - i * 0.14})`,
+            pointerEvents: 'none',
           }}
         />
-        <img
-          src="/tripalong-logo.png"
-          alt="TripAlong"
-          style={{ width: 110, height: 110, objectFit: 'contain', mixBlendMode: 'screen', display: 'block' }}
-        />
-      </motion.div>
+      ))}
 
-      {/* Text */}
-      <div>
-        <motion.p
-          initial={{ y: 16, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.45, duration: 0.5, ease: 'easeOut' }}
-          style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15, marginBottom: 6 }}
-        >
-          Welcome to
-        </motion.p>
-        <motion.h1
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.6, duration: 0.5, ease: 'easeOut' }}
-          className="text-white font-extrabold"
-          style={{ fontSize: 40, letterSpacing: '-1.5px', lineHeight: 1 }}
-        >
-          TripAlong Plus
-        </motion.h1>
+      {/* Particle burst */}
+      <div style={{ position: 'absolute', top: '50%', left: '50%', pointerEvents: 'none' }}>
+        {particles.map((p, i) => (
+          <motion.div
+            key={i}
+            initial={{ x: 0, y: 0, opacity: p.opacity, scale: 1 }}
+            animate={{
+              x: Math.cos(p.angle) * p.distance,
+              y: Math.sin(p.angle) * p.distance,
+              opacity: 0,
+              scale: 0,
+            }}
+            transition={{ duration: p.duration, delay: 0.05 + p.delay, ease: [0.2, 0, 0.8, 1] }}
+            style={{
+              position: 'absolute',
+              width: p.size,
+              height: p.size,
+              borderRadius: '50%',
+              backgroundColor: p.gold ? '#E8C87A' : '#F0EBE3',
+              top: -(p.size / 2),
+              left: -(p.size / 2),
+            }}
+          />
+        ))}
       </div>
 
-      {/* Badge */}
-      <motion.div
-        initial={{ y: 20, opacity: 0, scale: 0.85 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        transition={{ delay: 0.85, type: 'spring', stiffness: 300, damping: 22 }}
-        className="px-4 py-2 rounded-full font-bold"
-        style={{
-          backgroundColor: 'rgba(240,235,227,0.08)',
-          border: '0.5px solid rgba(240,235,227,0.25)',
-          color: '#F0EBE3',
-          fontSize: 12,
-          letterSpacing: '0.1em',
-        }}
-      >
-        FOUNDING MEMBER
-      </motion.div>
+      {/* Core: logo + text + badge */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, position: 'relative', zIndex: 1 }}>
+
+        {/* Logo with pulsing glow */}
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: [0, 1.2, 1], opacity: 1 }}
+          transition={{ duration: 0.68, delay: 0.04, type: 'spring', stiffness: 255, damping: 18 }}
+          style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <motion.div
+            animate={{ opacity: [0.3, 0.72, 0.3], scale: [1, 1.1, 1] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+            style={{
+              position: 'absolute',
+              width: 180,
+              height: 180,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(240,235,227,0.28) 0%, transparent 65%)',
+              pointerEvents: 'none',
+            }}
+          />
+          <img
+            src="/tripalong-logo.png"
+            alt="TripAlong"
+            style={{ width: 116, height: 116, objectFit: 'contain', mixBlendMode: 'screen', display: 'block', position: 'relative', zIndex: 1 }}
+          />
+        </motion.div>
+
+        {/* "Welcome to" + "TripAlong Plus" */}
+        <motion.div
+          initial={{ y: 24, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.52, ease: [0.16, 1, 0.3, 1] }}
+          style={{ textAlign: 'center' }}
+        >
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16, fontWeight: 500, marginBottom: 8, letterSpacing: '0.01em' }}>
+            Welcome to
+          </p>
+          <h1 style={{ fontSize: 46, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1, margin: 0 }}>
+            <span style={{ color: '#ffffff' }}>TripAlong </span>
+            <span style={{ color: '#F0EBE3' }}>Plus</span>
+          </h1>
+        </motion.div>
+
+        {/* Founding Member badge */}
+        <motion.div
+          initial={{ y: 18, opacity: 0, scale: 0.8 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          transition={{ delay: 0.8, type: 'spring', stiffness: 320, damping: 22 }}
+          style={{
+            padding: '8px 22px',
+            borderRadius: 999,
+            backgroundColor: 'rgba(240,235,227,0.08)',
+            border: '0.5px solid rgba(240,235,227,0.3)',
+          }}
+        >
+          <span style={{ color: '#F0EBE3', fontSize: 11, fontWeight: 700, letterSpacing: '0.13em' }}>
+            ✦ FOUNDING MEMBER ✦
+          </span>
+        </motion.div>
+
+      </div>
     </div>
   )
 }
 
-// ── Slide 1 — Unlimited swipes ────────────────────────────────────────────────
+// ── Feature slide: Unlimited ──────────────────────────────────────────────────
 
 function SlideUnlimited() {
   return (
@@ -205,7 +292,7 @@ function SlideUnlimited() {
   )
 }
 
-// ── Slide 2 — Who viewed ──────────────────────────────────────────────────────
+// ── Feature slide: Who viewed ─────────────────────────────────────────────────
 
 function SlideWhoViewed({ viewers }: { viewers: Viewer[] }) {
   const [revealed, setRevealed] = useState(false)
@@ -219,14 +306,12 @@ function SlideWhoViewed({ viewers }: { viewers: Viewer[] }) {
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 gap-7 px-8 text-center">
-      {/* Avatars */}
       <div className="flex gap-3 justify-center">
         {display.map((v, i) => (
           <BlurAvatar key={i} viewer={v} delay={i * 0.12} revealed={revealed} />
         ))}
       </div>
 
-      {/* Count */}
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -249,7 +334,7 @@ function SlideWhoViewed({ viewers }: { viewers: Viewer[] }) {
   )
 }
 
-// ── Slide 3 — Done ────────────────────────────────────────────────────────────
+// ── Feature slide: Done ───────────────────────────────────────────────────────
 
 function SlideDone({ onDone }: { onDone: () => void }) {
   return (
@@ -303,13 +388,13 @@ function SlideDone({ onDone }: { onDone: () => void }) {
   )
 }
 
-// ── Onboarding shell ──────────────────────────────────────────────────────────
+// ── Feature slides shell ──────────────────────────────────────────────────────
 
-function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void }) {
+function PlusSlides({ userId, onDone }: { userId: string; onDone: () => void }) {
   const [idx, setIdx] = useState(0)
   const [direction, setDirection] = useState(1)
   const [viewers, setViewers] = useState<Viewer[]>([])
-  const TOTAL = 4
+  const TOTAL = 3
 
   useEffect(() => {
     getProfileViewers(4).then(v => setViewers(v))
@@ -324,10 +409,7 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
     })
   }, [])
 
-  const skip = () => {
-    haptic(4)
-    onDone()
-  }
+  const skip = () => { haptic(4); onDone() }
 
   const handleDone = async () => {
     haptic(12)
@@ -336,7 +418,6 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
   }
 
   const slides = [
-    <SlideWelcome key="welcome" onNext={next} />,
     <SlideUnlimited key="unlimited" />,
     <SlideWhoViewed key="whoviewed" viewers={viewers} />,
     <SlideDone key="done" onDone={handleDone} />,
@@ -348,33 +429,25 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
     exit: (dir: number) => ({ x: dir > 0 ? '-60%' : '60%', opacity: 0 }),
   }
 
-  const showHint = idx > 0 && idx < TOTAL - 1
+  const showHint = idx < TOTAL - 1
 
   return (
     <motion.div
       className="flex flex-col"
       style={{ position: 'absolute', inset: 0 }}
-      onPanEnd={(_, info) => {
-        if (showHint && info.offset.x < -50) next()
-      }}
+      onPanEnd={(_, info) => { if (showHint && info.offset.x < -50) next() }}
     >
-      {/* Progress bar */}
       <ProgressBar total={TOTAL} current={idx} />
 
-      {/* Skip */}
       {showHint && (
         <div className="flex justify-end px-5 pt-3">
-          <button
-            type="button"
-            onClick={skip}
-            style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, fontWeight: 600 }}
-          >
+          <button type="button" onClick={skip}
+            style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, fontWeight: 600 }}>
             Skip
           </button>
         </div>
       )}
 
-      {/* Slide */}
       <AnimatePresence mode="wait" custom={direction}>
         <motion.div
           key={idx}
@@ -391,7 +464,6 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
         </motion.div>
       </AnimatePresence>
 
-      {/* Swipe hint — slides 1 & 2 only */}
       {showHint && (
         <div
           className="absolute left-0 right-0 flex justify-center pointer-events-none"
@@ -413,9 +485,7 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
                 <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.45)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </motion.div>
-            <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, fontWeight: 500 }}>
-              Swipe left to continue
-            </span>
+            <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, fontWeight: 500 }}>Swipe left to continue</span>
           </motion.div>
         </div>
       )}
@@ -423,24 +493,24 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
   )
 }
 
-// ── Offer screen ──────────────────────────────────────────────────────────────
+// ── Offer + orchestration ─────────────────────────────────────────────────────
 
 export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: Props) {
-  const [phase, setPhase] = useState<'offer' | 'onboarding'>('offer')
+  const [phase, setPhase] = useState<'offer' | 'unlock' | 'slides'>('offer')
 
   const handleClaim = () => {
     haptic(18)
-    // Switch immediately — don't wait for the network
     onClaimed({ ...profile, trial_start_at: new Date().toISOString() })
-    setPhase('onboarding')
-    // DB write in background — RLS allows it, failure is non-fatal
+    setPhase('unlock')
     claimFoundingTrial(userId).catch(() => {})
   }
+
+  const handleUnlockComplete = useCallback(() => setPhase('slides'), [])
 
   const content = (
     <div className="fixed inset-0 z-[100]" style={{ backgroundColor: '#050505' }}>
 
-      {/* ── Offer sheet — visible when phase is offer ── */}
+      {/* ── Offer sheet ── */}
       {phase === 'offer' && (
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -454,7 +524,7 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
               <div className="w-8 h-[3px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.12)' }} />
             </div>
             <div className="flex flex-col items-center px-7 pt-5 pb-2 gap-6">
-              {/* Logo + badge */}
+
               <div className="flex flex-col items-center gap-3">
                 <img src="/tripalong-logo.png" alt="TripAlong"
                   style={{ width: 80, height: 80, objectFit: 'contain', mixBlendMode: 'screen' }} />
@@ -463,7 +533,7 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
                   FOUNDING MEMBER
                 </div>
               </div>
-              {/* Headline */}
+
               <div className="text-center">
                 <h2 className="text-white font-bold mb-2" style={{ fontSize: 22, letterSpacing: '-0.4px', lineHeight: 1.2 }}>
                   {"You're one of TripAlong's first travelers"}
@@ -474,7 +544,7 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
                   {". No card, no catch."}
                 </p>
               </div>
-              {/* Features */}
+
               <div className="w-full flex flex-col gap-2.5">
                 {[
                   { icon: '∞', label: 'Unlimited swipes' },
@@ -493,7 +563,7 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
                   </div>
                 ))}
               </div>
-              {/* CTA */}
+
               <div className="w-full flex flex-col gap-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}>
                 <button type="button" onClick={handleClaim}
                   className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
@@ -506,20 +576,33 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
                   Maybe later
                 </button>
               </div>
+
             </div>
           </div>
         </motion.div>
       )}
 
-      {/* ── Onboarding — mounted instantly when phase switches ── */}
-      {phase === 'onboarding' && (
+      {/* ── Unlock animation ── */}
+      {phase === 'unlock' && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.25 }}
+          transition={{ duration: 0.18 }}
           style={{ position: 'absolute', inset: 0 }}
         >
-          <PlusOnboarding userId={userId} onDone={onDismiss} />
+          <UnlockAnimation onComplete={handleUnlockComplete} />
+        </motion.div>
+      )}
+
+      {/* ── Feature slides ── */}
+      {phase === 'slides' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.38 }}
+          style={{ position: 'absolute', inset: 0 }}
+        >
+          <PlusSlides userId={userId} onDone={onDismiss} />
         </motion.div>
       )}
 
