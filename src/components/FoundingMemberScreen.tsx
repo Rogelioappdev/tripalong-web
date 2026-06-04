@@ -348,21 +348,25 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
     exit: (dir: number) => ({ x: dir > 0 ? '-60%' : '60%', opacity: 0 }),
   }
 
+  const showHint = idx > 0 && idx < TOTAL - 1
+
   return (
-    <div
+    <motion.div
       className="flex flex-col"
       style={{ position: 'absolute', inset: 0 }}
-      onClick={idx > 0 && idx < TOTAL - 1 ? next : undefined}
+      onPanEnd={(_, info) => {
+        if (showHint && info.offset.x < -50) next()
+      }}
     >
       {/* Progress bar */}
       <ProgressBar total={TOTAL} current={idx} />
 
       {/* Skip */}
-      {idx > 0 && idx < TOTAL - 1 && (
+      {showHint && (
         <div className="flex justify-end px-5 pt-3">
           <button
             type="button"
-            onClick={e => { e.stopPropagation(); skip() }}
+            onClick={skip}
             style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, fontWeight: 600 }}
           >
             Skip
@@ -381,12 +385,41 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
           exit="exit"
           transition={{ type: 'spring', stiffness: 340, damping: 34 }}
           className="flex-1 flex flex-col"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 64px)' }}
         >
           {slides[idx]}
         </motion.div>
       </AnimatePresence>
-    </div>
+
+      {/* Swipe hint — slides 1 & 2 only */}
+      {showHint && (
+        <div
+          className="absolute left-0 right-0 flex justify-center pointer-events-none"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}
+        >
+          <motion.div
+            key={idx}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.4 }}
+            className="flex items-center gap-2 px-4 py-2 rounded-full"
+            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+          >
+            <motion.div
+              animate={{ x: [0, -6, 0] }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut', repeatDelay: 0.5 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.45)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </motion.div>
+            <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, fontWeight: 500 }}>
+              Swipe left to continue
+            </span>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
   )
 }
 
