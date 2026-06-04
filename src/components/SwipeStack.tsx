@@ -10,7 +10,7 @@ import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
 import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
-import { calculateTripMatch } from '@/lib/matching'
+import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { hasPlus, getTrialStatus } from '@/lib/trial'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
@@ -623,7 +623,10 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   }
 
   const isCurrentJoined = currentTrip ? joinedIds.has(currentTrip.id) : false
-  const matchPct = currentTrip ? calculateTripMatch(userProfile, currentTrip) : undefined
+  const effectiveProfileForMatch = localProfile ?? userProfile
+  const matchPct = currentTrip ? calculateTripMatch(effectiveProfileForMatch, currentTrip) : undefined
+  const matchingVibes = currentTrip ? getMatchingVibes(effectiveProfileForMatch, currentTrip) : []
+  const isPlus = hasPlus(effectiveProfileForMatch)
   const pct = dnaProgress(userProfile)
 
   return (
@@ -654,6 +657,9 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
             sharedX={topCardX}
             isJoined={isCurrentJoined}
             matchPct={matchPct}
+            matchingVibes={matchingVibes}
+            isPlus={isPlus}
+            onCompatibilityTap={() => setShowPaywall(true)}
             onSwipeLeft={handleSwipeLeft}
             onSwipeRight={() => handleSwipeRight(currentTrip)}
             onTap={() => onTripTap(currentTrip)}

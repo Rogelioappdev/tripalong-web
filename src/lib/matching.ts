@@ -54,6 +54,26 @@ function normalizeStyles(styles: string[]): string[] {
   return Array.from(out)
 }
 
+export function getMatchingVibes(userProfile: UserProfile | null, trip: TripWithDetails): string[] {
+  if (!userProfile) return []
+  const userStyles = [
+    ...(userProfile.travel_styles ?? []),
+    ...(userProfile.travel_pace ? [userProfile.travel_pace] : []),
+    ...(userProfile.planning_style ? [userProfile.planning_style] : []),
+  ]
+  const userVibes = new Set<string>()
+  userStyles.forEach(s => {
+    const mapped = TRAVEL_STYLE_MAPPING[s]
+    if (mapped) mapped.forEach(v => userVibes.add(v.toLowerCase()))
+    userVibes.add(s.toLowerCase())
+  })
+  const tripVibes = (trip.vibes ?? []).map(v => v.toLowerCase())
+  return tripVibes
+    .filter(v => userVibes.has(v))
+    .slice(0, 2)
+    .map(v => v.charAt(0).toUpperCase() + v.slice(1))
+}
+
 export function calculateTripMatch(
   userProfile: UserProfile | null,
   trip: TripWithDetails,

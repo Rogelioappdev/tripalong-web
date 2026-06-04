@@ -18,6 +18,9 @@ interface SwipeCardProps {
   isJoined?: boolean
   isSaved?: boolean
   matchPct?: number
+  matchingVibes?: string[]
+  isPlus?: boolean
+  onCompatibilityTap?: () => void
   sharedX?: ReturnType<typeof useMotionValue<number>>
 }
 
@@ -26,7 +29,7 @@ function formatDate(d: string) {
 }
 
 export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function SwipeCard(
-  { trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, matchPct, sharedX },
+  { trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, matchPct, matchingVibes, isPlus, onCompatibilityTap, sharedX },
   ref
 ) {
   const internalX = useMotionValue(0)
@@ -117,16 +120,19 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
         <span className="font-black text-xl tracking-widest" style={{ color: '#F0EBE3' }}>SAVE</span>
       </motion.div>
 
-      <CardContent trip={trip} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} />
+      <CardContent trip={trip} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} matchingVibes={matchingVibes} isPlus={isPlus} onCompatibilityTap={onCompatibilityTap} />
     </motion.div>
   )
 })
 
-function CardContent({ trip, dateLabel, isJoined, matchPct }: {
+function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlus, onCompatibilityTap }: {
   trip: TripWithDetails
   dateLabel: string
   isJoined?: boolean
   matchPct?: number
+  matchingVibes?: string[]
+  isPlus?: boolean
+  onCompatibilityTap?: () => void
 }) {
   // Creator is also in trip_members — exclude them to avoid double-counting
   const otherMembers = (trip.members ?? []).filter(m => m.user_id !== (trip as any).creator_id)
@@ -148,12 +154,6 @@ function CardContent({ trip, dateLabel, isJoined, matchPct }: {
         background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, transparent 30%, rgba(0,0,0,0.7) 62%, rgba(0,0,0,0.97) 100%)',
       }} />
 
-      {/* Top-left: Match % */}
-      {matchPct !== undefined && (
-        <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
-          <span className="text-white/80 text-xs font-semibold">{matchPct}% Match</span>
-        </div>
-      )}
 
       {/* Top-right: Joined badge */}
       {isJoined && (
@@ -261,6 +261,53 @@ function CardContent({ trip, dateLabel, isJoined, matchPct }: {
             </div>
           )}
         </div>
+
+        {/* ── Compatibility row ─────────────────────────────── */}
+        {matchPct !== undefined && (
+          <>
+            <div style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 12, marginBottom: 10 }} />
+            {isPlus ? (
+              <div className="flex items-center gap-2">
+                {/* Score dot */}
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                  backgroundColor: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.4)',
+                }} />
+                <span style={{
+                  color: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
+                  fontSize: 13, fontWeight: 700,
+                }}>
+                  {matchPct}% match
+                </span>
+                {matchingVibes && matchingVibes.length > 0 && (
+                  <>
+                    <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>·</span>
+                    <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 500 }}>
+                      {matchingVibes.join(' · ')}
+                    </span>
+                  </>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onCompatibilityTap?.() }}
+                className="flex items-center justify-between w-full active:opacity-70"
+              >
+                <div className="flex items-center gap-2">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.45)" strokeWidth="1.8"/>
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.45)" strokeWidth="1.8" strokeLinecap="round"/>
+                  </svg>
+                  <span style={{ color: 'rgba(255,255,255,0.38)', fontSize: 13, fontWeight: 500 }}>
+                    See your compatibility
+                  </span>
+                </div>
+                <span style={{ color: 'rgba(240,235,227,0.35)', fontSize: 12, fontWeight: 600 }}>Plus →</span>
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   )
