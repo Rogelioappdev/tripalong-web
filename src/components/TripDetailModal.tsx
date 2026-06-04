@@ -6,11 +6,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip, getProfile } from '@/lib/queries'
+import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
+import { hasPlus } from '@/lib/trial'
 import { PublicProfileModal } from './PublicProfileModal'
 import { JoinCelebration } from './JoinCelebration'
 import { ProfilePhotoNudge } from './ProfilePhotoNudge'
+import { FoundingMemberPaywall } from './FoundingMemberPaywall'
 import { haptic } from '@/lib/haptics'
-import type { TripWithDetails } from '@/lib/types'
+import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 interface TripDetailModalProps {
   trip: TripWithDetails
@@ -43,10 +46,16 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
   const [showPhotoNudge, setShowPhotoNudge] = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [showCompatPaywall, setShowCompatPaywall] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
+
+  useEffect(() => {
+    if (userId) getProfile(userId).then(p => setUserProfile(p))
+  }, [userId])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -111,6 +120,9 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
   }
 
   const displayTrip = tripDetail ?? trip
+  const matchPct = userProfile ? calculateTripMatch(userProfile, displayTrip) : undefined
+  const matchingVibes = userProfile ? getMatchingVibes(userProfile, displayTrip) : []
+  const isPlus = hasPlus(userProfile)
   const memberCount = displayTrip.members?.length ?? 0
   const spotsLeft = displayTrip.max_group_size - memberCount
   const dates = formatDates(displayTrip.start_date, displayTrip.end_date, displayTrip.is_flexible_dates)
@@ -257,6 +269,83 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
               </div>
             )}
 
+            {/* Compatibility */}
+            {!isGuest && matchPct !== undefined && (
+              <div>
+                <p className="text-white font-bold" style={{ fontSize: 17, marginBottom: 12 }}>Your Compatibility</p>
+                {isPlus ? (
+                  <div
+                    className="rounded-2xl p-4 flex items-center gap-4"
+                    style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}
+                  >
+                    {/* Score ring */}
+                    <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
+                      <svg width="64" height="64" viewBox="0 0 64 64">
+                        <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" />
+                        <circle
+                          cx="32" cy="32" r="26" fill="none"
+                          stroke={matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.4)'}
+                          strokeWidth="5"
+                          strokeLinecap="round"
+                          strokeDasharray={`${(matchPct / 100) * 163} 163`}
+                          transform="rotate(-90 32 32)"
+                        />
+                      </svg>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{
+                          color: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.6)',
+                          fontSize: 15, fontWeight: 800, letterSpacing: '-0.5px',
+                        }}>{matchPct}%</span>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p className="text-white font-semibold" style={{ fontSize: 15, marginBottom: 6 }}>
+                        {matchPct >= 80 ? 'Strong match' : matchPct >= 60 ? 'Good match' : 'Partial match'}
+                      </p>
+                      {matchingVibes.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {matchingVibes.map(v => (
+                            <span key={v} style={{
+                              padding: '4px 10px', borderRadius: 999,
+                              backgroundColor: 'rgba(240,235,227,0.08)',
+                              border: '0.5px solid rgba(240,235,227,0.18)',
+                              color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 500,
+                            }}>{v}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Based on your travel DNA</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { haptic(8); setShowCompatPaywall(true) }}
+                    className="w-full rounded-2xl p-4 flex items-center gap-4 active:opacity-70 transition-opacity"
+                    style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}
+                  >
+                    <div style={{
+                      width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      border: '0.5px solid rgba(255,255,255,0.1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                        <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.4)" strokeWidth="1.8"/>
+                        <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.4)" strokeWidth="1.8" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <p className="text-white font-semibold" style={{ fontSize: 15, marginBottom: 4 }}>See your compatibility</p>
+                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Know if this group is right for you</p>
+                    </div>
+                    <span style={{ color: 'rgba(240,235,227,0.45)', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Plus →</span>
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* About This Trip */}
             {displayTrip.description && (
               <div>
@@ -377,6 +466,13 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
         />
       )}
     </AnimatePresence>
+
+    {showCompatPaywall && (
+      <FoundingMemberPaywall
+        allowDismiss
+        onClose={() => setShowCompatPaywall(false)}
+      />
+    )}
     </>
   )
 }
