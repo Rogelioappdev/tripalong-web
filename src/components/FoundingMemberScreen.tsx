@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { claimFoundingTrial } from '@/lib/trial'
 import { registerPush } from '@/lib/push'
-import { getProfileViewers } from '@/lib/queries'
+import { getProfileViewers, getTravelImages } from '@/lib/queries'
 import type { UserProfile } from '@/lib/types'
 
 interface Props {
@@ -89,162 +89,249 @@ function useCountUp(target: number, active: boolean) {
   return val
 }
 
-// ── Unlock Animation — the cinematic "you just got Plus" moment ───────────────
+// ── Unlock Animation — cinematic travel feeling ───────────────────────────────
 
-function UnlockAnimation({ onComplete }: { onComplete: () => void }) {
-  // Stable random particle data — generated once on mount
-  const particles = useMemo(() =>
-    Array.from({ length: 34 }, (_, i) => {
-      const base = (i / 34) * Math.PI * 2
+function UnlockAnimation({ onComplete, images }: { onComplete: () => void; images: string[] }) {
+  const [bgIdx, setBgIdx] = useState(0)
+
+  const photoParticles = useMemo(() => {
+    if (!images.length) return []
+    const count = Math.min(images.length, 10)
+    return Array.from({ length: count }, (_, i) => {
+      const base = (i / count) * Math.PI * 2
+      const jitter = (Math.random() - 0.5) * 0.55
+      return {
+        angle: base + jitter,
+        distance: 95 + Math.random() * 155,
+        size: 44 + Math.random() * 18,
+        delay: 0.04 + Math.random() * 0.28,
+        img: images[i % images.length],
+        duration: 1.0 + Math.random() * 0.55,
+      }
+    })
+  }, [images])
+
+  const dotParticles = useMemo(() =>
+    Array.from({ length: 18 }, (_, i) => {
+      const base = (i / 18) * Math.PI * 2
       const jitter = (Math.random() - 0.5) * 0.9
       return {
         angle: base + jitter,
-        distance: 60 + Math.random() * 160,
-        size: 2 + Math.random() * 5,
-        delay: Math.random() * 0.38,
-        opacity: 0.35 + Math.random() * 0.65,
-        gold: Math.random() > 0.72,
-        duration: 0.85 + Math.random() * 0.55,
+        distance: 55 + Math.random() * 135,
+        size: 2 + Math.random() * 3.5,
+        delay: 0.02 + Math.random() * 0.34,
+        gold: Math.random() > 0.6,
+        duration: 0.8 + Math.random() * 0.5,
       }
     }), [])
 
   useEffect(() => {
-    const t = setTimeout(() => { haptic(6); onComplete() }, 2700)
+    if (images.length < 2) return
+    const t = setInterval(() => setBgIdx(i => (i + 1) % images.length), 900)
+    return () => clearInterval(t)
+  }, [images.length])
+
+  useEffect(() => {
+    const t = setTimeout(() => { haptic(6); onComplete() }, 3000)
     return () => clearTimeout(t)
   }, [onComplete])
 
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+
+      {/* Crossfading blurred travel photo background */}
+      <AnimatePresence mode="sync">
+        {images.length > 0 && (
+          <motion.div
+            key={bgIdx}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.75 }}
+            style={{
+              position: 'absolute', inset: 0,
+              backgroundImage: `url(${images[bgIdx]})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'blur(22px) saturate(1.3)',
+              transform: 'scale(1.08)',
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Dark overlay — photos bleed through as ambient warmth */}
+      <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.80)' }} />
+
+      {/* Warm centre tint */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(200,168,110,0.09) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
 
       {/* Brief flash on entry */}
       <motion.div
-        initial={{ opacity: 0.28 }}
+        initial={{ opacity: 0.3 }}
         animate={{ opacity: 0 }}
-        transition={{ duration: 0.55, ease: 'easeOut' }}
-        style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(240,235,227,0.2)', pointerEvents: 'none' }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(240,235,227,0.22)', pointerEvents: 'none' }}
       />
 
-      {/* Expanding warm background glow */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.15 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
-        style={{
-          position: 'absolute',
-          width: 750,
-          height: 750,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(240,235,227,0.14) 0%, rgba(200,168,110,0.06) 38%, transparent 66%)',
-          pointerEvents: 'none',
-        }}
-      />
+      {/* Everything centred */}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
-      {/* Shockwave rings */}
-      {[0, 1, 2].map(i => (
+        {/* Expanding warm glow */}
         <motion.div
-          key={i}
-          initial={{ scale: 0.12, opacity: 0.8 - i * 0.15 }}
-          animate={{ scale: 5, opacity: 0 }}
-          transition={{ duration: 1.7 + i * 0.12, delay: i * 0.2, ease: 'easeOut' }}
+          initial={{ opacity: 0, scale: 0.1 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
           style={{
             position: 'absolute',
-            width: 108,
-            height: 108,
+            width: 720, height: 720,
             borderRadius: '50%',
-            border: `${1 - i * 0.25}px solid rgba(240,235,227,${0.55 - i * 0.14})`,
+            background: 'radial-gradient(circle, rgba(240,235,227,0.13) 0%, rgba(200,168,110,0.06) 38%, transparent 65%)',
             pointerEvents: 'none',
+            flexShrink: 0,
           }}
         />
-      ))}
 
-      {/* Particle burst */}
-      <div style={{ position: 'absolute', top: '50%', left: '50%', pointerEvents: 'none' }}>
-        {particles.map((p, i) => (
+        {/* Shockwave rings */}
+        {[0, 1, 2].map(i => (
           <motion.div
             key={i}
-            initial={{ x: 0, y: 0, opacity: p.opacity, scale: 1 }}
-            animate={{
-              x: Math.cos(p.angle) * p.distance,
-              y: Math.sin(p.angle) * p.distance,
-              opacity: 0,
-              scale: 0,
-            }}
-            transition={{ duration: p.duration, delay: 0.05 + p.delay, ease: [0.2, 0, 0.8, 1] }}
+            initial={{ scale: 0.1, opacity: 0.75 - i * 0.14 }}
+            animate={{ scale: 5.5, opacity: 0 }}
+            transition={{ duration: 1.8 + i * 0.15, delay: i * 0.2, ease: 'easeOut' }}
             style={{
               position: 'absolute',
-              width: p.size,
-              height: p.size,
+              width: 106, height: 106,
               borderRadius: '50%',
-              backgroundColor: p.gold ? '#E8C87A' : '#F0EBE3',
-              top: -(p.size / 2),
-              left: -(p.size / 2),
+              border: `${1.2 - i * 0.25}px solid rgba(240,235,227,${0.55 - i * 0.13})`,
+              pointerEvents: 'none',
+              flexShrink: 0,
             }}
           />
         ))}
-      </div>
 
-      {/* Core: logo + text + badge */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, position: 'relative', zIndex: 1 }}>
+        {/* Photo thumbnail particles — burst from centre outward */}
+        <div style={{ position: 'absolute', top: '50%', left: '50%', pointerEvents: 'none' }}>
+          {photoParticles.map((p, i) => (
+            <motion.div
+              key={i}
+              initial={{ x: 0, y: 0, opacity: 0.92, scale: 0.5 }}
+              animate={{
+                x: Math.cos(p.angle) * p.distance,
+                y: Math.sin(p.angle) * p.distance,
+                opacity: 0,
+                scale: 1.05,
+              }}
+              transition={{ duration: p.duration, delay: p.delay, ease: [0.2, 0, 0.7, 1] }}
+              style={{
+                position: 'absolute',
+                width: p.size, height: p.size,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                border: '1.5px solid rgba(255,255,255,0.28)',
+                top: -(p.size / 2), left: -(p.size / 2),
+              }}
+            >
+              <img src={p.img} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" draggable={false} />
+            </motion.div>
+          ))}
+        </div>
 
-        {/* Logo with pulsing glow */}
-        <motion.div
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: [0, 1.2, 1], opacity: 1 }}
-          transition={{ duration: 0.68, delay: 0.04, type: 'spring', stiffness: 255, damping: 18 }}
-          style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
+        {/* Dot accent sparkles */}
+        <div style={{ position: 'absolute', top: '50%', left: '50%', pointerEvents: 'none' }}>
+          {dotParticles.map((p, i) => (
+            <motion.div
+              key={i}
+              initial={{ x: 0, y: 0, opacity: 0.7, scale: 1 }}
+              animate={{
+                x: Math.cos(p.angle) * p.distance,
+                y: Math.sin(p.angle) * p.distance,
+                opacity: 0, scale: 0,
+              }}
+              transition={{ duration: p.duration, delay: p.delay, ease: [0.2, 0, 0.85, 1] }}
+              style={{
+                position: 'absolute',
+                width: p.size, height: p.size,
+                borderRadius: '50%',
+                backgroundColor: p.gold ? '#E8C87A' : '#F0EBE3',
+                top: -(p.size / 2), left: -(p.size / 2),
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Centre: icon + text + badge */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, position: 'relative', zIndex: 1 }}>
+
+          {/* ✈️ icon with pulsing halo */}
           <motion.div
-            animate={{ opacity: [0.3, 0.72, 0.3], scale: [1, 1.1, 1] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: [0, 1.22, 1], opacity: 1 }}
+            transition={{ duration: 0.66, delay: 0.05, type: 'spring', stiffness: 258, damping: 17 }}
+            style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <motion.div
+              animate={{ opacity: [0.25, 0.68, 0.25], scale: [1, 1.13, 1] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+              style={{
+                position: 'absolute',
+                width: 170, height: 170,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(240,235,227,0.26) 0%, transparent 68%)',
+                pointerEvents: 'none',
+              }}
+            />
+            <div style={{
+              width: 92, height: 92,
+              borderRadius: 26,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'linear-gradient(145deg, rgba(240,235,227,0.13) 0%, rgba(200,168,110,0.07) 100%)',
+              border: '1px solid rgba(240,235,227,0.22)',
+              fontSize: 48,
+              position: 'relative', zIndex: 1,
+            }}>
+              ✈️
+            </div>
+          </motion.div>
+
+          {/* "Welcome to TripAlong Plus" */}
+          <motion.div
+            initial={{ y: 22, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.48, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            style={{ textAlign: 'center' }}
+          >
+            <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: 16, fontWeight: 500, marginBottom: 8, letterSpacing: '0.01em' }}>
+              Welcome to
+            </p>
+            <h1 style={{ fontSize: 48, fontWeight: 900, letterSpacing: '-2.5px', lineHeight: 1, margin: 0 }}>
+              <span style={{ color: '#ffffff' }}>TripAlong </span>
+              <span style={{ color: '#F0EBE3' }}>Plus</span>
+            </h1>
+          </motion.div>
+
+          {/* Founding Member badge */}
+          <motion.div
+            initial={{ y: 16, opacity: 0, scale: 0.82 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            transition={{ delay: 0.78, type: 'spring', stiffness: 320, damping: 22 }}
             style={{
-              position: 'absolute',
-              width: 180,
-              height: 180,
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(240,235,227,0.28) 0%, transparent 65%)',
-              pointerEvents: 'none',
+              padding: '8px 24px',
+              borderRadius: 999,
+              backgroundColor: 'rgba(240,235,227,0.08)',
+              border: '0.5px solid rgba(240,235,227,0.3)',
             }}
-          />
-          <img
-            src="/tripalong-logo.png"
-            alt="TripAlong"
-            style={{ width: 116, height: 116, objectFit: 'contain', mixBlendMode: 'screen', display: 'block', position: 'relative', zIndex: 1 }}
-          />
-        </motion.div>
+          >
+            <span style={{ color: '#F0EBE3', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em' }}>
+              ✦ FOUNDING MEMBER ✦
+            </span>
+          </motion.div>
 
-        {/* "Welcome to" + "TripAlong Plus" */}
-        <motion.div
-          initial={{ y: 24, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.5, duration: 0.52, ease: [0.16, 1, 0.3, 1] }}
-          style={{ textAlign: 'center' }}
-        >
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16, fontWeight: 500, marginBottom: 8, letterSpacing: '0.01em' }}>
-            Welcome to
-          </p>
-          <h1 style={{ fontSize: 46, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1, margin: 0 }}>
-            <span style={{ color: '#ffffff' }}>TripAlong </span>
-            <span style={{ color: '#F0EBE3' }}>Plus</span>
-          </h1>
-        </motion.div>
-
-        {/* Founding Member badge */}
-        <motion.div
-          initial={{ y: 18, opacity: 0, scale: 0.8 }}
-          animate={{ y: 0, opacity: 1, scale: 1 }}
-          transition={{ delay: 0.8, type: 'spring', stiffness: 320, damping: 22 }}
-          style={{
-            padding: '8px 22px',
-            borderRadius: 999,
-            backgroundColor: 'rgba(240,235,227,0.08)',
-            border: '0.5px solid rgba(240,235,227,0.3)',
-          }}
-        >
-          <span style={{ color: '#F0EBE3', fontSize: 11, fontWeight: 700, letterSpacing: '0.13em' }}>
-            ✦ FOUNDING MEMBER ✦
-          </span>
-        </motion.div>
-
+        </div>
       </div>
     </div>
   )
@@ -497,6 +584,11 @@ function PlusSlides({ userId, onDone }: { userId: string; onDone: () => void }) 
 
 export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: Props) {
   const [phase, setPhase] = useState<'offer' | 'unlock' | 'slides'>('offer')
+  const [travelImages, setTravelImages] = useState<string[]>([])
+
+  useEffect(() => {
+    getTravelImages(12).then(imgs => setTravelImages(imgs))
+  }, [])
 
   const handleClaim = () => {
     haptic(18)
@@ -590,7 +682,7 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
           transition={{ duration: 0.18 }}
           style={{ position: 'absolute', inset: 0 }}
         >
-          <UnlockAnimation onComplete={handleUnlockComplete} />
+          <UnlockAnimation onComplete={handleUnlockComplete} images={travelImages} />
         </motion.div>
       )}
 

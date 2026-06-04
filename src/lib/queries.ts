@@ -630,6 +630,22 @@ export async function getDestinationPhotos(destination: string): Promise<string[
     .flatMap(r => r.value)
 }
 
+export async function getTravelImages(count = 12): Promise<string[]> {
+  try {
+    const { data } = await supabase
+      .from('trips')
+      .select('cover_image')
+      .not('cover_image', 'is', null)
+      .limit(50)
+    if (!data?.length) return []
+    return [...data]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, count)
+      .map((t: any) => t.cover_image as string)
+      .filter(Boolean)
+  } catch { return [] }
+}
+
 export async function getUserJoinedTripIds(userId: string): Promise<string[]> {
   try {
     const { data } = await supabase
