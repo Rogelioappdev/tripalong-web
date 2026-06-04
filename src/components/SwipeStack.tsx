@@ -392,6 +392,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
     const effectiveProfile = localProfile ?? userProfile
     const trialStatus = getTrialStatus(effectiveProfile)
     const isFirstTime = trialStatus === 'none'
+    const isExpired = trialStatus === 'expired'
 
     return (
       <div className="flex flex-col items-center w-full h-full gap-0">
@@ -436,10 +437,10 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
               </div>
               <div>
                 <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px', lineHeight: 1.15 }}>
-                  {currentTrip ? `${currentTrip.destination} is waiting` : 'More trips are waiting'}
+                  {isExpired ? 'Your Plus trial ended' : (currentTrip ? `${currentTrip.destination} is waiting` : 'More trips are waiting')}
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 5 }}>
-                  {`You've reached your ${DAILY_LIMIT} daily swipes`}
+                  {isExpired ? `You're back to ${DAILY_LIMIT} daily swipes` : `You've reached your ${DAILY_LIMIT} daily swipes`}
                 </p>
               </div>
             </motion.div>
@@ -495,7 +496,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
             >
               <div style={{ flex: 1, height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)' }} />
               <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em' }}>
-                or unlock now
+                {isExpired ? 'or continue now' : 'or unlock now'}
               </span>
               <div style={{ flex: 1, height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)' }} />
             </motion.div>
@@ -518,7 +519,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
                 className="w-full font-bold py-4 rounded-2xl text-base"
                 style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
               >
-                {isFirstTime ? 'Get 7 days free →' : 'Unlock unlimited →'}
+                {isFirstTime ? 'Get 7 days free →' : isExpired ? 'Continue with Plus →' : 'Unlock unlimited →'}
               </motion.button>
               {isFirstTime && (
                 <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12, textAlign: 'center' }}>
