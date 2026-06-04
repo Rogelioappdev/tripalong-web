@@ -473,20 +473,17 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
             <span className="text-white/35 text-[10px] font-semibold">Save</span>
           </div>
         </div>
-        <AnimatePresence>
-          {showFoundingScreen && userId && userProfile && (
-            <FoundingMemberScreen
-              key="founding"
-              userId={userId}
-              profile={localProfile ?? userProfile}
-              onClaimed={(updated) => {
-                setLocalProfile(updated)
-                setSwipeLimitReached(false)
-              }}
-              onDismiss={() => setShowFoundingScreen(false)}
-            />
-          )}
-        </AnimatePresence>
+        {showFoundingScreen && userId && userProfile && (
+          <FoundingMemberScreen
+            userId={userId}
+            profile={localProfile ?? userProfile}
+            onClaimed={(updated) => {
+              setLocalProfile(updated)
+              setSwipeLimitReached(false)
+            }}
+            onDismiss={() => setShowFoundingScreen(false)}
+          />
+        )}
 
         <AnimatePresence>
           {showPaywall && (() => {

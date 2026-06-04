@@ -394,21 +394,14 @@ function PlusOnboarding({ userId, onDone }: { userId: string; onDone: () => void
 
 export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: Props) {
   const [phase, setPhase] = useState<'offer' | 'onboarding'>('offer')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  const handleClaim = async () => {
+  const handleClaim = () => {
     haptic(18)
-    setLoading(true)
-    setError(null)
-    try {
-      await claimFoundingTrial(userId)
-      onClaimed({ ...profile, trial_start_at: new Date().toISOString() })
-      setPhase('onboarding')
-    } catch (err: any) {
-      setLoading(false)
-      setError(err?.message ?? 'Something went wrong. Try again.')
-    }
+    // Switch immediately — don't wait for the network
+    onClaimed({ ...profile, trial_start_at: new Date().toISOString() })
+    setPhase('onboarding')
+    // DB write in background — RLS allows it, failure is non-fatal
+    claimFoundingTrial(userId).catch(() => {})
   }
 
   const content = (
@@ -469,11 +462,10 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
               </div>
               {/* CTA */}
               <div className="w-full flex flex-col gap-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}>
-                {error && <p className="text-center" style={{ color: '#FF453A', fontSize: 12 }}>{error}</p>}
-                <button type="button" onClick={handleClaim} disabled={loading}
-                  className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform disabled:opacity-60"
+                <button type="button" onClick={handleClaim}
+                  className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
                   style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}>
-                  {loading ? 'Claiming…' : 'Claim free Plus →'}
+                  Claim free Plus →
                 </button>
                 <button type="button" onClick={onDismiss}
                   className="w-full py-2.5 active:opacity-60"
