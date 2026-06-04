@@ -74,6 +74,41 @@ export function getMatchingVibes(userProfile: UserProfile | null, trip: TripWith
     .map(v => v.charAt(0).toUpperCase() + v.slice(1))
 }
 
+type MemberProfile = Pick<UserProfile, 'travel_styles' | 'travel_pace' | 'social_energy' | 'planning_style' | 'experience_level'>
+
+function memberCompatibility(user: UserProfile, member: MemberProfile): number {
+  let score = 0
+  let max = 0
+
+  // Travel style overlap — biggest signal (50%)
+  const userNorm = normalizeStyles(user.travel_styles ?? [])
+  const memberNorm = normalizeStyles(member.travel_styles ?? [])
+  if (userNorm.length && memberNorm.length) {
+    score += arrayOverlap(userNorm, memberNorm) * 50
+    max += 50
+  }
+
+  // Pace (25%) — slow/fast is a dealbreaker
+  if (user.travel_pace && member.travel_pace) {
+    score += user.travel_pace === member.travel_pace ? 25 : 8
+    max += 25
+  }
+
+  // Social energy (15%) — introvert vs extrovert
+  if (user.social_energy && member.social_energy) {
+    score += user.social_energy === member.social_energy ? 15 : 6
+    max += 15
+  }
+
+  // Planning style (10%)
+  if (user.planning_style && member.planning_style) {
+    score += user.planning_style === member.planning_style ? 10 : 5
+    max += 10
+  }
+
+  return max > 0 ? Math.round((score / max) * 100) : 50
+}
+
 export function calculateTripMatch(
   userProfile: UserProfile | null,
   trip: TripWithDetails,
@@ -147,6 +182,19 @@ export function calculateTripMatch(
   total += groupSize <= 6 ? 15 : Math.max(6, 15 - (groupSize - 6) * 1.5)
   max += 15
 
-  const pct = max > 0 ? Math.round((total / max) * 100) : 50
-  return Math.min(100, Math.max(0, pct))
+  const tripPct = max > 0 ? Math.round((total / max) * 100) : 50
+
+  // Blend in group compatibility if members have enough profile data
+  const scorableMembers = (trip.members ?? []).filter(
+    m => m.user_id !== (trip as any).creator_id &&
+    ((m.user as any)?.travel_styles?.length || (m.user as any)?.travel_pace)
+  )
+  if (scorableMembers.length > 0) {
+    const memberScores = scorableMembers.map(m => memberCompatibility(userProfile, m.user as MemberProfile))
+    const groupPct = Math.round(memberScores.reduce((a, b) => a + b, 0) / memberScores.length)
+    // 65% trip attributes, 35% group compatibility
+    return Math.min(100, Math.max(0, Math.round(tripPct * 0.65 + groupPct * 0.35)))
+  }
+
+  return Math.min(100, Math.max(0, tripPct))
 }

@@ -13,7 +13,7 @@ export async function getTrips(): Promise<TripWithDetails[]> {
       creator:users!creator_id(id, name, profile_photo),
       members:trip_members(
         user_id,
-        user:users(id, name, profile_photo)
+        user:users(id, name, profile_photo, travel_styles, travel_pace, social_energy, planning_style, experience_level)
       )
     `)
     .eq('status', 'planning')
@@ -58,7 +58,7 @@ export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
       creator:users!creator_id(id, name, profile_photo),
       members:trip_members(
         user_id,
-        user:users(id, name, profile_photo)
+        user:users(id, name, profile_photo, travel_styles, travel_pace, social_energy, planning_style, experience_level)
       )
     `)
     .eq('id', tripId)
@@ -471,7 +471,7 @@ export async function getSavedTrips(userId: string): Promise<TripWithDetails[]> 
       trip:trips(
         *,
         creator:users!creator_id(id, name, profile_photo),
-        members:trip_members(user_id, status, user:users(id, name, profile_photo))
+        members:trip_members(user_id, status, user:users(id, name, profile_photo, travel_styles, travel_pace, social_energy, planning_style, experience_level))
       )
     `)
     .eq('user_id', userId)
@@ -491,7 +491,7 @@ export async function getMyTrips(userId: string): Promise<TripWithDetails[]> {
       trip:trips(
         *,
         creator:users!creator_id(id, name, profile_photo),
-        members:trip_members(user_id, status, user:users(id, name, profile_photo))
+        members:trip_members(user_id, status, user:users(id, name, profile_photo, travel_styles, travel_pace, social_energy, planning_style, experience_level))
       )
     `)
     .eq('user_id', userId)

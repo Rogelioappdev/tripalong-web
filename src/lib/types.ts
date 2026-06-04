@@ -59,7 +59,7 @@ export type TripMemberWithUser = {
   user_id: string
   status: 'in' | 'maybe' | 'out'
   created_at: string
-  user: Pick<UserProfile, 'id' | 'name' | 'profile_photo' | 'gender'>
+  user: Pick<UserProfile, 'id' | 'name' | 'profile_photo' | 'gender' | 'travel_styles' | 'travel_pace' | 'social_energy' | 'planning_style' | 'experience_level'>
 }
 
 export type TripWithDetails = Trip & {
