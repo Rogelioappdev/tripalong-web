@@ -48,6 +48,7 @@ export default function FeedPage() {
   const [pendingTripId, setPendingTripId] = useState<string | null>(null)
   const [upgradeToast, setUpgradeToast] = useState(false)
   const [showTrialExpiredPaywall, setShowTrialExpiredPaywall] = useState(false)
+  const [trialExpiredNudge, setTrialExpiredNudge] = useState(false)
   const [showFoundingScreen, setShowFoundingScreen] = useState(() => {
     if (typeof window === 'undefined') return false
     return new URLSearchParams(window.location.search).get('trial') === 'none'
@@ -96,14 +97,17 @@ export default function FeedPage() {
       const profile = await getProfile(session.user.id)
       if (profile) {
         const override = getDevTrialOverride()
-        if (override) {
-          // Dev mode: bypass subscription check so any account can test
-          const effectiveProfile: UserProfile = { ...profile, trial_start_at: override }
-          if (getTrialStatus(effectiveProfile) === 'expired') {
+        const effectiveProfile = override ? { ...profile, trial_start_at: override } : profile
+        const isExpired = getTrialStatus(effectiveProfile) === 'expired' && effectiveProfile.subscription_tier === 'free'
+        if (isExpired) {
+          const alreadySeen = !override && !!localStorage.getItem('ta_trial_paywall_seen')
+          if (alreadySeen) {
+            // Repeat session — just show the nudge strip, not the full paywall
+            setTrialExpiredNudge(true)
+          } else {
+            // First session after expiry (or dev override) — show full paywall
             setShowTrialExpiredPaywall(true)
           }
-        } else if (getTrialStatus(profile) === 'expired' && profile.subscription_tier === 'free') {
-          setShowTrialExpiredPaywall(true)
         }
       }
     })
@@ -163,10 +167,17 @@ export default function FeedPage() {
         <UpgradeToastHandler onUpgrade={handleUpgradeSuccess} />
       </Suspense>
 
-      {/* Trial expired — show immediately on app open, no dismiss */}
+      {/* Trial expired — full paywall on first session after expiry */}
       <AnimatePresence>
         {showTrialExpiredPaywall && (
-          <FoundingMemberPaywall allowDismiss={false} />
+          <FoundingMemberPaywall
+            allowDismiss
+            onClose={() => {
+              localStorage.setItem('ta_trial_paywall_seen', '1')
+              setShowTrialExpiredPaywall(false)
+              setTrialExpiredNudge(true)
+            }}
+          />
         )}
       </AnimatePresence>
 
@@ -188,6 +199,28 @@ export default function FeedPage() {
         className="bg-black flex flex-col md:pt-14"
         style={{ height: '100dvh', overflow: 'hidden' }}
       >
+        {/* Trial expired nudge strip */}
+        <AnimatePresence>
+          {trialExpiredNudge && !showTrialExpiredPaywall && (
+            <motion.button
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.28, ease: 'easeOut' }}
+              type="button"
+              onClick={() => { haptic(8); setShowTrialExpiredPaywall(true) }}
+              className="mx-4 mt-2 mb-1 flex items-center justify-between px-4 py-2.5 rounded-2xl shrink-0 active:scale-[0.98] transition-transform"
+              style={{ backgroundColor: 'rgba(240,235,227,0.07)', border: '0.5px solid rgba(240,235,227,0.18)' }}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                <p className="text-white/70 text-sm font-medium">Plus trial ended</p>
+              </div>
+              <span className="text-white/45 text-xs font-semibold">Keep Plus →</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
+
         {/* Guest banner */}
         {isGuest && (
           <button
