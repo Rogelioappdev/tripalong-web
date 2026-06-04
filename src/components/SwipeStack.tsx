@@ -395,61 +395,118 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
 
     return (
       <div className="flex flex-col items-center w-full h-full gap-0">
-        <div className="relative w-full flex-1 min-h-0 overflow-hidden rounded-3xl" style={{ backgroundColor: '#111' }}>
-          {/* Blurred trip card — shows what's locked */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.32, ease: 'easeOut' }}
+          className="relative w-full flex-1 min-h-0 overflow-hidden rounded-3xl"
+          style={{ backgroundColor: '#111' }}
+        >
+          {/* Blurred next trip — shows what's locked */}
           {currentTrip?.cover_image && (
             <img
               src={currentTrip.cover_image}
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
-              style={{ filter: 'blur(22px)', transform: 'scale(1.12)' }}
+              style={{ filter: 'blur(20px)', transform: 'scale(1.1)' }}
             />
           )}
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.88) 60%)' }} />
+          {/* Gradient — heavier at bottom so CTA is always legible */}
+          <div className="absolute inset-0" style={{
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.44) 0%, rgba(0,0,0,0.70) 38%, rgba(0,0,0,0.93) 100%)'
+          }} />
 
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-7 text-center">
-            {/* Floating plane */}
+          <div className="absolute inset-0 flex flex-col px-7 text-center" style={{ paddingTop: 32, paddingBottom: 24 }}>
+
+            {/* Top: lock + destination hook */}
             <motion.div
-              animate={{ y: [0, -7, 0] }}
-              transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
-              className="w-20 h-20 rounded-3xl flex items-center justify-center"
-              style={{ background: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.15)' }}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.36, ease: 'easeOut' }}
+              className="flex flex-col items-center gap-3"
             >
-              <span style={{ fontSize: 34 }}>✈️</span>
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{
+                background: 'rgba(240,235,227,0.08)',
+                border: '1px solid rgba(240,235,227,0.14)',
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.7)" strokeWidth="1.8"/>
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.7)" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px', lineHeight: 1.15 }}>
+                  {currentTrip ? `${currentTrip.destination} is waiting` : 'More trips are waiting'}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 5 }}>
+                  {`You've reached your ${DAILY_LIMIT} daily swipes`}
+                </p>
+              </div>
             </motion.div>
 
-            {/* Headline */}
-            <div className="flex flex-col gap-1.5">
-              <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.4px', lineHeight: 1.2 }}>
-                {currentTrip ? `${currentTrip.destination} is waiting` : 'More trips are waiting'}
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, lineHeight: 1.55 }}>
-                {"You've used your "}<span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{DAILY_LIMIT} daily swipes</span>.
-                {' Resets every day at midnight.'}
-              </p>
-            </div>
+            {/* Spacer */}
+            <div style={{ flex: 1 }} />
 
-            {/* Countdown */}
-            <div className="flex flex-col items-center gap-2">
-              <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>Resets in</p>
-              <div className="flex items-center gap-1">
-                {[h, m, s].map((val, i) => (
-                  <div key={i} className="flex items-center gap-1">
-                    <div className="flex flex-col items-center px-3 py-2 rounded-xl"
-                      style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', minWidth: 44 }}>
-                      <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 26, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{val}</span>
-                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)', marginTop: 4, letterSpacing: '0.06em', fontWeight: 600 }}>
-                        {i === 0 ? 'HRS' : i === 1 ? 'MIN' : 'SEC'}
+            {/* Countdown — the dominant anchor */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2, duration: 0.42, ease: 'easeOut' }}
+              className="flex flex-col items-center gap-2"
+            >
+              <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 10, letterSpacing: '0.12em', fontWeight: 700, textTransform: 'uppercase' }}>
+                Resets in
+              </p>
+              <div className="flex items-start justify-center">
+                {[{ val: h, label: 'HRS' }, { val: m, label: 'MIN' }, { val: s, label: 'SEC' }].map(({ val, label }, i) => (
+                  <div key={label} className="flex items-start">
+                    <div className="flex flex-col items-center" style={{ minWidth: 58 }}>
+                      <span style={{
+                        fontVariantNumeric: 'tabular-nums',
+                        fontSize: 58, fontWeight: 800,
+                        color: '#ffffff', lineHeight: 1, letterSpacing: '-3px',
+                      }}>
+                        {val}
+                      </span>
+                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.24)', letterSpacing: '0.1em', fontWeight: 700, marginTop: 5 }}>
+                        {label}
                       </span>
                     </div>
-                    {i < 2 && <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 20, fontWeight: 700, marginBottom: 12, marginInline: 1 }}>:</span>}
+                    {i < 2 && (
+                      <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 46, fontWeight: 700, lineHeight: 1, paddingTop: 3, paddingInline: 1 }}>
+                        :
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
+
+            {/* Spacer */}
+            <div style={{ flex: 1 }} />
+
+            {/* "or unlock now" divider */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.32, duration: 0.36 }}
+              className="flex items-center gap-3"
+              style={{ marginBottom: 14 }}
+            >
+              <div style={{ flex: 1, height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+              <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em' }}>
+                or unlock now
+              </span>
+              <div style={{ flex: 1, height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+            </motion.div>
 
             {/* CTA */}
-            <div className="w-full flex flex-col gap-2">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.36, ease: 'easeOut' }}
+              className="flex flex-col gap-1.5"
+            >
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 type="button"
@@ -461,14 +518,17 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
                 className="w-full font-bold py-4 rounded-2xl text-base"
                 style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
               >
-                {isFirstTime ? 'Get unlimited swipes — free →' : 'Unlock unlimited swipes →'}
+                {isFirstTime ? 'Get 7 days free →' : 'Unlock unlimited →'}
               </motion.button>
               {isFirstTime && (
-                <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>No card required · 7 days free</p>
+                <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12, textAlign: 'center' }}>
+                  No card required
+                </p>
               )}
-            </div>
+            </motion.div>
+
           </div>
-        </div>
+        </motion.div>
         <div className="flex items-center justify-center gap-7 py-3 shrink-0 opacity-25 pointer-events-none">
           <div className="flex flex-col items-center gap-1">
             <div className="w-12 h-12 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center">
