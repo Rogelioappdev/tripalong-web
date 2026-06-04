@@ -131,10 +131,7 @@ function UnlockAnimation({ onComplete, images }: { onComplete: () => void; image
     return () => clearInterval(t)
   }, [images.length])
 
-  useEffect(() => {
-    const t = setTimeout(() => { haptic(6); onComplete() }, 3000)
-    return () => clearTimeout(t)
-  }, [onComplete])
+  const handleCta = () => { haptic(12); onComplete() }
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
@@ -333,6 +330,29 @@ function UnlockAnimation({ onComplete, images }: { onComplete: () => void; image
 
         </div>
       </div>
+
+      {/* CTA button — fades in after animation settles */}
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.5, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          position: 'absolute',
+          left: 24, right: 24,
+          bottom: 'calc(env(safe-area-inset-bottom) + 28px)',
+          zIndex: 2,
+        }}
+      >
+        <button
+          type="button"
+          onClick={handleCta}
+          className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-transform"
+          style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
+        >
+          See what's included →
+        </button>
+      </motion.div>
+
     </div>
   )
 }
