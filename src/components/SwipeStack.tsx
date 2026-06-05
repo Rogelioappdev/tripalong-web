@@ -568,14 +568,14 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
               setLocalProfile(updated)
               setUserProfile(updated)
               onProfileClaimed?.(updated)
-              // Re-fetch during the animation — confirmed DB profile ready before slides finish
-              getProfile(userId).then(p => {
-                if (p) { setLocalProfile(p); setUserProfile(p); onProfileClaimed?.(p) }
-              })
             }}
             onDismiss={() => {
               setShowFoundingScreen(false)
               setSwipeLimitReached(false)
+              // Re-fetch after animation — server write is done, sync DB-confirmed profile
+              getProfile(userId).then(p => {
+                if (p) { setLocalProfile(p); setUserProfile(p); onProfileClaimed?.(p) }
+              })
             }}
           />
         )}
@@ -765,12 +765,14 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
             setLocalProfile(updated)
             setUserProfile(updated)
             onProfileClaimed?.(updated)
-            // Re-fetch during the animation — confirmed DB profile ready before slides finish
+          }}
+          onDismiss={() => {
+            setShowFoundingScreen(false)
+            // Re-fetch after animation — server write is done, sync DB-confirmed profile
             getProfile(userId).then(p => {
               if (p) { setLocalProfile(p); setUserProfile(p); onProfileClaimed?.(p) }
             })
           }}
-          onDismiss={() => setShowFoundingScreen(false)}
         />
       )}
     </div>
