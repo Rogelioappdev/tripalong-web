@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
@@ -692,16 +692,35 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
     claimFoundingTrial(userId).catch(() => {})
   }
 
+  const [holding, setHolding] = useState(false)
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const startHold = () => {
+    setHolding(true)
+    haptic(6)
+    holdTimer.current = setTimeout(() => {
+      setHolding(false)
+      handleClaim()
+    }, 1500)
+  }
+
+  const cancelHold = () => {
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null }
+    if (holding) { haptic(4); setHolding(false) }
+  }
+
   const handleUnlockComplete = useCallback(() => setPhase('slides'), [])
 
   const content = (
     <div className="fixed inset-0 z-[100]" style={{ backgroundColor: '#050505' }}>
 
       {/* ── Offer screen — full screen ── */}
+      <AnimatePresence>
       {phase === 'offer' && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          exit={{ opacity: 0, scale: 1.04 }}
           transition={{ duration: 0.32, ease: 'easeOut' }}
           style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         >
@@ -798,6 +817,7 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
               {[
                 { icon: '∞', label: 'Unlimited swipes, every day' },
                 { icon: '👁', label: 'See who viewed your profile' },
+                { icon: '✦', label: 'Match scores — see how well you fit each trip and traveler' },
               ].map((f, i) => (
                 <motion.div
                   key={f.label}
@@ -806,7 +826,7 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
                   transition={{ delay: 0.5 + i * 0.1, duration: 0.36, ease: 'easeOut' }}
                   style={{ display: 'flex', alignItems: 'center', gap: 16 }}
                 >
-                  <span style={{ fontSize: 24, width: 34, textAlign: 'center', flexShrink: 0 }}>{f.icon}</span>
+                  <span style={{ fontSize: 22, width: 34, textAlign: 'center', flexShrink: 0 }}>{f.icon}</span>
                   <span style={{ color: 'rgba(255,255,255,0.72)', fontSize: 15, fontWeight: 500 }}>{f.label}</span>
                 </motion.div>
               ))}
@@ -824,11 +844,28 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
               </p>
               <button
                 type="button"
-                onClick={handleClaim}
-                className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
-                style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000', marginBottom: 4 }}
+                onPointerDown={startHold}
+                onPointerUp={cancelHold}
+                onPointerLeave={cancelHold}
+                className="w-full py-4 rounded-2xl font-bold text-base select-none"
+                style={{
+                  position: 'relative', overflow: 'hidden',
+                  background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)',
+                  color: '#000', marginBottom: 4,
+                  transform: holding ? 'scale(0.985)' : 'scale(1)',
+                  transition: 'transform 0.1s ease',
+                }}
               >
-                Claim your 7 days →
+                {/* Fill layer sweeps in while holding */}
+                <motion.div
+                  style={{ position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 'inherit' }}
+                  initial={{ width: '0%' }}
+                  animate={{ width: holding ? '100%' : '0%' }}
+                  transition={{ duration: holding ? 1.5 : 0.2, ease: 'linear' }}
+                />
+                <span style={{ position: 'relative', zIndex: 1 }}>
+                  {holding ? 'Hold to confirm...' : 'Claim your 7 days →'}
+                </span>
               </button>
               <button
                 type="button"
@@ -843,13 +880,14 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
           </div>
         </motion.div>
       )}
+      </AnimatePresence>
 
       {/* ── Unlock animation ── */}
       {phase === 'unlock' && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.18 }}
+          transition={{ duration: 0.45, ease: 'easeIn' }}
           style={{ position: 'absolute', inset: 0 }}
         >
           <UnlockAnimation onComplete={handleUnlockComplete} images={travelImages} />
