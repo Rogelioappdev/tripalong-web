@@ -351,6 +351,7 @@ export default function FeedPage() {
           isGuest={isGuest}
           initialProfile={feedProfile}
           onAuthRequired={triggerAuthGate}
+          onProfileClaimed={setFeedProfile}
         />
       )}
 

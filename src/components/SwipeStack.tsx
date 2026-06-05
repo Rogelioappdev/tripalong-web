@@ -284,6 +284,11 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     getProfile(userId).then(p => setUserProfile(p))
   }, [userId])
 
+  // Sync when parent updates feedProfile (e.g. Plus claimed from TripDetailModal)
+  useEffect(() => {
+    if (initialProfile) setUserProfile(initialProfile)
+  }, [initialProfile])
+
   // Check limit once userId + profile are known — user-specific key prevents cross-account bleed
   useEffect(() => {
     if (isGuest) { setLimitChecked(true); return }

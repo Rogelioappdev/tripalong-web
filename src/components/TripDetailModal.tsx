@@ -23,6 +23,7 @@ interface TripDetailModalProps {
   isGuest?: boolean
   initialProfile?: UserProfile | null
   onAuthRequired?: (destination?: string) => void
+  onProfileClaimed?: (profile: UserProfile) => void
 }
 
 const VIBE_EMOJI: Record<string, string> = {
@@ -42,7 +43,7 @@ function formatDates(start: string | null, end: string | null, flexible: boolean
   return `${s.toLocaleDateString('en-US', opts)} – ${e.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
 }
 
-export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuthRequired }: TripDetailModalProps) {
+export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuthRequired, onProfileClaimed }: TripDetailModalProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
@@ -561,7 +562,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
       <FoundingMemberScreen
         userId={userId}
         profile={userProfile}
-        onClaimed={(updated) => { setUserProfile(updated) }}
+        onClaimed={(updated) => { setUserProfile(updated); onProfileClaimed?.(updated) }}
         onDismiss={() => setShowCompatTrialOffer(false)}
       />
     )}
