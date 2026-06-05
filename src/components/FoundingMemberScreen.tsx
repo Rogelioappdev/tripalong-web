@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { claimFoundingTrial } from '@/lib/trial'
 import { registerPush } from '@/lib/push'
-import { getProfileViewers, getTravelImages, getSampleProfiles } from '@/lib/queries'
+import { getProfileViewers, getTravelImages, getSampleProfiles, getProfile } from '@/lib/queries'
 import type { UserProfile } from '@/lib/types'
 
 interface Props {
@@ -590,7 +590,7 @@ function SlideCompatibility() {
 
 // ── Feature slide: Done ───────────────────────────────────────────────────────
 
-function SlideDone({ onDone }: { onDone: () => void }) {
+function SlideDone({ onDone, loading }: { onDone: () => void; loading?: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center flex-1 gap-8 px-8 text-center">
       <motion.div
@@ -633,10 +633,16 @@ function SlideDone({ onDone }: { onDone: () => void }) {
         transition={{ delay: 0.55, duration: 0.4, ease: 'easeOut' }}
         type="button"
         onClick={onDone}
-        className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-transform"
-        style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
+        disabled={loading}
+        className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-transform flex items-center justify-center gap-2"
+        style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000', opacity: loading ? 0.8 : 1 }}
       >
-        Start exploring →
+        {loading ? (
+          <>
+            <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin inline-block" />
+            Loading your Plus…
+          </>
+        ) : 'Start exploring →'}
       </motion.button>
     </div>
   )
@@ -644,9 +650,10 @@ function SlideDone({ onDone }: { onDone: () => void }) {
 
 // ── Feature slides shell ──────────────────────────────────────────────────────
 
-function PlusSlides({ userId, onDone }: { userId: string; onDone: () => void }) {
+function PlusSlides({ userId, onDone }: { userId: string; onDone: (profile: UserProfile | null) => void }) {
   const [idx, setIdx] = useState(0)
   const [direction, setDirection] = useState(1)
+  const [confirming, setConfirming] = useState(false)
   const [viewers, setViewers] = useState<Viewer[]>([])
   const [sampleProfiles, setSampleProfiles] = useState<{ id: string; name: string; profile_photo: string | null }[]>([])
   const TOTAL = 4
@@ -667,12 +674,15 @@ function PlusSlides({ userId, onDone }: { userId: string; onDone: () => void }) 
     })
   }, [])
 
-  const skip = () => { haptic(4); onDone() }
+  const skip = () => { haptic(4); onDone(null) }
 
   const handleDone = async () => {
+    if (confirming) return
     haptic(12)
+    setConfirming(true)
     try { await registerPush(userId) } catch {}
-    onDone()
+    const confirmed = await getProfile(userId).catch(() => null)
+    onDone(confirmed)
   }
 
   // Use real viewers if available, otherwise sample profiles for the reveal demo
@@ -684,7 +694,7 @@ function PlusSlides({ userId, onDone }: { userId: string; onDone: () => void }) 
     <SlideUnlimited key="unlimited" />,
     <SlideWhoViewed key="whoviewed" profiles={whoViewedProfiles} viewerCount={viewers.length} />,
     <SlideCompatibility key="compatibility" />,
-    <SlideDone key="done" onDone={handleDone} />,
+    <SlideDone key="done" onDone={handleDone} loading={confirming} />,
   ]
 
   const variants = {
@@ -989,7 +999,10 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
           transition={{ duration: 0.38 }}
           style={{ position: 'absolute', inset: 0 }}
         >
-          <PlusSlides userId={userId} onDone={onDismiss} />
+          <PlusSlides userId={userId} onDone={(confirmed) => {
+            if (confirmed) onClaimed(confirmed)
+            onDismiss()
+          }} />
         </motion.div>
       )}
 
