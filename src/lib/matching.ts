@@ -182,19 +182,79 @@ export function calculateTripMatch(
   total += groupSize <= 6 ? 15 : Math.max(6, 15 - (groupSize - 6) * 1.5)
   max += 15
 
-  const tripPct = max > 0 ? Math.round((total / max) * 100) : 50
+  const tripPct = Math.min(100, Math.max(0, max > 0 ? Math.round((total / max) * 100) : 50))
 
-  // Blend in group compatibility if members have enough profile data
   const scorableMembers = (trip.members ?? []).filter(
-    m => m.user_id !== (trip as any).creator_id &&
-    ((m.user as any)?.travel_styles?.length || (m.user as any)?.travel_pace)
+    m => (m.user as any)?.travel_styles?.length || (m.user as any)?.travel_pace
   )
   if (scorableMembers.length > 0) {
     const memberScores = scorableMembers.map(m => memberCompatibility(userProfile, m.user as MemberProfile))
-    const groupPct = Math.round(memberScores.reduce((a, b) => a + b, 0) / memberScores.length)
-    // 65% trip attributes, 35% group compatibility
-    return Math.min(100, Math.max(0, Math.round(tripPct * 0.65 + groupPct * 0.35)))
+    const groupPct = Math.min(100, Math.max(0, Math.round(memberScores.reduce((a, b) => a + b, 0) / memberScores.length)))
+    // Feed card shows group score — people > trip description
+    return groupPct
   }
 
-  return Math.min(100, Math.max(0, tripPct))
+  return tripPct
+}
+
+/** Returns both trip-attribute and group scores separately for detailed UI. */
+export function getTripMatchBreakdown(
+  userProfile: UserProfile | null,
+  trip: TripWithDetails,
+): { tripPct: number; groupPct: number | null } {
+  if (!userProfile) return { tripPct: 50, groupPct: null }
+
+  // Re-run trip attribute scoring
+  let total = 0
+  let max = 0
+
+  if (userProfile.travel_with && userProfile.travel_with !== 'everyone') {
+    const members = trip.members ?? []
+    const incompatible = members.filter(m => m.user?.gender && m.user.gender !== userProfile.travel_with)
+    const ratio = 1 - incompatible.length / Math.max(members.length, 1)
+    if (ratio < 0.5) return { tripPct: Math.round(ratio * 30), groupPct: null }
+    total += ratio * 20; max += 20
+  }
+
+  const bucketList = userProfile.bucket_list ?? []
+  const dest = trip.destination.toLowerCase()
+  const country = trip.country.toLowerCase()
+  const inBucketList = bucketList.some(p => { const pl = p.toLowerCase(); return pl.includes(dest) || pl.includes(country) || dest.includes(pl) || country.includes(pl) })
+  if (inBucketList) { total += 30 } else {
+    const visited = (userProfile.places_visited ?? []).some(p => { const pl = p.toLowerCase(); return pl.includes(dest) || pl.includes(country) })
+    if (visited) total += 10
+  }
+  max += 30
+
+  const userStyles = [...(userProfile.travel_styles ?? []), ...(userProfile.travel_pace ? [userProfile.travel_pace] : []), ...(userProfile.planning_style ? [userProfile.planning_style] : [])]
+  const userVibes = new Set<string>()
+  userStyles.forEach(s => { const mapped = TRAVEL_STYLE_MAPPING[s]; if (mapped) mapped.forEach(v => userVibes.add(v.toLowerCase())); userVibes.add(s.toLowerCase()) })
+  const tripVibes = (trip.vibes ?? []).map(v => v.toLowerCase())
+  const matching = tripVibes.filter(v => userVibes.has(v))
+  total += (matching.length / Math.max(tripVibes.length, 1)) * 35; max += 35
+
+  const adventureVibes = ['adventure', 'road trip', 'nature']
+  const relaxedVibes = ['chill', 'beach', 'food']
+  const hasAdventure = tripVibes.some(v => adventureVibes.includes(v))
+  const hasRelaxed = tripVibes.some(v => relaxedVibes.includes(v))
+  const userExp = EXPERIENCE_LEVELS[userProfile.experience_level ?? 'intermediate'] ?? 2
+  total += hasAdventure && !hasRelaxed ? (userExp >= 2 ? 20 : 10) : hasRelaxed ? 20 : 16
+  max += 20
+
+  const groupSize = trip.member_count ?? 0
+  total += groupSize <= 6 ? 15 : Math.max(6, 15 - (groupSize - 6) * 1.5)
+  max += 15
+
+  const tripPct = Math.min(100, Math.max(0, max > 0 ? Math.round((total / max) * 100) : 50))
+
+  const scorableMembers = (trip.members ?? []).filter(
+    m => (m.user as any)?.travel_styles?.length || (m.user as any)?.travel_pace
+  )
+  if (scorableMembers.length > 0) {
+    const memberScores = scorableMembers.map(m => memberCompatibility(userProfile, m.user as MemberProfile))
+    const groupPct = Math.min(100, Math.max(0, Math.round(memberScores.reduce((a, b) => a + b, 0) / memberScores.length)))
+    return { tripPct, groupPct }
+  }
+
+  return { tripPct, groupPct: null }
 }

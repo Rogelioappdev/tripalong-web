@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip, getProfile } from '@/lib/queries'
-import { calculateTripMatch, getMatchingVibes, memberCompatibility } from '@/lib/matching'
+import { getTripMatchBreakdown, getMatchingVibes, memberCompatibility } from '@/lib/matching'
 import { hasPlus } from '@/lib/trial'
 import { PublicProfileModal } from './PublicProfileModal'
 import { JoinCelebration } from './JoinCelebration'
@@ -120,7 +120,8 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
   }
 
   const displayTrip = tripDetail ?? trip
-  const matchPct = userProfile ? calculateTripMatch(userProfile, displayTrip) : undefined
+  const { tripPct, groupPct } = userProfile ? getTripMatchBreakdown(userProfile, displayTrip) : { tripPct: 0, groupPct: null }
+  const matchPct = userProfile ? (groupPct ?? tripPct) : undefined
   const matchingVibes = userProfile ? getMatchingVibes(userProfile, displayTrip) : []
   const isPlus = hasPlus(userProfile)
   const memberCount = displayTrip.members?.length ?? 0
@@ -275,48 +276,59 @@ export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: Trip
                 <p className="text-white font-bold" style={{ fontSize: 17, marginBottom: 12 }}>Your Compatibility</p>
                 {isPlus ? (
                   <div
-                    className="rounded-2xl p-4 flex items-center gap-4"
+                    className="rounded-2xl p-4 flex flex-col gap-3"
                     style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}
                   >
-                    {/* Score ring */}
-                    <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
-                      <svg width="64" height="64" viewBox="0 0 64 64">
-                        <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" />
-                        <circle
-                          cx="32" cy="32" r="26" fill="none"
-                          stroke={matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.4)'}
-                          strokeWidth="5"
-                          strokeLinecap="round"
-                          strokeDasharray={`${(matchPct / 100) * 163} 163`}
-                          transform="rotate(-90 32 32)"
-                        />
-                      </svg>
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{
-                          color: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.6)',
-                          fontSize: 15, fontWeight: 800, letterSpacing: '-0.5px',
-                        }}>{matchPct}%</span>
+                    {/* Scores row */}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      {/* Group score — primary */}
+                      {groupPct !== null && (
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Group</p>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                            <span style={{
+                              fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
+                              color: groupPct >= 80 ? '#30D158' : groupPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
+                            }}>{groupPct}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600 }}>%</span>
+                          </div>
+                          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>
+                            {groupPct >= 80 ? 'You\'ll vibe' : groupPct >= 60 ? 'Good fit' : 'Different styles'}
+                          </p>
+                        </div>
+                      )}
+                      {/* Divider */}
+                      {groupPct !== null && (
+                        <div style={{ width: 0.5, backgroundColor: 'rgba(255,255,255,0.08)', alignSelf: 'stretch' }} />
+                      )}
+                      {/* Trip score — secondary */}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Trip</p>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                          <span style={{
+                            fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
+                            color: tripPct >= 80 ? '#30D158' : tripPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
+                          }}>{tripPct}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600 }}>%</span>
+                        </div>
+                        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>
+                          {tripPct >= 80 ? 'Perfect fit' : tripPct >= 60 ? 'Good match' : 'Explore anyway'}
+                        </p>
                       </div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <p className="text-white font-semibold" style={{ fontSize: 15, marginBottom: 6 }}>
-                        {matchPct >= 80 ? 'Strong match' : matchPct >= 60 ? 'Good match' : 'Partial match'}
-                      </p>
-                      {matchingVibes.length > 0 ? (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {matchingVibes.map(v => (
-                            <span key={v} style={{
-                              padding: '4px 10px', borderRadius: 999,
-                              backgroundColor: 'rgba(240,235,227,0.08)',
-                              border: '0.5px solid rgba(240,235,227,0.18)',
-                              color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 500,
-                            }}>{v}</span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Based on your travel DNA</p>
-                      )}
-                    </div>
+                    {/* Matching vibes */}
+                    {matchingVibes.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 4, borderTop: '0.5px solid rgba(255,255,255,0.07)' }}>
+                        {matchingVibes.map(v => (
+                          <span key={v} style={{
+                            padding: '4px 10px', borderRadius: 999,
+                            backgroundColor: 'rgba(240,235,227,0.07)',
+                            border: '0.5px solid rgba(240,235,227,0.15)',
+                            color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 500,
+                          }}>{v}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <button
