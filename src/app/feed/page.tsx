@@ -333,6 +333,7 @@ export default function FeedPage() {
               onAuthRequired={triggerAuthGate}
               onTripTap={setSelectedTrip}
               onSave={handleTripSaved}
+              onProfileClaimed={setFeedProfile}
             />
             </div>
           ) : (

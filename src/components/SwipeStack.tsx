@@ -51,6 +51,7 @@ interface SwipeStackProps {
   onAuthRequired?: (destination?: string) => void
   onTripTap: (trip: TripWithDetails) => void
   onSave?: (trip: TripWithDetails) => void
+  onProfileClaimed?: (profile: UserProfile) => void
 }
 
 // ── DNA helpers ──────────────────────────────────────────────────────────────
@@ -246,7 +247,7 @@ function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave }: SwipeStackProps) {
+export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window === 'undefined') return 0
@@ -564,10 +565,8 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
             userId={userId}
             profile={localProfile ?? userProfile}
             onClaimed={(updated) => {
-              // Don't reset swipeLimitReached here — that would exit this
-              // early-return block and unmount FoundingMemberScreen mid-flow.
-              // Reset it in onDismiss after the onboarding completes instead.
               setLocalProfile(updated)
+              onProfileClaimed?.(updated)
             }}
             onDismiss={() => {
               setShowFoundingScreen(false)
@@ -751,6 +750,19 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
           <span className="text-white/35 text-[10px] font-semibold">Save</span>
         </motion.button>
       </div>
+
+      {/* Founding screen triggered from compatibility tap during normal swiping */}
+      {showFoundingScreen && userId && userProfile && (
+        <FoundingMemberScreen
+          userId={userId}
+          profile={localProfile ?? userProfile}
+          onClaimed={(updated) => {
+            setLocalProfile(updated)
+            onProfileClaimed?.(updated)
+          }}
+          onDismiss={() => setShowFoundingScreen(false)}
+        />
+      )}
     </div>
   )
 }

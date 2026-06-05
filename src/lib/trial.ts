@@ -25,12 +25,13 @@ export function trialDaysLeft(profile: UserProfile | null): number {
   return Math.max(0, Math.ceil(TRIAL_DAYS - days))
 }
 
-export async function claimFoundingTrial(userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('users')
-    .update({ trial_start_at: new Date().toISOString() })
-    .eq('id', userId)
-  if (error) throw error
+export async function claimFoundingTrial(_userId: string): Promise<void> {
+  const res = await fetch('/api/trial/claim', { method: 'POST' })
+  if (res.status === 409) return // already claimed — treat as success, don't throw
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `Server error ${res.status}`)
+  }
 }
 
 // Dev override: ?trial=day0|day3|day6|expired
