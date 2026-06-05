@@ -625,9 +625,12 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
 
   const isCurrentJoined = currentTrip ? joinedIds.has(currentTrip.id) : false
   const effectiveProfileForMatch = localProfile ?? userProfile
+  const isPlus = hasPlus(effectiveProfileForMatch)
   const matchPct = currentTrip ? calculateTripMatch(effectiveProfileForMatch, currentTrip) : undefined
   const matchingVibes = currentTrip ? getMatchingVibes(effectiveProfileForMatch, currentTrip) : []
-  const isPlus = hasPlus(effectiveProfileForMatch)
+  const nextTrip = visibleTrips[1]
+  const nextMatchPct = nextTrip ? calculateTripMatch(effectiveProfileForMatch, nextTrip) : undefined
+  const nextMatchingVibes = nextTrip ? getMatchingVibes(effectiveProfileForMatch, nextTrip) : []
   const pct = dnaProgress(userProfile)
 
   return (
@@ -638,14 +641,17 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
         style={{ backgroundColor: '#111' }}
         onPointerDown={() => { if (hintVisible) dismissHint() }}
       >
-        {visibleTrips[1] && (
+        {nextTrip && (
           <SwipeCard
-            key={visibleTrips[1].id}
-            trip={visibleTrips[1]}
+            key={nextTrip.id}
+            trip={nextTrip}
             isTop={false}
             sharedX={topCardX}
+            matchPct={nextMatchPct}
+            matchingVibes={nextMatchingVibes}
+            isPlus={isPlus}
             onSwipeLeft={handleSwipeLeft}
-            onSwipeRight={() => handleSwipeRight(visibleTrips[1])}
+            onSwipeRight={() => handleSwipeRight(nextTrip)}
             onTap={() => {}}
           />
         )}
