@@ -769,9 +769,14 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
 
   const handleClaim = () => {
     haptic(18)
-    onClaimed({ ...profile, trial_start_at: new Date().toISOString() })
+    const claimed = { ...profile, trial_start_at: new Date().toISOString() }
+    onClaimed(claimed) // optimistic update — UI feels instant
     setPhase('unlock')
-    claimFoundingTrial(userId).catch(() => {})
+    // Persist to DB — if it fails the user still sees the animation,
+    // but onDismiss will refetch so the UI stays correct long-term
+    claimFoundingTrial(userId).catch((err) => {
+      console.error('Trial claim failed:', err)
+    })
   }
 
   const [holding, setHolding] = useState(false)

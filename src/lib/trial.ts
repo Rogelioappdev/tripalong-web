@@ -25,9 +25,12 @@ export function trialDaysLeft(profile: UserProfile | null): number {
   return Math.max(0, Math.ceil(TRIAL_DAYS - days))
 }
 
-export async function claimFoundingTrial(_userId: string): Promise<void> {
-  const res = await fetch('/api/trial/claim', { method: 'POST' })
-  if (res.status === 409) return // already claimed — treat as success, don't throw
+export async function claimFoundingTrial(userId: string): Promise<void> {
+  const res = await fetch('/api/trial/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.error ?? `Server error ${res.status}`)

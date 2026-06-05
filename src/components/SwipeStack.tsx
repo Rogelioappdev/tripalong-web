@@ -762,7 +762,13 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
             setUserProfile(updated)
             onProfileClaimed?.(updated)
           }}
-          onDismiss={() => setShowFoundingScreen(false)}
+          onDismiss={() => {
+            setShowFoundingScreen(false)
+            // Re-fetch from DB to confirm trial_start_at was persisted
+            getProfile(userId).then(p => {
+              if (p) { setUserProfile(p); setLocalProfile(p); onProfileClaimed?.(p) }
+            })
+          }}
         />
       )}
     </div>
