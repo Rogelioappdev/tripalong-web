@@ -8,8 +8,9 @@ import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getUserTripChats, getDMConversations, getProfileViewers } from '@/lib/queries'
+import { getUserTripChats, getDMConversations, getProfileViewers, getProfile } from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
+import { hasPlus } from '@/lib/trial'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
 import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
@@ -48,6 +49,7 @@ export default function MessagesPage() {
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string | null>>({})
   const [showViews, setShowViews] = useState(false)
   const [viewerCount, setViewerCount] = useState(0)
+  const [isPlus, setIsPlus] = useState(false)
   const onlineUsers = useOnlineUsers()
 
   useEffect(() => {
@@ -68,6 +70,7 @@ export default function MessagesPage() {
       setUserId(session.user.id)
       initPresence(session.user.id)
       getProfileViewers(50).then(v => setViewerCount(v.length))
+      getProfile(session.user.id).then(p => setIsPlus(hasPlus(p)))
     })
   }, [router])
 
@@ -103,7 +106,7 @@ export default function MessagesPage() {
       <NavBar />
       <AnimatePresence>
         {showViews && (
-          <ProfileViewsSheet onClose={() => { setShowViews(false) }} />
+          <ProfileViewsSheet onClose={() => { setShowViews(false) }} isPlus={isPlus} />
         )}
       </AnimatePresence>
       <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>

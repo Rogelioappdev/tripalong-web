@@ -19,6 +19,7 @@ interface Viewer {
 
 interface ProfileViewsSheetProps {
   onClose: () => void
+  isPlus?: boolean
 }
 
 // ── localStorage helpers ────────────────────────────────────────────────────
@@ -305,7 +306,7 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
 }
 
 // ── Main sheet ───────────────────────────────────────────────────────────────
-export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
+export function ProfileViewsSheet({ onClose, isPlus = false }: ProfileViewsSheetProps) {
   const [viewers, setViewers] = useState<Viewer[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -336,6 +337,8 @@ export function ProfileViewsSheet({ onClose }: ProfileViewsSheetProps) {
 
   const handleRevealRequest = (): boolean => {
     if (!selectedViewer) return false
+    // Plus users (trial or paid) see everyone — no gate
+    if (isPlus) return true
     const revealedIds = getRevealedIds()
     if (revealedIds.has(selectedViewer.id)) return true
     if (revealedIds.size < 1) {
