@@ -12,6 +12,8 @@ import { PublicProfileModal } from './PublicProfileModal'
 import { JoinCelebration } from './JoinCelebration'
 import { ProfilePhotoNudge } from './ProfilePhotoNudge'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
+import { FoundingMemberScreen } from './FoundingMemberScreen'
+import { getTrialStatus } from '@/lib/trial'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
@@ -50,6 +52,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   const [userProfile, setUserProfile] = useState<UserProfile | null>(initialProfile ?? null)
   const [showCompatPaywall, setShowCompatPaywall] = useState(false)
   const [compatPaywallContext, setCompatPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
+  const [showCompatTrialOffer, setShowCompatTrialOffer] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
@@ -123,6 +126,17 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   }
 
   const displayTrip = tripDetail ?? trip
+
+  const openCompatibilityGate = (score?: number) => {
+    haptic(8)
+    if (getTrialStatus(userProfile) === 'none') {
+      setShowCompatTrialOffer(true)
+    } else {
+      setCompatPaywallContext(score !== undefined ? { matchPct: score, destination: displayTrip.destination } : undefined)
+      setShowCompatPaywall(true)
+    }
+  }
+
   const { tripPct, groupPct } = userProfile ? getTripMatchBreakdown(userProfile, displayTrip) : { tripPct: 0, groupPct: null }
   const matchPct = userProfile ? (groupPct ?? tripPct) : undefined
   const matchingVibes = userProfile ? getMatchingVibes(userProfile, displayTrip) : []
@@ -370,7 +384,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                     </div>
                     <button
                       type="button"
-                      onClick={() => { haptic(8); setCompatPaywallContext({ matchPct: groupPct ?? tripPct, destination: displayTrip.destination }); setShowCompatPaywall(true) }}
+                      onClick={() => openCompatibilityGate(groupPct ?? tripPct)}
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl active:opacity-70"
                       style={{ backgroundColor: 'rgba(240,235,227,0.07)', border: '0.5px solid rgba(240,235,227,0.15)' }}
                     >
@@ -418,7 +432,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                       <button
                         key={m.id}
                         type="button"
-                        onPointerDown={(e) => { e.stopPropagation(); haptic(8); isPlus ? setProfileUserId(m.id) : (() => { setCompatPaywallContext(score !== null ? { matchPct: score, destination: displayTrip.destination } : undefined); setShowCompatPaywall(true) })() }}
+                        onPointerDown={(e) => { e.stopPropagation(); isPlus ? (haptic(8), setProfileUserId(m.id)) : openCompatibilityGate(score ?? undefined) }}
                         className="flex flex-col items-center shrink-0 active:opacity-75 transition-opacity"
                         style={{ touchAction: 'manipulation', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', gap: 4 } as React.CSSProperties}
                       >
@@ -540,6 +554,15 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
         allowDismiss
         context={compatPaywallContext}
         onClose={() => { setShowCompatPaywall(false); setCompatPaywallContext(undefined) }}
+      />
+    )}
+
+    {showCompatTrialOffer && userId && userProfile && (
+      <FoundingMemberScreen
+        userId={userId}
+        profile={userProfile}
+        onClaimed={(updated) => { setUserProfile(updated); setShowCompatTrialOffer(false) }}
+        onDismiss={() => setShowCompatTrialOffer(false)}
       />
     )}
     </>

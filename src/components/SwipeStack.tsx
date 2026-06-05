@@ -669,8 +669,14 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
             matchingVibes={matchingVibes}
             isPlus={isPlus}
             onCompatibilityTap={() => {
-                setPaywallContext(matchPct !== undefined ? { matchPct, destination: currentTrip?.destination } : undefined)
-                setShowPaywall(true)
+                const profile = localProfile ?? userProfile
+                const trialStatus = getTrialStatus(profile)
+                if (trialStatus === 'none') {
+                  setShowFoundingScreen(true)
+                } else {
+                  setPaywallContext(matchPct !== undefined ? { matchPct, destination: currentTrip?.destination } : undefined)
+                  setShowPaywall(true)
+                }
               }}
             onSwipeLeft={handleSwipeLeft}
             onSwipeRight={() => handleSwipeRight(currentTrip)}
