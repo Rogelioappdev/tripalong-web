@@ -566,6 +566,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
             profile={localProfile ?? userProfile}
             onClaimed={(updated) => {
               setLocalProfile(updated)
+              setUserProfile(updated)
               onProfileClaimed?.(updated)
             }}
             onDismiss={() => {
@@ -758,6 +759,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
           profile={localProfile ?? userProfile}
           onClaimed={(updated) => {
             setLocalProfile(updated)
+            setUserProfile(updated)
             onProfileClaimed?.(updated)
           }}
           onDismiss={() => setShowFoundingScreen(false)}
