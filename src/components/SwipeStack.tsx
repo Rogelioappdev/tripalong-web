@@ -47,6 +47,7 @@ interface SwipeStackProps {
   trips: TripWithDetails[]
   userId: string | null
   isGuest?: boolean
+  initialProfile?: UserProfile | null
   onAuthRequired?: (destination?: string) => void
   onTripTap: (trip: TripWithDetails) => void
   onSave?: (trip: TripWithDetails) => void
@@ -245,7 +246,7 @@ function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, onSave }: SwipeStackProps) {
+export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave }: SwipeStackProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window === 'undefined') return 0
@@ -253,7 +254,7 @@ export function SwipeStack({ trips, userId, isGuest, onAuthRequired, onTripTap, 
   })
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set())
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(initialProfile ?? null)
   const [hintVisible, setHintVisible] = useState(false)
   const [dnaNudgeActive, setDnaNudgeActive] = useState(false)
   const { h, m, s } = useMidnightCountdown()

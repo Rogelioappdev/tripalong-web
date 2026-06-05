@@ -49,6 +49,7 @@ export default function FeedPage() {
   const [upgradeToast, setUpgradeToast] = useState(false)
   const [showTrialExpiredPaywall, setShowTrialExpiredPaywall] = useState(false)
   const [trialExpiredNudge, setTrialExpiredNudge] = useState(false)
+  const [feedProfile, setFeedProfile] = useState<UserProfile | null>(null)
   const [showFoundingScreen, setShowFoundingScreen] = useState(() => {
     if (typeof window === 'undefined') return false
     return new URLSearchParams(window.location.search).get('trial') === 'none'
@@ -93,9 +94,10 @@ export default function FeedPage() {
         localStorage.removeItem('ta_pending_save')
         setPendingTripId(pending)
       }
-      // Check trial expiry on every app open
+      // Fetch profile once — reused for trial check, SwipeStack, and TripDetailModal
       const profile = await getProfile(session.user.id)
       if (profile) {
+        setFeedProfile(profile)
         const override = getDevTrialOverride()
         const effectiveProfile = override ? { ...profile, trial_start_at: override } : profile
         const isExpired = getTrialStatus(effectiveProfile) === 'expired' && effectiveProfile.subscription_tier === 'free'
@@ -327,6 +329,7 @@ export default function FeedPage() {
               trips={trips}
               userId={userId}
               isGuest={isGuest}
+              initialProfile={feedProfile}
               onAuthRequired={triggerAuthGate}
               onTripTap={setSelectedTrip}
               onSave={handleTripSaved}
@@ -345,6 +348,7 @@ export default function FeedPage() {
           trip={selectedTrip}
           onClose={() => setSelectedTrip(null)}
           isGuest={isGuest}
+          initialProfile={feedProfile}
           onAuthRequired={triggerAuthGate}
         />
       )}

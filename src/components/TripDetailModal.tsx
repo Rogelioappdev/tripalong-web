@@ -19,6 +19,7 @@ interface TripDetailModalProps {
   trip: TripWithDetails
   onClose: () => void
   isGuest?: boolean
+  initialProfile?: UserProfile | null
   onAuthRequired?: (destination?: string) => void
 }
 
@@ -39,23 +40,24 @@ function formatDates(start: string | null, end: string | null, flexible: boolean
   return `${s.toLocaleDateString('en-US', opts)} – ${e.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
 }
 
-export function TripDetailModal({ trip, onClose, isGuest, onAuthRequired }: TripDetailModalProps) {
+export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuthRequired }: TripDetailModalProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
   const [showPhotoNudge, setShowPhotoNudge] = useState(false)
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(initialProfile ?? null)
   const [showCompatPaywall, setShowCompatPaywall] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
 
+  // Only fetch if not provided by parent — avoids duplicate network call
   useEffect(() => {
-    if (userId) getProfile(userId).then(p => setUserProfile(p))
-  }, [userId])
+    if (!initialProfile && userId) getProfile(userId).then(p => setUserProfile(p))
+  }, [userId, initialProfile])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
