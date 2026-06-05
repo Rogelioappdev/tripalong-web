@@ -561,7 +561,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
       <FoundingMemberScreen
         userId={userId}
         profile={userProfile}
-        onClaimed={(updated) => { setUserProfile(updated); setShowCompatTrialOffer(false) }}
+        onClaimed={(updated) => { setUserProfile(updated) }}
         onDismiss={() => setShowCompatTrialOffer(false)}
       />
     )}
