@@ -84,7 +84,7 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
         className="absolute inset-0 rounded-[22px] overflow-hidden"
         style={{ scale: behindScale, y: behindY, zIndex: 0, transformOrigin: 'bottom center' }}
       >
-        <CardContent trip={trip} dateLabel={dateLabel} isJoined={false} matchPct={undefined} />
+        <CardContent trip={trip} dateLabel={dateLabel} isJoined={false} matchPct={matchPct} matchingVibes={matchingVibes} isPlus={isPlus} />
       </motion.div>
     )
   }
