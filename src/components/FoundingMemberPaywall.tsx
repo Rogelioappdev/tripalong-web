@@ -9,6 +9,7 @@ import { startCheckout } from '@/lib/subscription'
 interface Props {
   onClose?: () => void
   allowDismiss?: boolean
+  context?: { matchPct: number; destination?: string }
 }
 
 const FEATURES = [
@@ -22,7 +23,7 @@ const FEATURES = [
   },
 ]
 
-export function FoundingMemberPaywall({ onClose, allowDismiss = false }: Props) {
+export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }: Props) {
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -85,33 +86,59 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false }: Props) 
           transition={{ duration: 0.4, ease: 'easeOut' }}
           className="flex flex-col items-center text-center"
         >
-          {/* Icon */}
-          <div style={{
-            width: 52, height: 52, borderRadius: 16, marginBottom: 14,
-            background: 'linear-gradient(145deg, rgba(240,235,227,0.1) 0%, rgba(240,235,227,0.03) 100%)',
-            border: '1px solid rgba(240,235,227,0.13)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="9" stroke="rgba(240,235,227,0.65)" strokeWidth="1.5"/>
-              <path d="M12 3c-2.5 3-4 5.5-4 9s1.5 6 4 9" stroke="rgba(240,235,227,0.65)" strokeWidth="1.5" strokeLinecap="round"/>
-              <path d="M12 3c2.5 3 4 5.5 4 9s-1.5 6-4 9" stroke="rgba(240,235,227,0.65)" strokeWidth="1.5" strokeLinecap="round"/>
-              <path d="M3 12h18" stroke="rgba(240,235,227,0.65)" strokeWidth="1.5" strokeLinecap="round"/>
-              <path d="M3.5 8.5h17M3.5 15.5h17" stroke="rgba(240,235,227,0.4)" strokeWidth="1.2" strokeLinecap="round"/>
-            </svg>
-          </div>
+          {context ? (
+            /* Contextual — triggered from compatibility tap */
+            <>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginBottom: 12 }}>
+                <span style={{
+                  fontSize: 56, fontWeight: 900, letterSpacing: '-3px', lineHeight: 1,
+                  color: context.matchPct >= 80 ? '#30D158' : context.matchPct >= 60 ? '#FFD60A' : '#ffffff',
+                }}>
+                  {context.matchPct}
+                </span>
+                <span style={{
+                  fontSize: 22, fontWeight: 700,
+                  color: context.matchPct >= 80 ? '#30D158' : context.matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.5)',
+                }}>%</span>
+              </div>
+              <h2 style={{ color: '#ffffff', fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1.15, marginBottom: 8 }}>
+                {context.matchPct >= 80
+                  ? "You'll vibe with this group."
+                  : context.matchPct >= 60
+                  ? "You're a good match."
+                  : "You match with this group."}
+              </h2>
+              <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, lineHeight: 1.5 }}>
+                Unlock your scores to see exactly who you'll travel with best.
+              </p>
+            </>
+          ) : (
+            /* Generic — triggered from limit screen, nudge strip, etc. */
+            <>
+              <div style={{
+                width: 52, height: 52, borderRadius: 16, marginBottom: 14,
+                background: 'linear-gradient(145deg, rgba(240,235,227,0.1) 0%, rgba(240,235,227,0.03) 100%)',
+                border: '1px solid rgba(240,235,227,0.13)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="rgba(240,235,227,0.65)" strokeWidth="1.5"/>
+                  <path d="M12 3c-2.5 3-4 5.5-4 9s1.5 6 4 9" stroke="rgba(240,235,227,0.65)" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M12 3c2.5 3 4 5.5 4 9s-1.5 6-4 9" stroke="rgba(240,235,227,0.65)" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M3 12h18" stroke="rgba(240,235,227,0.65)" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M3.5 8.5h17M3.5 15.5h17" stroke="rgba(240,235,227,0.4)" strokeWidth="1.2" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <h2 style={{ color: '#ffffff', fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1.15, marginBottom: 8 }}>
+                Find your person<br />for every trip.
+              </h2>
+              <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, lineHeight: 1.5 }}>
+                The right co-traveler is a few swipes away.
+              </p>
+            </>
+          )}
 
-          <h2 style={{
-            color: '#ffffff', fontSize: 24, fontWeight: 800,
-            letterSpacing: '-0.5px', lineHeight: 1.15, marginBottom: 8,
-          }}>
-            Find your person<br />for every trip.
-          </h2>
-          <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, lineHeight: 1.5 }}>
-            The right co-traveler is a few swipes away.
-          </p>
-
-          {/* Feature list */}
+          {/* Feature list — shown for both */}
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 5, marginTop: 14 }}>
             {FEATURES.map((f, i) => (
               <motion.div
@@ -121,10 +148,7 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false }: Props) 
                 transition={{ delay: 0.1 + i * 0.08, duration: 0.3, ease: 'easeOut' }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8 }}
               >
-                <div style={{
-                  width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                  backgroundColor: 'rgba(240,235,227,0.3)',
-                }} />
+                <div style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, backgroundColor: 'rgba(240,235,227,0.3)' }} />
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 500 }}>
                   {f.label}
                   <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: 400 }}> — {f.sub}</span>
@@ -242,7 +266,7 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false }: Props) 
               color: '#000', fontSize: 15, marginBottom: 8,
             }}
           >
-            {loading ? 'Opening checkout…' : 'Keep swiping →'}
+            {loading ? 'Opening checkout…' : context ? 'Unlock my scores →' : 'Keep swiping →'}
           </button>
           <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, textAlign: 'center' }}>
             Cancel anytime · Secure payment

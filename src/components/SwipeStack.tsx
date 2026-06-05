@@ -261,6 +261,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const [swipeLimitReached, setSwipeLimitReached] = useState(false)
   const [limitChecked, setLimitChecked] = useState(false)
   const [showPaywall, setShowPaywall] = useState(false)
+  const [paywallContext, setPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
   const [showFoundingScreen, setShowFoundingScreen] = useState(false)
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
   const topCardX = useMotionValue(0)
@@ -584,7 +585,8 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
                 <FoundingMemberPaywall
                   key="expired-paywall"
                   allowDismiss
-                  onClose={() => setShowPaywall(false)}
+                  context={paywallContext}
+                  onClose={() => { setShowPaywall(false); setPaywallContext(undefined) }}
                 />
               )
             }
@@ -666,7 +668,10 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
             matchPct={matchPct}
             matchingVibes={matchingVibes}
             isPlus={isPlus}
-            onCompatibilityTap={() => setShowPaywall(true)}
+            onCompatibilityTap={() => {
+                setPaywallContext(matchPct !== undefined ? { matchPct, destination: currentTrip?.destination } : undefined)
+                setShowPaywall(true)
+              }}
             onSwipeLeft={handleSwipeLeft}
             onSwipeRight={() => handleSwipeRight(currentTrip)}
             onTap={() => onTripTap(currentTrip)}
