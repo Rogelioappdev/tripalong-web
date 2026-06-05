@@ -21,6 +21,10 @@ const FEATURES = [
     label: 'See who viewed you',
     sub: 'Know who\'s interested',
   },
+  {
+    label: 'Compatibility scores',
+    sub: 'See how well you match the trip and each person going',
+  },
 ]
 
 export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }: Props) {
