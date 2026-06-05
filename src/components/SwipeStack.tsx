@@ -568,6 +568,10 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
               setLocalProfile(updated)
               setUserProfile(updated)
               onProfileClaimed?.(updated)
+              // Re-fetch during the animation — confirmed DB profile ready before slides finish
+              getProfile(userId).then(p => {
+                if (p) { setLocalProfile(p); setUserProfile(p); onProfileClaimed?.(p) }
+              })
             }}
             onDismiss={() => {
               setShowFoundingScreen(false)
@@ -761,14 +765,12 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
             setLocalProfile(updated)
             setUserProfile(updated)
             onProfileClaimed?.(updated)
-          }}
-          onDismiss={() => {
-            setShowFoundingScreen(false)
-            // Re-fetch from DB to confirm trial_start_at was persisted
+            // Re-fetch during the animation — confirmed DB profile ready before slides finish
             getProfile(userId).then(p => {
-              if (p) { setUserProfile(p); setLocalProfile(p); onProfileClaimed?.(p) }
+              if (p) { setLocalProfile(p); setUserProfile(p); onProfileClaimed?.(p) }
             })
           }}
+          onDismiss={() => setShowFoundingScreen(false)}
         />
       )}
     </div>
