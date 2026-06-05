@@ -87,29 +87,38 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }
           className="flex flex-col items-center text-center"
         >
           {context ? (
-            /* Contextual — triggered from compatibility tap */
+            /* Contextual — triggered from compatibility tap. No number revealed. */
             <>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginBottom: 12 }}>
-                <span style={{
-                  fontSize: 56, fontWeight: 900, letterSpacing: '-3px', lineHeight: 1,
-                  color: context.matchPct >= 80 ? '#30D158' : context.matchPct >= 60 ? '#FFD60A' : '#ffffff',
-                }}>
-                  {context.matchPct}
-                </span>
-                <span style={{
-                  fontSize: 22, fontWeight: 700,
-                  color: context.matchPct >= 80 ? '#30D158' : context.matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.5)',
-                }}>%</span>
+              {/* Quality icon — color signals tier without the number */}
+              <div style={{
+                width: 52, height: 52, borderRadius: 16, marginBottom: 14,
+                backgroundColor: context.matchPct >= 80
+                  ? 'rgba(48,209,88,0.12)'
+                  : context.matchPct >= 60
+                  ? 'rgba(255,214,10,0.12)'
+                  : 'rgba(255,255,255,0.06)',
+                border: `1px solid ${context.matchPct >= 80 ? 'rgba(48,209,88,0.35)' : context.matchPct >= 60 ? 'rgba(255,214,10,0.35)' : 'rgba(255,255,255,0.12)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d={context.matchPct >= 60
+                      ? "M20 6L9 17l-5-5"
+                      : "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"}
+                    stroke={context.matchPct >= 80 ? '#30D158' : context.matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.5)'}
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  />
+                </svg>
               </div>
               <h2 style={{ color: '#ffffff', fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1.15, marginBottom: 8 }}>
                 {context.matchPct >= 80
-                  ? "You'll vibe with this group."
+                  ? "You're a strong match\nwith this group."
                   : context.matchPct >= 60
-                  ? "You're a good match."
-                  : "You match with this group."}
+                  ? "You're a good match\nwith this group."
+                  : "You have things in common\nwith this group."}
               </h2>
               <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, lineHeight: 1.5 }}>
-                Unlock your scores to see exactly who you'll travel with best.
+                Unlock to see exactly how much.
               </p>
             </>
           ) : (
