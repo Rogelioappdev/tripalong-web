@@ -295,15 +295,28 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
                 className="flex items-center justify-between w-full active:opacity-70"
               >
                 <div className="flex items-center gap-2">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.45)" strokeWidth="1.8"/>
-                    <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.45)" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
-                  <span style={{ color: 'rgba(255,255,255,0.38)', fontSize: 13, fontWeight: 500 }}>
-                    See your compatibility
+                  {/* Dot reveals quality without revealing the number */}
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    backgroundColor: matchPct !== undefined
+                      ? (matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.3)')
+                      : 'rgba(255,255,255,0.2)',
+                  }} />
+                  {/* Number blurred — you can almost read it */}
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>
+                    <span style={{ filter: 'blur(3.5px)', userSelect: 'none' }}>
+                      {matchPct ?? '??'}%
+                    </span>
+                    {' '}match
                   </span>
                 </div>
-                <span style={{ color: 'rgba(240,235,227,0.35)', fontSize: 12, fontWeight: 600 }}>Plus →</span>
+                <div className="flex items-center gap-1.5">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.5)" strokeWidth="2"/>
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.5)" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  <span style={{ color: 'rgba(240,235,227,0.5)', fontSize: 12, fontWeight: 600 }}>Unlock</span>
+                </div>
               </button>
             )}
           </>

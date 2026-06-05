@@ -333,29 +333,53 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                     )}
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => { haptic(8); setShowCompatPaywall(true) }}
-                    className="w-full rounded-2xl p-4 flex items-center gap-4 active:opacity-70 transition-opacity"
+                  // Free: same layout as Plus but numbers blurred — FOMO
+                  <div
+                    className="rounded-2xl p-4 flex flex-col gap-3"
                     style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}
                   >
-                    <div style={{
-                      width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
-                      backgroundColor: 'rgba(255,255,255,0.05)',
-                      border: '0.5px solid rgba(255,255,255,0.1)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                        <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.4)" strokeWidth="1.8"/>
-                        <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.4)" strokeWidth="1.8" strokeLinecap="round"/>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      {groupPct !== null && (
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Group</p>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                            <span style={{
+                              fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
+                              color: groupPct >= 80 ? '#30D158' : groupPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
+                              filter: 'blur(7px)', userSelect: 'none',
+                            }}>{groupPct}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600, filter: 'blur(5px)' }}>%</span>
+                          </div>
+                        </div>
+                      )}
+                      {groupPct !== null && (
+                        <div style={{ width: 0.5, backgroundColor: 'rgba(255,255,255,0.08)', alignSelf: 'stretch' }} />
+                      )}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Trip</p>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                          <span style={{
+                            fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
+                            color: tripPct >= 80 ? '#30D158' : tripPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
+                            filter: 'blur(7px)', userSelect: 'none',
+                          }}>{tripPct}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600, filter: 'blur(5px)' }}>%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { haptic(8); setShowCompatPaywall(true) }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl active:opacity-70"
+                      style={{ backgroundColor: 'rgba(240,235,227,0.07)', border: '0.5px solid rgba(240,235,227,0.15)' }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.6)" strokeWidth="2"/>
+                        <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.6)" strokeWidth="2" strokeLinecap="round"/>
                       </svg>
-                    </div>
-                    <div style={{ flex: 1, textAlign: 'left' }}>
-                      <p className="text-white font-semibold" style={{ fontSize: 15, marginBottom: 4 }}>See your compatibility</p>
-                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Know if this group is right for you</p>
-                    </div>
-                    <span style={{ color: 'rgba(240,235,227,0.45)', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Plus →</span>
-                  </button>
+                      <span style={{ color: 'rgba(240,235,227,0.6)', fontSize: 13, fontWeight: 600 }}>Unlock your scores</span>
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -377,7 +401,8 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                 <div className="flex gap-4 overflow-x-auto mt-3 pb-1">
                   {members.map(m => {
                     const rawMember = (displayTrip.members ?? []).find(dm => dm.user_id === m.id)
-                    const score = (isPlus && userProfile && rawMember?.user && m.id !== userId)
+                    // Compute score for everyone — free users see color hint, Plus sees the number
+                    const score = (userProfile && rawMember?.user && m.id !== userId)
                       ? memberCompatibility(userProfile, rawMember.user as any)
                       : null
                     const scoreColor = score === null ? null
@@ -392,7 +417,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                       <button
                         key={m.id}
                         type="button"
-                        onPointerDown={(e) => { e.stopPropagation(); haptic(8); setProfileUserId(m.id) }}
+                        onPointerDown={(e) => { e.stopPropagation(); haptic(8); isPlus ? setProfileUserId(m.id) : setShowCompatPaywall(true) }}
                         className="flex flex-col items-center shrink-0 active:opacity-75 transition-opacity"
                         style={{ touchAction: 'manipulation', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', gap: 4 } as React.CSSProperties}
                       >
@@ -423,14 +448,21 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                         >
                           {m.name.split(' ')[0]}
                         </span>
-                        {score !== null ? (
-                          <span style={{ color: scoreColor!, fontSize: 11, fontWeight: 700, marginTop: -2 }}>
-                            {score}%
-                          </span>
-                        ) : m.isCreator ? (
+                        {m.isCreator ? (
                           <span style={{ color: '#F0EBE3', fontSize: 9, letterSpacing: '0.5px', textTransform: 'uppercase', marginTop: -2, fontWeight: 600 }}>
                             Creator
                           </span>
+                        ) : score !== null ? (
+                          isPlus ? (
+                            <span style={{ color: scoreColor!, fontSize: 11, fontWeight: 700, marginTop: -2 }}>
+                              {score}%
+                            </span>
+                          ) : (
+                            // Free: colored '?' — reveals quality, hides the number
+                            <span style={{ color: scoreColor!, fontSize: 11, fontWeight: 700, marginTop: -2 }}>
+                              ?%
+                            </span>
+                          )
                         ) : null}
                       </button>
                     )
