@@ -507,6 +507,87 @@ function SlideWhoViewed({ profiles, viewerCount }: { profiles: { id: string; nam
   )
 }
 
+// ── Feature slide: Compatibility ──────────────────────────────────────────────
+
+function SlideCompatibility() {
+  const cards = [
+    { dest: 'Bali', color: '#30D158', pct: 92, label: 'Strong match' },
+    { dest: 'Tokyo', color: '#FFD60A', pct: 68, label: 'Good match' },
+    { dest: 'Lisbon', color: 'rgba(255,255,255,0.3)', pct: 34, label: 'Different styles' },
+  ]
+
+  return (
+    <div className="flex flex-col items-center justify-center flex-1 gap-8 px-8 text-center">
+
+      {/* Match cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
+        {cards.map((c, i) => (
+          <motion.div
+            key={c.dest}
+            initial={{ opacity: 0, x: 28 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 + i * 0.14, duration: 0.42, type: 'spring', stiffness: 220, damping: 22 }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '14px 16px', borderRadius: 18,
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              border: `0.5px solid ${i === 0 ? 'rgba(48,209,88,0.25)' : 'rgba(255,255,255,0.08)'}`,
+              boxShadow: i === 0 ? '0 0 20px rgba(48,209,88,0.08)' : undefined,
+            }}
+          >
+            {/* Colored dot */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.22 + i * 0.14, type: 'spring', stiffness: 320, damping: 18 }}
+              style={{
+                width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                backgroundColor: c.color,
+                boxShadow: i === 0 ? `0 0 8px ${c.color}80` : undefined,
+              }}
+            />
+            {/* Destination */}
+            <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, fontWeight: 700, flex: 1, textAlign: 'left' }}>
+              {c.dest}
+            </span>
+            {/* Label */}
+            <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 12 }}>{c.label}</span>
+            {/* Percentage */}
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 + i * 0.14, duration: 0.3 }}
+              style={{ color: c.color, fontSize: 16, fontWeight: 800, minWidth: 40, textAlign: 'right' }}
+            >
+              {c.pct}%
+            </motion.span>
+          </motion.div>
+        ))}
+      </div>
+
+      <div>
+        <motion.h2
+          initial={{ y: 24, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.45, ease: 'easeOut' }}
+          className="text-white font-extrabold mb-3"
+          style={{ fontSize: 30, letterSpacing: '-0.6px', lineHeight: 1.15 }}
+        >
+          Know before you join.
+        </motion.h2>
+        <motion.p
+          initial={{ y: 16, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.64, duration: 0.4, ease: 'easeOut' }}
+          style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, lineHeight: 1.65 }}
+        >
+          See how well you match every trip and each traveler going — before you commit.
+        </motion.p>
+      </div>
+    </div>
+  )
+}
+
 // ── Feature slide: Done ───────────────────────────────────────────────────────
 
 function SlideDone({ onDone }: { onDone: () => void }) {
@@ -568,7 +649,7 @@ function PlusSlides({ userId, onDone }: { userId: string; onDone: () => void }) 
   const [direction, setDirection] = useState(1)
   const [viewers, setViewers] = useState<Viewer[]>([])
   const [sampleProfiles, setSampleProfiles] = useState<{ id: string; name: string; profile_photo: string | null }[]>([])
-  const TOTAL = 3
+  const TOTAL = 4
 
   useEffect(() => {
     Promise.all([
@@ -602,6 +683,7 @@ function PlusSlides({ userId, onDone }: { userId: string; onDone: () => void }) 
   const slides = [
     <SlideUnlimited key="unlimited" />,
     <SlideWhoViewed key="whoviewed" profiles={whoViewedProfiles} viewerCount={viewers.length} />,
+    <SlideCompatibility key="compatibility" />,
     <SlideDone key="done" onDone={handleDone} />,
   ]
 
