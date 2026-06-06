@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createTrip, getDestinationPhotos } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
@@ -55,6 +56,7 @@ const BUDGETS = [
 
 export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
   const queryClient = useQueryClient()
+  const router = useRouter()
   const [destination, setDestination] = useState('')
   const [country, setCountry] = useState('')
   const [coverImage, setCoverImage] = useState('')
@@ -179,8 +181,9 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       setSlideIdx(i => i + 1)
     } else {
       onClose()
+      if (createdTripId) router.push(`/trip/${createdTripId}`)
     }
-  }, [slideIdx, SLIDES.length, onClose])
+  }, [slideIdx, SLIDES.length, onClose, createdTripId, router])
 
   const label = 'text-white/50 text-[11px] font-bold uppercase tracking-widest'
 
