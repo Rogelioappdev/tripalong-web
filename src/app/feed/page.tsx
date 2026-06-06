@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { SavedTripsModal } from '@/components/SavedTripsModal'
 import { FoundingMemberPaywall } from '@/components/FoundingMemberPaywall'
 import { TrialExpiredPaywall } from '@/components/TrialExpiredPaywall'
+import { FeedTutorial } from '@/components/FeedTutorial'
 import { FoundingMemberScreen } from '@/components/FoundingMemberScreen'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import { getTripMatchBreakdown } from '@/lib/matching'
@@ -60,6 +61,7 @@ export default function FeedPage() {
   const [plusTitleState, setPlusTitleState] = useState<'none' | 'animate' | 'static'>('none')
 
   const [justUpgraded, setJustUpgraded] = useState(false)
+  const [showTutorial, setShowTutorial] = useState(false)
   const [paywallStats, setPaywallStats] = useState<{ viewerCount: number; topMatch: { pct: number; destination: string } | null } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -97,6 +99,13 @@ export default function FeedPage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { setIsGuest(true); return }
       setUserId(session.user.id)
+
+      // First-run tutorial — show once, ever
+      const tutorialKey = `ta_feed_tutorial_${session.user.id}`
+      if (!localStorage.getItem(tutorialKey)) {
+        localStorage.setItem(tutorialKey, '1')
+        setShowTutorial(true)
+      }
 
       // After login, honour any pending redirect (e.g. trip invite link)
       const postAuthRedirect = sessionStorage.getItem('postAuthRedirect')
@@ -261,6 +270,13 @@ export default function FeedPage() {
             onClaimed={() => { /* profile update handled inside */ }}
             onDismiss={() => setShowFoundingScreen(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* First-run swipe tutorial */}
+      <AnimatePresence>
+        {showTutorial && (
+          <FeedTutorial onDone={() => setShowTutorial(false)} />
         )}
       </AnimatePresence>
 
