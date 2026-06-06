@@ -353,20 +353,6 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
 
           {/* Hero cover photo — header is overlaid on top */}
           <div className="relative shrink-0" style={{ height: '220px' }}>
-
-      <div
-        className="relative w-full sm:max-w-lg sm:rounded-3xl flex flex-col overflow-hidden"
-        style={{
-          backgroundColor: '#0d0d0d',
-          borderRadius: '28px 28px 0 0',
-          height: '95dvh',
-        }}
-      >
-        {/* Scrollable content — min-h-0 required so flex-1 actually bounds within the container */}
-        <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0">
-
-          {/* Hero cover photo — header is overlaid on top */}
-          <div className="relative shrink-0" style={{ height: '220px' }}>
             {coverImage ? (
               <img src={coverImage} alt="cover" className="w-full h-full object-cover" />
             ) : (
