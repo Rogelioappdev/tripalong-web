@@ -39,12 +39,15 @@ CREATE POLICY "users_update_own" ON users
 -- (Service role in API routes bypasses RLS entirely — this only limits anon/auth clients)
 CREATE OR REPLACE FUNCTION prevent_subscription_field_tampering()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_role text;
 BEGIN
-  -- If the request is from service role, allow everything
-  IF current_setting('role') = 'service_role' THEN
+  v_role := coalesce(current_setting('role', true), '');
+  -- Allow postgres superuser (SQL editor, migrations) and service_role (API routes)
+  IF current_user = 'postgres' OR v_role IN ('service_role', '') THEN
     RETURN NEW;
   END IF;
-  -- Authenticated clients cannot change subscription/payment fields
+  -- Block authenticated clients from changing subscription/payment fields
   IF NEW.subscription_tier      IS DISTINCT FROM OLD.subscription_tier      OR
      NEW.trial_start_at         IS DISTINCT FROM OLD.trial_start_at         OR
      NEW.subscription_status    IS DISTINCT FROM OLD.subscription_status    OR
