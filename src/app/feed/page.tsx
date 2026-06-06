@@ -19,6 +19,7 @@ import { FoundingMemberPaywall } from '@/components/FoundingMemberPaywall'
 import { TrialExpiredPaywall } from '@/components/TrialExpiredPaywall'
 import { FoundingMemberScreen } from '@/components/FoundingMemberScreen'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
+import { getTripMatchBreakdown } from '@/lib/matching'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
@@ -59,6 +60,7 @@ export default function FeedPage() {
   const [plusTitleState, setPlusTitleState] = useState<'none' | 'animate' | 'static'>('none')
 
   const [justUpgraded, setJustUpgraded] = useState(false)
+  const [paywallStats, setPaywallStats] = useState<{ viewerCount: number; topMatch: { pct: number; destination: string } | null } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
