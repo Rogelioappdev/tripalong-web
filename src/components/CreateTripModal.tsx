@@ -147,7 +147,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       haptic(18)
       setCreatedTripId(tripId)
       setPhase('created')
-      setTimeout(() => setPhase('slides'), 2200)
+      setTimeout(() => setPhase('slides'), 5000)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -212,7 +212,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
               <motion.div
                 initial={{ scale: 1.08 }}
                 animate={{ scale: 1.0 }}
-                transition={{ duration: 2.5, ease: 'easeOut' }}
+                transition={{ duration: 5.5, ease: 'easeOut' }}
                 style={{
                   position: 'absolute', inset: 0,
                   backgroundImage: `url(${coverImage})`,
@@ -233,7 +233,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.4, ease: 'easeOut' }}
+              transition={{ delay: 0.5, duration: 0.55, ease: 'easeOut' }}
               style={{
                 position: 'absolute',
                 top: 'calc(env(safe-area-inset-top) + 20px)',
@@ -262,7 +262,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
               <motion.p
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.55, duration: 0.45, ease: 'easeOut' }}
+                transition={{ delay: 1.0, duration: 0.55, ease: 'easeOut' }}
                 style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, fontWeight: 500, marginBottom: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}
               >
                 {country}
@@ -272,7 +272,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
               <motion.h1
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4, duration: 0.55, type: 'spring', stiffness: 200, damping: 22 }}
+                transition={{ delay: 0.8, duration: 0.7, type: 'spring', stiffness: 160, damping: 22 }}
                 style={{
                   color: '#ffffff',
                   fontSize: 64,
@@ -289,7 +289,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.75, duration: 0.5, ease: 'easeOut' }}
+                transition={{ delay: 1.5, duration: 0.6, ease: 'easeOut' }}
                 style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16, fontWeight: 400, letterSpacing: '-0.2px' }}
               >
                 Your trip is live. ✈️
