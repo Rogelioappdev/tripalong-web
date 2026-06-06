@@ -257,14 +257,34 @@ export default function FeedPage() {
         {/* Mobile header */}
         <div className="md:hidden flex items-center justify-between px-5 shrink-0"
           style={{ paddingTop: isGuest ? 8 : 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
-          <h1 className="text-white font-extrabold text-2xl tracking-tight flex items-baseline gap-[1px]">
+          <h1 className="text-white font-extrabold text-2xl tracking-tight flex items-center gap-1.5">
             TripAlong
             {plusTitleState !== 'none' && (
               <motion.span
-                initial={plusTitleState === 'animate' ? { opacity: 0, scale: 0.2, y: 6 } : false}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
+                initial={plusTitleState === 'animate' ? { opacity: 0, scale: 0.3, y: 5 } : false}
+                animate={plusTitleState === 'animate' ? [
+                  { opacity: 1, scale: 1, y: 0, boxShadow: '0 0 0px rgba(255,255,255,0)' },
+                  { boxShadow: '0 0 14px rgba(255,255,255,0.45), 0 0 4px rgba(255,255,255,0.2)' },
+                  { boxShadow: '0 0 0px rgba(255,255,255,0)' },
+                ] : { opacity: 1, scale: 1, y: 0 }}
                 transition={{ type: 'spring', stiffness: 420, damping: 18, delay: 0.35 }}
-                style={{ color: '#30D158', fontSize: '1.15em', lineHeight: 1, display: 'inline-block' }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.07) 100%)',
+                  border: '1px solid rgba(255,255,255,0.28)',
+                  color: 'white',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  letterSpacing: 0,
+                  lineHeight: 1,
+                  flexShrink: 0,
+                  marginBottom: 1,
+                }}
               >
                 +
               </motion.span>
