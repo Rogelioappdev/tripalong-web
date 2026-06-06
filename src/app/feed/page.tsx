@@ -121,7 +121,12 @@ export default function FeedPage() {
         if (isExpired) {
           const alreadySeen = !override && !!localStorage.getItem('ta_trial_paywall_seen')
           if (alreadySeen) {
-            setTrialExpiredNudge(true)
+            const nudgeSessions = parseInt(localStorage.getItem('ta_nudge_sessions') ?? '0', 10)
+            if (nudgeSessions < 3) {
+              localStorage.setItem('ta_nudge_sessions', String(nudgeSessions + 1))
+              setTrialExpiredNudge(true)
+            }
+            // After 3 sessions, nudge disappears permanently
           } else {
             setShowTrialExpiredPaywall(true)
             // Fetch personalization stats for the paywall in background
