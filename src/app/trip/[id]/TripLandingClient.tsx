@@ -37,6 +37,9 @@ export default function TripLandingPage() {
   const [joinError, setJoinError] = useState('')
 
   useEffect(() => {
+    // Store this trip URL immediately so login redirects back here
+    sessionStorage.setItem('postAuthRedirect', `/trip/${tripId}`)
+
     Promise.all([
       getTrip(tripId).catch(() => null),
       supabase.auth.getUser().then(({ data }) => data.user?.id ?? null),
@@ -45,6 +48,8 @@ export default function TripLandingPage() {
       setUserId(uid)
       setLoading(false)
       if (uid && tripData) {
+        // User is logged in — clear the redirect since they don't need it
+        sessionStorage.removeItem('postAuthRedirect')
         const isMember = (tripData.members ?? []).some((m: any) => m.user_id === uid || m.user?.id === uid)
         setAlreadyJoined(isMember)
       }

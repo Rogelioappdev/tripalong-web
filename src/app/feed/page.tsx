@@ -97,6 +97,15 @@ export default function FeedPage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { setIsGuest(true); return }
       setUserId(session.user.id)
+
+      // After login, honour any pending redirect (e.g. trip invite link)
+      const postAuthRedirect = sessionStorage.getItem('postAuthRedirect')
+      if (postAuthRedirect && postAuthRedirect !== '/feed' && postAuthRedirect !== '/') {
+        sessionStorage.removeItem('postAuthRedirect')
+        router.replace(postAuthRedirect)
+        return
+      }
+
       const pending = localStorage.getItem('ta_pending_save')
       if (pending) {
         localStorage.removeItem('ta_pending_save')
