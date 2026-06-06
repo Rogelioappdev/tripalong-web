@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { motion, AnimatePresence } from 'framer-motion'
 import { createTrip, getDestinationPhotos } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
 
@@ -74,6 +76,8 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
   const [maxAge, setMaxAge] = useState(45)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [phase, setPhase] = useState<'form' | 'created' | 'slides'>('form')
+  const [slideIdx, setSlideIdx] = useState(0)
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -139,7 +143,9 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
         cover_image: coverImage,
       })
       queryClient.invalidateQueries({ queryKey: ['trips'] })
-      onClose()
+      haptic(18)
+      setPhase('created')
+      setTimeout(() => setPhase('slides'), 2200)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -147,7 +153,184 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
     }
   }
 
+  const SLIDES = [
+    {
+      icon: '✈️',
+      title: "You're live on the feed",
+      body: "Your trip is showing to travelers right now. The right co-traveler could swipe right any minute.",
+    },
+    {
+      icon: '👆',
+      title: 'Travelers swipe to join',
+      body: "They see your trip, vibe with it, and request to join. You'll see their profile and how well you match before anyone is added.",
+    },
+    {
+      icon: '💬',
+      title: 'Your group chat is ready',
+      body: 'Everyone who joins gets added to your trip chat automatically. Plan, coordinate, and get to know each other.',
+    },
+  ]
+
+  const nextSlide = useCallback(() => {
+    haptic(8)
+    if (slideIdx < SLIDES.length - 1) {
+      setSlideIdx(i => i + 1)
+    } else {
+      onClose()
+    }
+  }, [slideIdx, SLIDES.length, onClose])
+
   const label = 'text-white/50 text-[11px] font-bold uppercase tracking-widest'
+
+  // ── Post-creation overlay (celebration + onboarding) ─────────────────────
+  const overlay = phase !== 'form' && typeof document !== 'undefined' ? createPortal(
+    <div className="fixed inset-0 z-[80]" style={{ backgroundColor: '#050505' }}>
+
+      {/* Cover photo background */}
+      {coverImage && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          backgroundImage: `url(${coverImage})`,
+          backgroundSize: 'cover', backgroundPosition: 'center',
+          filter: 'blur(20px) brightness(0.55) saturate(1.1)',
+          transform: 'scale(1.08)',
+        }} />
+      )}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.75) 50%, rgba(0,0,0,0.95) 100%)',
+      }} />
+
+      {/* ── Created celebration ── */}
+      <AnimatePresence>
+        {phase === 'created' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0 flex flex-col items-center justify-center z-10 px-8"
+          >
+            {/* Checkmark circle */}
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.1 }}
+              className="mb-7 flex items-center justify-center rounded-full"
+              style={{
+                width: 80, height: 80,
+                background: 'linear-gradient(135deg, rgba(48,209,88,0.2) 0%, rgba(48,209,88,0.08) 100%)',
+                border: '1.5px solid rgba(48,209,88,0.5)',
+              }}
+            >
+              <motion.svg
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 0.5, delay: 0.35, ease: 'easeOut' }}
+                width="32" height="32" viewBox="0 0 24 24" fill="none"
+              >
+                <motion.path
+                  d="M20 6L9 17l-5-5"
+                  stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: 0.5, delay: 0.35, ease: 'easeOut' }}
+                />
+              </motion.svg>
+            </motion.div>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45, duration: 0.4, ease: 'easeOut' }}
+              style={{ color: '#fff', fontSize: 30, fontWeight: 900, letterSpacing: '-0.8px', textAlign: 'center', marginBottom: 8 }}
+            >
+              Trip created!
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.55, duration: 0.38, ease: 'easeOut' }}
+              style={{ color: 'rgba(255,255,255,0.45)', fontSize: 17, textAlign: 'center' }}
+            >
+              {destination}, {country}
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Onboarding slides ── */}
+      <AnimatePresence>
+        {phase === 'slides' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}
+            className="absolute inset-0 flex flex-col z-10"
+            style={{
+              paddingTop: 'calc(env(safe-area-inset-top) + 52px)',
+              paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)',
+              paddingLeft: 28, paddingRight: 28,
+            }}
+          >
+            {/* Progress dots */}
+            <div className="flex gap-1.5 justify-center mb-10">
+              {SLIDES.map((_, i) => (
+                <div key={i} className="rounded-full transition-all duration-300"
+                  style={{
+                    width: i === slideIdx ? 20 : 6, height: 6,
+                    backgroundColor: i === slideIdx ? '#fff' : 'rgba(255,255,255,0.2)',
+                  }} />
+              ))}
+            </div>
+
+            {/* Slide content */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={slideIdx}
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+                className="flex flex-col flex-1"
+              >
+                <div className="flex-1 flex flex-col justify-center">
+                  <p style={{ fontSize: 52, marginBottom: 24 }}>{SLIDES[slideIdx].icon}</p>
+                  <h2 style={{ color: '#fff', fontSize: 28, fontWeight: 900, letterSpacing: '-0.7px', lineHeight: 1.15, marginBottom: 14 }}>
+                    {SLIDES[slideIdx].title}
+                  </h2>
+                  <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 16, lineHeight: 1.6 }}>
+                    {SLIDES[slideIdx].body}
+                  </p>
+                </div>
+
+                {/* CTA */}
+                <button
+                  type="button"
+                  onClick={nextSlide}
+                  className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
+                  style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
+                >
+                  {slideIdx < SLIDES.length - 1 ? 'Next →' : "Let's go →"}
+                </button>
+                {slideIdx < SLIDES.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={() => { haptic(4); onClose() }}
+                    className="py-3 text-center active:opacity-60 transition-opacity"
+                    style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13 }}
+                  >
+                    Skip
+                  </button>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>,
+    document.body
+  ) : null
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
@@ -608,5 +791,6 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
 
       </div>
     </div>
+    {overlay}
   )
 }
