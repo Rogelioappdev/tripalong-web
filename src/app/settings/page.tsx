@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { getProfile } from '@/lib/queries'
 import { hasPlus, getTrialStatus, trialDaysLeft } from '@/lib/trial'
 import { haptic } from '@/lib/haptics'
-import { FoundingMemberPaywall } from '@/components/FoundingMemberPaywall'
+import { PlusDetailsSheet } from '@/components/PlusDetailsSheet'
 import type { UserProfile } from '@/lib/types'
 
 // ── Primitives ────────────────────────────────────────────────────────────
@@ -307,8 +307,12 @@ export default function SettingsPage() {
             )
           })()}
 
-          {showUpgradeSheet && (
-            <FoundingMemberPaywall allowDismiss onClose={() => setShowUpgradeSheet(false)} />
+          {showUpgradeSheet && userId && (
+            <PlusDetailsSheet
+              profile={profile}
+              userId={userId}
+              onClose={() => setShowUpgradeSheet(false)}
+            />
           )}
 
           {/* ── Account ── */}
