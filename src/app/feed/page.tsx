@@ -16,6 +16,7 @@ import { getTrips, getUserSavedTripIds, saveTrip, getProfile } from '@/lib/queri
 import { supabase } from '@/lib/supabase'
 import { SavedTripsModal } from '@/components/SavedTripsModal'
 import { FoundingMemberPaywall } from '@/components/FoundingMemberPaywall'
+import { TrialExpiredPaywall } from '@/components/TrialExpiredPaywall'
 import { FoundingMemberScreen } from '@/components/FoundingMemberScreen'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
@@ -206,8 +207,7 @@ export default function FeedPage() {
       {/* Trial expired — full paywall on first session after expiry */}
       <AnimatePresence>
         {showTrialExpiredPaywall && (
-          <FoundingMemberPaywall
-            allowDismiss
+          <TrialExpiredPaywall
             onClose={() => {
               localStorage.setItem('ta_trial_paywall_seen', '1')
               setShowTrialExpiredPaywall(false)
