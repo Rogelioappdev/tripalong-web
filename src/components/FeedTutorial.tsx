@@ -15,8 +15,8 @@ const STEPS = [
     body: 'Swipe right to save a trip, left to pass. Every trip you save goes to your saved list.',
   },
   {
-    title: 'Saved trips',
-    body: 'Every trip you save appears here. Tap any saved trip to join their group chat and start planning together.',
+    title: 'Your saved trips',
+    body: 'Every trip you save appears here. Tap any saved trip to join their group chat and start planning.',
   },
   {
     title: 'Create your own trip',
@@ -33,10 +33,8 @@ function SwipeDemo() {
     let cancelled = false
     const run = async () => {
       while (!cancelled) {
-        // pause at center
         await new Promise(r => setTimeout(r, 800))
         if (cancelled) break
-        // swipe right → save
         setStamp('save')
         await controls.start({ x: 120, rotate: 12, opacity: 0, transition: { duration: 0.45, ease: 'easeIn' } })
         if (cancelled) break
@@ -44,7 +42,6 @@ function SwipeDemo() {
         await controls.start({ x: 0, rotate: 0, opacity: 1, transition: { duration: 0 } })
         await new Promise(r => setTimeout(r, 700))
         if (cancelled) break
-        // swipe left → pass
         setStamp('pass')
         await controls.start({ x: -120, rotate: -12, opacity: 0, transition: { duration: 0.45, ease: 'easeIn' } })
         if (cancelled) break
@@ -58,7 +55,7 @@ function SwipeDemo() {
 
   return (
     <div style={{ position: 'relative', width: 160, height: 210, margin: '0 auto 8px' }}>
-      {/* Back card hint */}
+      {/* Back card */}
       <div style={{
         position: 'absolute', inset: 0, borderRadius: 18,
         backgroundColor: 'rgba(255,255,255,0.05)',
@@ -69,7 +66,6 @@ function SwipeDemo() {
         animate={controls}
         style={{
           position: 'absolute', inset: 0, borderRadius: 18,
-          backgroundColor: '#1a1a1a',
           border: stamp === 'save'
             ? '2px solid #30D158'
             : stamp === 'pass'
@@ -78,11 +74,17 @@ function SwipeDemo() {
           overflow: 'hidden',
           display: 'flex', flexDirection: 'column',
           transition: 'border-color 0.15s',
+          backgroundColor: '#111',
         }}
       >
-        {/* Mock trip card */}
-        <div style={{ flex: 1, background: 'linear-gradient(135deg, #1e3a4a 0%, #0d2435 100%)' }} />
-        <div style={{ padding: '10px 12px' }}>
+        {/* Bali photo */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=400&q=75"
+          alt="Bali"
+          style={{ flex: 1, objectFit: 'cover', width: '100%', minHeight: 0 }}
+        />
+        <div style={{ padding: '10px 12px', backgroundColor: '#111' }}>
           <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 9, marginBottom: 2 }}>bali, indonesia</p>
           <p style={{ color: '#fff', fontWeight: 800, fontSize: 16, letterSpacing: '-0.5px' }}>Bali</p>
         </div>
@@ -120,76 +122,116 @@ function SwipeDemo() {
   )
 }
 
-// ── Step 2: saved trips icon highlight ───────────────────────────────────────
-function SavedDemo() {
+// ── Shared: mini feed header mock ─────────────────────────────────────────────
+function FeedHeaderMock({ highlight }: { highlight: 'saved' | 'create' }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '8px 0' }}>
-      <motion.div
-        animate={{ scale: [1, 1.12, 1], boxShadow: ['0 0 0px rgba(240,235,227,0)', '0 0 20px rgba(240,235,227,0.35)', '0 0 0px rgba(240,235,227,0)'] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          width: 64, height: 64, borderRadius: 20,
-          backgroundColor: 'rgba(240,235,227,0.1)',
-          border: '1.5px solid rgba(240,235,227,0.3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-            stroke="#F0EBE3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </motion.div>
-      {/* Mock saved trip rows */}
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {['Bali, Indonesia', 'Tokyo, Japan'].map((dest, i) => (
+    <div style={{
+      width: '100%',
+      backgroundColor: '#0a0a0a',
+      borderRadius: 18,
+      border: '0.5px solid rgba(255,255,255,0.08)',
+      overflow: 'hidden',
+    }}>
+      {/* Header row */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 16px 12px',
+      }}>
+        <span style={{ color: '#fff', fontWeight: 800, fontSize: 18, letterSpacing: '-0.4px' }}>TripAlong</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Bookmark button */}
           <motion.div
-            key={dest}
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 + i * 0.15, duration: 0.35 }}
+            animate={highlight === 'saved' ? {
+              boxShadow: ['0 0 0px rgba(240,235,227,0)', '0 0 14px rgba(240,235,227,0.6)', '0 0 0px rgba(240,235,227,0)'],
+              scale: [1, 1.15, 1],
+            } : {}}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
             style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 12px', borderRadius: 12,
-              backgroundColor: 'rgba(255,255,255,0.05)',
+              width: 32, height: 32, borderRadius: '50%',
+              backgroundColor: highlight === 'saved' ? 'rgba(240,235,227,0.15)' : 'rgba(255,255,255,0.08)',
+              border: highlight === 'saved' ? '1.5px solid rgba(240,235,227,0.5)' : '1px solid rgba(255,255,255,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'relative',
             }}
           >
-            <div style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-            <div>
-              <p style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{dest}</p>
-              <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>Tap to join group chat</p>
-            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                stroke={highlight === 'saved' ? '#F0EBE3' : 'rgba(255,255,255,0.38)'}
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </motion.div>
-        ))}
+
+          {/* Create Trip pill */}
+          <motion.div
+            animate={highlight === 'create' ? {
+              boxShadow: ['0 0 0px rgba(240,235,227,0)', '0 0 16px rgba(240,235,227,0.55)', '0 0 0px rgba(240,235,227,0)'],
+              scale: [1, 1.08, 1],
+            } : {}}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              borderRadius: 24, paddingLeft: 10, paddingRight: 12, height: 32,
+              backgroundColor: highlight === 'create' ? 'rgba(240,235,227,0.15)' : 'rgba(255,255,255,0.08)',
+              border: highlight === 'create' ? '1.5px solid rgba(240,235,227,0.5)' : '0.5px solid rgba(255,255,255,0.12)',
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+              <path d="M12 5v14M5 12h14"
+                stroke={highlight === 'create' ? '#F0EBE3' : 'rgba(255,255,255,0.38)'}
+                strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+            <span style={{
+              fontSize: 11, fontWeight: 700,
+              color: highlight === 'create' ? '#F0EBE3' : 'rgba(255,255,255,0.38)',
+            }}>
+              Create Trip
+            </span>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Arrow + label pointing at the highlighted button */}
+      <div style={{
+        display: 'flex', justifyContent: 'flex-end',
+        paddingRight: highlight === 'saved' ? 44 : 12,
+        paddingBottom: 14,
+        paddingLeft: 16,
+      }}>
+        <motion.div
+          animate={{ y: [0, -4, 0] }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+        >
+          <span style={{ color: '#F0EBE3', fontSize: 13, fontWeight: 700 }}>
+            {highlight === 'saved' ? 'Your saved trips' : 'Create a trip'}
+          </span>
+          <span style={{ color: '#F0EBE3', fontSize: 16 }}>↑</span>
+        </motion.div>
+      </div>
+
+      {/* Mock card peek below header */}
+      <div style={{
+        margin: '0 12px 12px',
+        borderRadius: 14,
+        height: 80,
+        background: 'linear-gradient(135deg, #1e3a4a 0%, #0d2435 100%)',
+        opacity: 0.5,
+        display: 'flex', alignItems: 'flex-end', padding: 10,
+      }}>
+        <div>
+          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 8 }}>bali, indonesia</p>
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 700, fontSize: 13 }}>Bali</p>
+        </div>
       </div>
     </div>
   )
 }
 
-// ── Step 3: create trip button highlight ─────────────────────────────────────
-function CreateDemo() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '8px 0' }}>
-      <motion.div
-        animate={{ scale: [1, 1.1, 1], boxShadow: ['0 0 0px rgba(240,235,227,0)', '0 0 24px rgba(240,235,227,0.4)', '0 0 0px rgba(240,235,227,0)'] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          width: 64, height: 64, borderRadius: 20,
-          background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-          <path d="M12 5v14M5 12h14" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-        </svg>
-      </motion.div>
-      <div style={{ textAlign: 'center' }}>
-        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Find it in the bottom navigation</p>
-      </div>
-    </div>
-  )
-}
-
-const DEMOS = [<SwipeDemo key="swipe" />, <SavedDemo key="saved" />, <CreateDemo key="create" />]
+const DEMOS = [
+  <SwipeDemo key="swipe" />,
+  <FeedHeaderMock key="saved" highlight="saved" />,
+  <FeedHeaderMock key="create" highlight="create" />,
+]
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function FeedTutorial({ onDone }: Props) {
