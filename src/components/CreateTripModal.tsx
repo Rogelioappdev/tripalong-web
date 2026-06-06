@@ -149,7 +149,6 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       haptic(18)
       setCreatedTripId(tripId)
       setPhase('created')
-      setTimeout(() => setPhase('slides'), 5000)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -208,7 +207,8 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
-            className="absolute inset-0 z-10 overflow-hidden"
+            className="absolute inset-0 z-10 overflow-hidden cursor-pointer"
+            onClick={() => { haptic(8); setPhase('slides') }}
           >
             {/* Cover photo — sharp, full bleed, Ken Burns zoom */}
             {coverImage ? (
@@ -298,6 +298,26 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                 Your trip is live. ✈️
               </motion.p>
             </div>
+
+            {/* Tap to continue hint */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 2.2, duration: 0.6, ease: 'easeOut' }}
+              style={{
+                position: 'absolute',
+                bottom: 'calc(env(safe-area-inset-bottom) + 32px)',
+                left: 0, right: 0,
+                textAlign: 'center',
+                color: 'rgba(255,255,255,0.25)',
+                fontSize: 13,
+                fontWeight: 500,
+                letterSpacing: '0.02em',
+                pointerEvents: 'none',
+              }}
+            >
+              Tap anywhere to continue
+            </motion.p>
           </motion.div>
         )}
       </AnimatePresence>
