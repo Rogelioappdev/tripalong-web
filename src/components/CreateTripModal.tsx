@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createTrip, getDestinationPhotos } from '@/lib/queries'
@@ -182,9 +181,18 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
 
   const label = 'text-white/50 text-[11px] font-bold uppercase tracking-widest'
 
-  // ── Post-creation overlay (celebration + onboarding) ─────────────────────
-  const overlay = phase !== 'form' && typeof document !== 'undefined' ? createPortal(
-    <div className="fixed inset-0 z-[80]" style={{ backgroundColor: '#050505' }}>
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={phase === 'form' ? onClose : undefined} />
+
+      {/* ── Post-creation overlay ── */}
+      <AnimatePresence>
+      {phase !== 'form' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.28 }}
+          className="absolute inset-0 z-[90]" style={{ backgroundColor: '#050505' }}>
 
       {/* Cover photo background */}
       {coverImage && (
@@ -328,13 +336,23 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>,
-    document.body
-  ) : null
+        </motion.div>
+      )}
+      </AnimatePresence>
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative w-full sm:max-w-lg sm:rounded-3xl flex flex-col overflow-hidden"
+        style={{
+          backgroundColor: '#0d0d0d',
+          borderRadius: '28px 28px 0 0',
+          height: '95dvh',
+        }}
+      >
+        {/* Scrollable content — min-h-0 required so flex-1 actually bounds within the container */}
+        <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0">
+
+          {/* Hero cover photo — header is overlaid on top */}
+          <div className="relative shrink-0" style={{ height: '220px' }}>
 
       <div
         className="relative w-full sm:max-w-lg sm:rounded-3xl flex flex-col overflow-hidden"
@@ -791,6 +809,5 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
 
       </div>
     </div>
-    {overlay}
   )
 }
