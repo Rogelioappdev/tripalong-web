@@ -23,6 +23,45 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(diff / 86400)}d`
 }
 
+function Bone({ className }: { className: string }) {
+  return <div className={`bg-white/8 rounded-2xl animate-pulse ${className}`} />
+}
+
+function MessagesSkeleton() {
+  return (
+    <>
+      <NavBar />
+      <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>
+        <div className="max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pt-6 pb-4">
+            <Bone className="w-32 h-7" />
+            <Bone className="w-9 h-9 rounded-full" />
+          </div>
+          {/* Tab bar */}
+          <div className="flex gap-2 px-5 pb-4">
+            <Bone className="w-28 h-9 rounded-full" />
+            <Bone className="w-20 h-9 rounded-full" />
+          </div>
+          {/* Conversation rows */}
+          <div className="px-5 flex flex-col gap-3 pt-2">
+            {[0, 1, 2, 3, 4].map(i => (
+              <div key={i} className="flex items-center gap-3">
+                <Bone className="w-12 h-12 rounded-full shrink-0" />
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <Bone className={`h-3.5 ${i % 2 === 0 ? 'w-32' : 'w-24'}`} />
+                  <Bone className={`h-3 ${i % 3 === 0 ? 'w-48' : 'w-36'}`} />
+                </div>
+                <Bone className="w-8 h-3 shrink-0" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+    </>
+  )
+}
+
 function UnreadBadge({ count }: { count: number }) {
   if (count <= 0) return null
   return (
@@ -44,6 +83,7 @@ function UnreadBadge({ count }: { count: number }) {
 export default function MessagesPage() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
+  const [pageLoading, setPageLoading] = useState(true)
   const [pushState, setPushState] = useState<'unsupported' | 'granted' | 'denied' | 'default' | null>(null)
   const [pushLoading, setPushLoading] = useState(false)
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string | null>>({})
@@ -68,6 +108,7 @@ export default function MessagesPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/'); return }
       setUserId(session.user.id)
+      setPageLoading(false)
       initPresence(session.user.id)
       getProfileViewers(50).then(v => setViewerCount(v.length))
       getProfile(session.user.id).then(p => setIsPlus(hasPlus(p)))
@@ -100,6 +141,8 @@ export default function MessagesPage() {
       setLastSeenMap(map)
     })
   }, [dms])
+
+  if (pageLoading) return <MessagesSkeleton />
 
   return (
     <>
