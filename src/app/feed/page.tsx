@@ -143,9 +143,10 @@ export default function FeedPage() {
   }, [justUpgraded, userId])
 
   // Compute top match score for paywall personalization once trips + profile are ready
-  const cachedTrips = (useQueryClient().getQueryData(['trips']) as TripWithDetails[] | undefined)
   useEffect(() => {
-    if (!showTrialExpiredPaywall || !feedProfile || !cachedTrips?.length) return
+    if (!showTrialExpiredPaywall || !feedProfile) return
+    const cachedTrips = queryClient.getQueryData(['trips']) as TripWithDetails[] | undefined
+    if (!cachedTrips?.length) return
     let best: { pct: number; destination: string } | null = null
     for (const trip of cachedTrips) {
       const { tripPct, groupPct } = getTripMatchBreakdown(feedProfile, trip)
@@ -153,7 +154,7 @@ export default function FeedPage() {
       if (!best || pct > best.pct) best = { pct, destination: trip.destination }
     }
     if (best) setPaywallStats(prev => ({ viewerCount: prev?.viewerCount ?? 0, topMatch: best }))
-  }, [showTrialExpiredPaywall, feedProfile, trips])
+  }, [showTrialExpiredPaywall, feedProfile, queryClient])
 
   // First-time Plus title animation — one-shot per user
   useEffect(() => {
