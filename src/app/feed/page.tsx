@@ -57,6 +57,7 @@ export default function FeedPage() {
   // 'none' = free, 'animate' = first-ever Plus visit (animate in), 'static' = already seen
   const [plusTitleState, setPlusTitleState] = useState<'none' | 'animate' | 'static'>('none')
 
+  const [justUpgraded, setJustUpgraded] = useState(false)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
@@ -69,6 +70,7 @@ export default function FeedPage() {
 
   const handleUpgradeSuccess = () => {
     setUpgradeToast(true)
+    setJustUpgraded(true)
     upgradeTimer.current = setTimeout(() => setUpgradeToast(false), 5000)
   }
 
@@ -117,6 +119,22 @@ export default function FeedPage() {
       }
     })
   }, [])
+
+  // After Stripe checkout: poll until webhook flips subscription_tier to plus
+  useEffect(() => {
+    if (!justUpgraded || !userId) return
+    let attempts = 0
+    const poll = async () => {
+      const p = await getProfile(userId)
+      if (p && (p.subscription_tier === 'plus' || p.subscription_tier === 'pro')) {
+        setFeedProfile(p)
+        setJustUpgraded(false)
+        return
+      }
+      if (++attempts < 12) setTimeout(poll, 1500)
+    }
+    poll()
+  }, [justUpgraded, userId])
 
   // First-time Plus title animation — one-shot per user
   useEffect(() => {
