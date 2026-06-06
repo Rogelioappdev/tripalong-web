@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { SavedTripsModal } from '@/components/SavedTripsModal'
 import { FoundingMemberPaywall } from '@/components/FoundingMemberPaywall'
 import { FoundingMemberScreen } from '@/components/FoundingMemberScreen'
-import { getTrialStatus, getDevTrialOverride } from '@/lib/trial'
+import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
@@ -54,6 +54,9 @@ export default function FeedPage() {
     if (typeof window === 'undefined') return false
     return new URLSearchParams(window.location.search).get('trial') === 'none'
   })
+  // 'none' = free, 'animate' = first-ever Plus visit (animate in), 'static' = already seen
+  const [plusTitleState, setPlusTitleState] = useState<'none' | 'animate' | 'static'>('none')
+
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
@@ -114,6 +117,19 @@ export default function FeedPage() {
       }
     })
   }, [])
+
+  // First-time Plus title animation — one-shot per user
+  useEffect(() => {
+    if (!userId || !feedProfile) return
+    if (!hasPlus(feedProfile)) return
+    const key = `ta_plus_title_seen_${userId}`
+    if (localStorage.getItem(key)) {
+      setPlusTitleState('static')
+    } else {
+      localStorage.setItem(key, '1')
+      setPlusTitleState('animate')
+    }
+  }, [userId, feedProfile])
 
   // Lock page scroll — feed is a fixed app screen, not a scrollable document
   useEffect(() => {
@@ -241,7 +257,19 @@ export default function FeedPage() {
         {/* Mobile header */}
         <div className="md:hidden flex items-center justify-between px-5 shrink-0"
           style={{ paddingTop: isGuest ? 8 : 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
-          <h1 className="text-white font-extrabold text-2xl tracking-tight">TripAlong</h1>
+          <h1 className="text-white font-extrabold text-2xl tracking-tight flex items-baseline gap-[1px]">
+            TripAlong
+            {plusTitleState !== 'none' && (
+              <motion.span
+                initial={plusTitleState === 'animate' ? { opacity: 0, scale: 0.2, y: 6 } : false}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 18, delay: 0.35 }}
+                style={{ color: '#30D158', fontSize: '1.15em', lineHeight: 1, display: 'inline-block' }}
+              >
+                +
+              </motion.span>
+            )}
+          </h1>
           <div className="flex items-center gap-2">
             <motion.button
               whileTap={{ scale: 0.88 }}
