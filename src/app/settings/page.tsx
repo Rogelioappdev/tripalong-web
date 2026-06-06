@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { getProfile } from '@/lib/queries'
 import { hasPlus, getTrialStatus, trialDaysLeft } from '@/lib/trial'
 import { haptic } from '@/lib/haptics'
+import { FoundingMemberPaywall } from '@/components/FoundingMemberPaywall'
 import type { UserProfile } from '@/lib/types'
 
 // ── Primitives ────────────────────────────────────────────────────────────
@@ -99,6 +100,8 @@ export default function SettingsPage() {
   const [deletePhase, setDeletePhase] = useState<'idle' | 'confirm' | 'typing'>('idle')
   const [deleteInput, setDeleteInput] = useState('')
   const [deleting, setDeleting] = useState(false)
+
+  const [showUpgradeSheet, setShowUpgradeSheet] = useState(false)
 
   // Notification toggles (localStorage)
   const [notifMessages, setNotifMessages] = useState(true)
@@ -228,77 +231,85 @@ export default function SettingsPage() {
 
             if (isPaid) return (
               <Group title="TripAlong+">
-                <div className="px-4 py-4 flex items-center justify-between border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                <div className="px-4 py-3.5 flex items-center justify-between border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
-                    <p className="text-white font-semibold text-sm">Active</p>
+                    <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
+                    <p className="text-white font-medium text-sm">Active</p>
                   </div>
-                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>Plus · $7.99/mo</p>
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>Plus · $7.99/mo</span>
                 </div>
-                <Row label="Manage subscription" chevron border={false}
-                  onPress={handlePortal} />
+                <Row label="Manage subscription" chevron border={false} onPress={handlePortal} />
               </Group>
             )
 
             if (trialStatus === 'active') return (
               <Group title="TripAlong+">
-                <div className="px-4 pt-4 pb-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
-                      <p className="text-white font-semibold text-sm">Trial active</p>
+                <button type="button" onClick={() => { haptic(8); setShowUpgradeSheet(true) }}
+                  className="w-full text-left active:bg-white/5 transition-colors">
+                  <div className="px-4 py-3.5">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
+                        <p className="text-white font-medium text-sm">Trial active</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                          {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
+                        </span>
+                        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
+                      </div>
                     </div>
-                    <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
+                    <div className="w-full h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                      <div className="h-1 rounded-full bg-green-400"
+                        style={{ width: `${((7 - daysLeft) / 7) * 100}%` }} />
+                    </div>
+                    <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      Tap to see plans and keep Plus after your trial
                     </p>
                   </div>
-                  {/* Progress bar */}
-                  <div className="w-full h-1 rounded-full mt-2 mb-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                    <div className="h-1 rounded-full bg-green-400 transition-all"
-                      style={{ width: `${((7 - daysLeft) / 7) * 100}%` }} />
-                  </div>
-                  <button type="button" onClick={handleUpgrade} disabled={subLoading}
-                    className="w-full py-3 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-40"
-                    style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}>
-                    {subLoading ? 'Loading…' : 'Upgrade — $7.99/mo'}
-                  </button>
-                </div>
+                </button>
               </Group>
             )
 
             if (trialStatus === 'expired') return (
               <Group title="TripAlong+">
-                <div className="px-4 pt-4 pb-1">
-                  <p className="text-white font-semibold text-sm mb-1">Trial ended</p>
-                  <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    Upgrade to keep compatibility scores and profile viewers.
-                  </p>
-                  <button type="button" onClick={handleUpgrade} disabled={subLoading}
-                    className="w-full py-3 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-40 mb-3"
-                    style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}>
-                    {subLoading ? 'Loading…' : 'Upgrade — $7.99/mo'}
-                  </button>
-                </div>
+                <button type="button" onClick={() => { haptic(8); setShowUpgradeSheet(true) }}
+                  className="w-full text-left active:bg-white/5 transition-colors">
+                  <div className="px-4 py-3.5 flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium text-sm">Trial ended</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                        Upgrade to keep your scores and viewers
+                      </p>
+                    </div>
+                    <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
+                  </div>
+                </button>
               </Group>
             )
 
             // Free — no trial yet
             return (
               <Group title="TripAlong+">
-                <div className="px-4 pt-4 pb-1">
-                  <p className="text-white font-semibold text-sm mb-1">Unlock TripAlong+</p>
-                  <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    Compatibility scores, see who viewed your profile, and more.
-                  </p>
-                  <button type="button" onClick={handleClaimTrial} disabled={subLoading}
-                    className="w-full py-3 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-40 mb-3"
-                    style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}>
-                    {subLoading ? 'Loading…' : 'Try free for 7 days'}
-                  </button>
-                </div>
+                <button type="button" onClick={() => { haptic(8); setShowUpgradeSheet(true) }}
+                  className="w-full text-left active:bg-white/5 transition-colors">
+                  <div className="px-4 py-3.5 flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium text-sm">Unlock TripAlong+</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                        Scores, profile viewers, unlimited swipes
+                      </p>
+                    </div>
+                    <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
+                  </div>
+                </button>
               </Group>
             )
           })()}
+
+          {showUpgradeSheet && (
+            <FoundingMemberPaywall allowDismiss onClose={() => setShowUpgradeSheet(false)} />
+          )}
 
           {/* ── Account ── */}
           <Group title="Account">
