@@ -433,7 +433,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                       <button
                         key={m.id}
                         type="button"
-                        onPointerDown={(e) => { e.stopPropagation(); isPlus ? (haptic(8), setProfileUserId(m.id)) : openCompatibilityGate(score ?? undefined) }}
+                        onPointerDown={(e) => { e.stopPropagation(); haptic(8); setProfileUserId(m.id) }}
                         className="flex flex-col items-center shrink-0 active:opacity-75 transition-opacity"
                         style={{ touchAction: 'manipulation', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', gap: 4 } as React.CSSProperties}
                       >
