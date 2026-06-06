@@ -197,21 +197,6 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
           transition={{ duration: 0.28 }}
           className="absolute inset-0 z-[90]" style={{ backgroundColor: '#050505' }}>
 
-      {/* Cover photo background */}
-      {coverImage && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: `url(${coverImage})`,
-          backgroundSize: 'cover', backgroundPosition: 'center',
-          filter: 'blur(20px) brightness(0.55) saturate(1.1)',
-          transform: 'scale(1.08)',
-        }} />
-      )}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.75) 50%, rgba(0,0,0,0.95) 100%)',
-      }} />
-
       {/* ── Created celebration ── */}
       <AnimatePresence>
         {phase === 'created' && (
@@ -219,53 +204,97 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="absolute inset-0 flex flex-col items-center justify-center z-10 px-8"
+            transition={{ duration: 0.5 }}
+            className="absolute inset-0 z-10 overflow-hidden"
           >
-            {/* Checkmark circle */}
+            {/* Cover photo — sharp, full bleed, Ken Burns zoom */}
+            {coverImage ? (
+              <motion.div
+                initial={{ scale: 1.08 }}
+                animate={{ scale: 1.0 }}
+                transition={{ duration: 2.5, ease: 'easeOut' }}
+                style={{
+                  position: 'absolute', inset: 0,
+                  backgroundImage: `url(${coverImage})`,
+                  backgroundSize: 'cover', backgroundPosition: 'center',
+                }}
+              />
+            ) : (
+              <div style={{ position: 'absolute', inset: 0, backgroundColor: '#111' }} />
+            )}
+
+            {/* Vignette — dark top for badge, very dark bottom for destination text */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.82) 80%, rgba(0,0,0,0.96) 100%)',
+            }} />
+
+            {/* ✓ Trip confirmed badge — top center */}
             <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.1 }}
-              className="mb-7 flex items-center justify-center rounded-full"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.4, ease: 'easeOut' }}
               style={{
-                width: 80, height: 80,
-                background: 'linear-gradient(135deg, rgba(48,209,88,0.2) 0%, rgba(48,209,88,0.08) 100%)',
-                border: '1.5px solid rgba(48,209,88,0.5)',
+                position: 'absolute',
+                top: 'calc(env(safe-area-inset-top) + 20px)',
+                left: 0, right: 0,
+                display: 'flex', justifyContent: 'center',
               }}
             >
-              <motion.svg
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 0.5, delay: 0.35, ease: 'easeOut' }}
-                width="32" height="32" viewBox="0 0 24 24" fill="none"
-              >
-                <motion.path
-                  d="M20 6L9 17l-5-5"
-                  stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ duration: 0.5, delay: 0.35, ease: 'easeOut' }}
-                />
-              </motion.svg>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                backgroundColor: 'rgba(0,0,0,0.45)',
+                border: '0.5px solid rgba(255,255,255,0.2)',
+                borderRadius: 999, padding: '7px 16px',
+                backdropFilter: 'blur(12px)',
+              }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#30D158', display: 'inline-block', flexShrink: 0 }} />
+                <span style={{ color: '#fff', fontSize: 12, fontWeight: 600, letterSpacing: '0.02em' }}>Trip confirmed</span>
+              </div>
             </motion.div>
 
-            <motion.h2
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.45, duration: 0.4, ease: 'easeOut' }}
-              style={{ color: '#fff', fontSize: 30, fontWeight: 900, letterSpacing: '-0.8px', textAlign: 'center', marginBottom: 8 }}
-            >
-              Trip created!
-            </motion.h2>
-            <motion.p
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.55, duration: 0.38, ease: 'easeOut' }}
-              style={{ color: 'rgba(255,255,255,0.45)', fontSize: 17, textAlign: 'center' }}
-            >
-              {destination}, {country}
-            </motion.p>
+            {/* Destination — bottom, editorial large type */}
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              padding: '0 28px calc(env(safe-area-inset-bottom) + 36px)',
+            }}>
+              {/* Country */}
+              <motion.p
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55, duration: 0.45, ease: 'easeOut' }}
+                style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, fontWeight: 500, marginBottom: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}
+              >
+                {country}
+              </motion.p>
+
+              {/* Destination — the hero */}
+              <motion.h1
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4, duration: 0.55, type: 'spring', stiffness: 200, damping: 22 }}
+                style={{
+                  color: '#ffffff',
+                  fontSize: 64,
+                  fontWeight: 900,
+                  letterSpacing: '-3px',
+                  lineHeight: 0.95,
+                  marginBottom: 20,
+                }}
+              >
+                {destination}
+              </motion.h1>
+
+              {/* "is waiting for you." tagline */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.75, duration: 0.5, ease: 'easeOut' }}
+                style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16, fontWeight: 400, letterSpacing: '-0.2px' }}
+              >
+                Your trip is live. ✈️
+              </motion.p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -278,12 +307,29 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4 }}
             className="absolute inset-0 flex flex-col z-10"
-            style={{
+          >
+            {/* Blurred photo background for slides */}
+            {coverImage && (
+              <div style={{
+                position: 'absolute', inset: 0,
+                backgroundImage: `url(${coverImage})`,
+                backgroundSize: 'cover', backgroundPosition: 'center',
+                filter: 'blur(22px) brightness(0.45) saturate(1.1)',
+                transform: 'scale(1.08)',
+              }} />
+            )}
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.75) 60%, rgba(0,0,0,0.95) 100%)',
+            }} />
+
+            <div style={{
+              position: 'relative', zIndex: 1,
+              display: 'flex', flexDirection: 'column', flex: 1,
               paddingTop: 'calc(env(safe-area-inset-top) + 52px)',
               paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)',
               paddingLeft: 28, paddingRight: 28,
-            }}
-          >
+            }}>
             {/* Progress dots */}
             <div className="flex gap-1.5 justify-center mb-10">
               {SLIDES.map((_, i) => (
@@ -358,6 +404,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                 )}
               </motion.div>
             </AnimatePresence>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
