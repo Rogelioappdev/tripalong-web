@@ -103,9 +103,9 @@ export default function FeedPage() {
       // Fetch profile once — reused for trial check, SwipeStack, and TripDetailModal
       const profile = await getProfile(session.user.id)
       if (profile) {
-        setFeedProfile(profile)
         const override = getDevTrialOverride()
         const effectiveProfile = override ? { ...profile, trial_start_at: override } : profile
+        setFeedProfile(effectiveProfile)
         const isExpired = getTrialStatus(effectiveProfile) === 'expired' && effectiveProfile.subscription_tier === 'free'
         if (isExpired) {
           const alreadySeen = !override && !!localStorage.getItem('ta_trial_paywall_seen')
