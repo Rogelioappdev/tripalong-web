@@ -9,9 +9,11 @@ import { getTravelImages } from '@/lib/queries'
 
 interface Props {
   onClose: () => void
+  viewerCount?: number | null
+  topMatch?: { pct: number; destination: string } | null
 }
 
-export function TrialExpiredPaywall({ onClose }: Props) {
+export function TrialExpiredPaywall({ onClose, viewerCount, topMatch }: Props) {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -111,31 +113,75 @@ export function TrialExpiredPaywall({ onClose }: Props) {
           </h1>
         </motion.div>
 
-        {/* ── Hero headline ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.44, ease: 'easeOut' }}
-          style={{ textAlign: 'center', marginBottom: 6 }}
-        >
-          <h2 style={{
-            color: '#ffffff', fontSize: 38, fontWeight: 900,
-            letterSpacing: '-1.5px', lineHeight: 1.1,
-          }}>
-            Your trial<br />ended.
-          </h2>
-        </motion.div>
+        {/* ── Hero: personalized if data available, generic fallback ── */}
+        {viewerCount != null && viewerCount > 0 ? (
+          // Personalized hero — real data from their trial
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.44, ease: 'easeOut' }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+          >
+            {/* Viewer count stat */}
+            <div style={{
+              borderRadius: 20, padding: '18px 20px',
+              background: 'linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%)',
+              border: '0.5px solid rgba(255,255,255,0.12)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 4 }}>
+                <span style={{ color: '#fff', fontSize: 52, fontWeight: 900, letterSpacing: '-3px', lineHeight: 1 }}>
+                  {viewerCount}
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, fontWeight: 500, paddingBottom: 8 }}>
+                  {viewerCount === 1 ? 'traveler' : 'travelers'}
+                </span>
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, lineHeight: 1.4 }}>
+                checked out your profile during your trial
+              </p>
+            </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.38, ease: 'easeOut' }}
-          style={{ textAlign: 'center', marginBottom: 0 }}
-        >
-          <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: 16, fontWeight: 500, letterSpacing: '-0.2px' }}>
-            Your next trip doesn't have to wait.
-          </p>
-        </motion.div>
+            {/* Top match stat */}
+            {topMatch && topMatch.pct >= 60 && (
+              <div style={{
+                borderRadius: 20, padding: '14px 20px',
+                background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)',
+                border: '0.5px solid rgba(255,255,255,0.08)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>
+                  Top match waiting for you
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{
+                    color: topMatch.pct >= 80 ? '#30D158' : '#FFD60A',
+                    fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px',
+                  }}>
+                    {topMatch.pct}%
+                  </span>
+                  <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>
+                    {topMatch.destination}
+                  </span>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        ) : (
+          // Generic fallback
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.44, ease: 'easeOut' }}
+            style={{ textAlign: 'center' }}
+          >
+            <h2 style={{ color: '#ffffff', fontSize: 38, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1.1, marginBottom: 8 }}>
+              Your trial<br />ended.
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: 16, fontWeight: 500 }}>
+              Your next trip doesn't have to wait.
+            </p>
+          </motion.div>
+        )}
 
         <div style={{ flex: 1 }} />
 
@@ -144,28 +190,30 @@ export function TrialExpiredPaywall({ onClose }: Props) {
           initial={{ opacity: 0, scaleX: 0 }}
           animate={{ opacity: 1, scaleX: 1 }}
           transition={{ delay: 0.38, duration: 0.38, ease: 'easeOut' }}
-          style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)', marginBottom: 22 }}
+          style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)', marginBottom: 18 }}
         />
 
-        {/* ── Features ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
-          {[
-            { icon: '∞',  label: 'Unlimited swipes, every day' },
-            { icon: '👁', label: 'See who viewed your profile' },
-            { icon: '✦',  label: 'Match scores for every trip and traveler' },
-          ].map((f, i) => (
-            <motion.div
-              key={f.label}
-              initial={{ opacity: 0, x: -12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.44 + i * 0.09, duration: 0.34, ease: 'easeOut' }}
-              style={{ display: 'flex', alignItems: 'center', gap: 16 }}
-            >
-              <span style={{ fontSize: 20, width: 32, textAlign: 'center', flexShrink: 0 }}>{f.icon}</span>
-              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 15, fontWeight: 500 }}>{f.label}</span>
-            </motion.div>
-          ))}
-        </div>
+        {/* ── Features — shown only when no personalized stats ── */}
+        {(!viewerCount || viewerCount === 0) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
+            {[
+              { icon: '∞',  label: 'Unlimited swipes, every day' },
+              { icon: '👁', label: 'See who viewed your profile' },
+              { icon: '✦',  label: 'Match scores for every trip and traveler' },
+            ].map((f, i) => (
+              <motion.div
+                key={f.label}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.44 + i * 0.09, duration: 0.34, ease: 'easeOut' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 16 }}
+              >
+                <span style={{ fontSize: 20, width: 32, textAlign: 'center', flexShrink: 0 }}>{f.icon}</span>
+                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 15, fontWeight: 500 }}>{f.label}</span>
+              </motion.div>
+            ))}
+          </div>
+        )}
 
         {/* ── Pricing toggle ── */}
         <motion.div

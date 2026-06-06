@@ -112,11 +112,14 @@ export default function FeedPage() {
         if (isExpired) {
           const alreadySeen = !override && !!localStorage.getItem('ta_trial_paywall_seen')
           if (alreadySeen) {
-            // Repeat session — just show the nudge strip, not the full paywall
             setTrialExpiredNudge(true)
           } else {
-            // First session after expiry (or dev override) — show full paywall
             setShowTrialExpiredPaywall(true)
+            // Fetch personalization stats for the paywall in background
+            supabase.rpc('get_my_viewer_count').then(({ data }) => {
+              const viewerCount = (data as number) ?? 0
+              setPaywallStats(prev => ({ viewerCount, topMatch: prev?.topMatch ?? null }))
+            })
           }
         }
       }
@@ -138,6 +141,19 @@ export default function FeedPage() {
     }
     poll()
   }, [justUpgraded, userId])
+
+  // Compute top match score for paywall personalization once trips + profile are ready
+  const trips = (useQueryClient().getQueryData(['trips']) as TripWithDetails[] | undefined)
+  useEffect(() => {
+    if (!showTrialExpiredPaywall || !feedProfile || !trips?.length) return
+    let best: { pct: number; destination: string } | null = null
+    for (const trip of trips) {
+      const { tripPct, groupPct } = getTripMatchBreakdown(feedProfile, trip)
+      const pct = groupPct ?? tripPct
+      if (!best || pct > best.pct) best = { pct, destination: trip.destination }
+    }
+    if (best) setPaywallStats(prev => ({ viewerCount: prev?.viewerCount ?? 0, topMatch: best }))
+  }, [showTrialExpiredPaywall, feedProfile, trips])
 
   // First-time Plus title animation — one-shot per user
   useEffect(() => {
@@ -210,6 +226,8 @@ export default function FeedPage() {
       <AnimatePresence>
         {showTrialExpiredPaywall && (
           <TrialExpiredPaywall
+            viewerCount={paywallStats?.viewerCount ?? null}
+            topMatch={paywallStats?.topMatch ?? null}
             onClose={() => {
               localStorage.setItem('ta_trial_paywall_seen', '1')
               setShowTrialExpiredPaywall(false)
