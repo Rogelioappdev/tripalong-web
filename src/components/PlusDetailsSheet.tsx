@@ -24,7 +24,7 @@ const COMPARISON = [
 
 export function PlusDetailsSheet({ profile, userId, onClose }: Props) {
   const router = useRouter()
-  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('annual')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

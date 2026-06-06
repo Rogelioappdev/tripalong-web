@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function TrialExpiredPaywall({ onClose, viewerCount, topMatch }: Props) {
-  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('annual')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [canDismiss, setCanDismiss] = useState(false)
@@ -215,48 +215,70 @@ export function TrialExpiredPaywall({ onClose, viewerCount, topMatch }: Props) {
           </div>
         )}
 
-        {/* ── Pricing toggle ── */}
+        {/* ── Pricing — annual dominant, monthly secondary ── */}
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.34, ease: 'easeOut' }}
-          style={{ display: 'flex', gap: 8, marginBottom: 10 }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}
         >
-          {(['monthly', 'annual'] as const).map(interval => {
-            const isSelected = billing === interval
-            const dimColor = isSelected ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.28)'
-            return (
-              <button
-                key={interval}
-                type="button"
-                onClick={() => { haptic(4); setBilling(interval) }}
-                className="flex-1 py-3 rounded-2xl transition-all relative flex flex-col items-center gap-0.5"
-                style={{
-                  backgroundColor: isSelected ? '#F0EBE3' : 'rgba(255,255,255,0.06)',
-                  border: isSelected ? 'none' : '0.5px solid rgba(255,255,255,0.1)',
-                }}
-              >
-                {interval === 'annual' && (
-                  <span
-                    className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full font-bold whitespace-nowrap"
-                    style={{
-                      backgroundColor: isSelected ? '#30D158' : 'rgba(48,209,88,0.2)',
-                      color: isSelected ? '#fff' : '#30D158',
-                      fontSize: 9,
-                    }}
-                  >
-                    SAVE 37%
-                  </span>
-                )}
-                <span style={{ color: isSelected ? '#000' : 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: 700 }}>
-                  {interval === 'monthly' ? '$7.99 / mo' : '$4.99 / mo'}
-                </span>
-                <span style={{ color: dimColor, fontSize: 10, fontWeight: 500 }}>
-                  {interval === 'monthly' ? '≈ $0.26 / day' : '$59.99 billed yearly · $0.16 / day'}
-                </span>
-              </button>
-            )
-          })}
+          {/* Annual — primary option */}
+          <button
+            type="button"
+            onClick={() => { haptic(4); setBilling('annual') }}
+            className="w-full rounded-2xl transition-all active:scale-[0.99] relative"
+            style={{
+              backgroundColor: billing === 'annual' ? '#F0EBE3' : 'rgba(255,255,255,0.06)',
+              border: billing === 'annual' ? 'none' : '0.5px solid rgba(255,255,255,0.12)',
+              padding: '14px 18px',
+            }}
+          >
+            {/* Best value badge */}
+            <span
+              className="absolute -top-2.5 left-4 px-2.5 py-0.5 rounded-full font-bold"
+              style={{
+                backgroundColor: billing === 'annual' ? '#30D158' : 'rgba(48,209,88,0.25)',
+                color: billing === 'annual' ? '#fff' : '#30D158',
+                fontSize: 9, letterSpacing: '0.05em',
+              }}
+            >
+              BEST VALUE
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ color: billing === 'annual' ? '#000' : '#fff', fontSize: 16, fontWeight: 800, letterSpacing: '-0.3px' }}>
+                  $4.99 <span style={{ fontSize: 13, fontWeight: 500 }}>/ mo</span>
+                </p>
+                <p style={{ color: billing === 'annual' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)', fontSize: 11, marginTop: 1 }}>
+                  Billed $59.99 / year
+                </p>
+              </div>
+              <p style={{ color: billing === 'annual' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 600 }}>
+                $0.16 / day
+              </p>
+            </div>
+          </button>
+
+          {/* Monthly — secondary option */}
+          <button
+            type="button"
+            onClick={() => { haptic(4); setBilling('monthly') }}
+            className="w-full rounded-2xl transition-all active:scale-[0.99]"
+            style={{
+              backgroundColor: billing === 'monthly' ? '#F0EBE3' : 'rgba(255,255,255,0.04)',
+              border: billing === 'monthly' ? 'none' : '0.5px solid rgba(255,255,255,0.08)',
+              padding: '10px 18px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{ color: billing === 'monthly' ? '#000' : 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 600 }}>
+                $7.99 / mo
+              </p>
+              <p style={{ color: billing === 'monthly' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.25)', fontSize: 11 }}>
+                $0.26 / day
+              </p>
+            </div>
+          </button>
         </motion.div>
 
         {/* ── CTA ── */}
