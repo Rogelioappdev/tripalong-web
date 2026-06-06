@@ -42,7 +42,7 @@ export async function getTrips(): Promise<TripWithDetails[]> {
 
   const blockedSet = new Set(blockedIds)
   return (data ?? [])
-    .filter((trip: any) => !blockedSet.has(trip.creator_id))
+    .filter((trip: any) => !blockedSet.has(trip.creator_id) && trip.creator_id !== userId)
     .map((trip: any) => ({
       ...trip,
       member_count: trip.members?.length ?? 0,
