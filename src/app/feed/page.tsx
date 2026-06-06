@@ -262,11 +262,14 @@ export default function FeedPage() {
             {plusTitleState !== 'none' && (
               <motion.span
                 initial={plusTitleState === 'animate' ? { opacity: 0, scale: 0.3, y: 5 } : false}
-                animate={plusTitleState === 'animate' ? [
-                  { opacity: 1, scale: 1, y: 0, boxShadow: '0 0 0px rgba(255,255,255,0)' },
-                  { boxShadow: '0 0 14px rgba(255,255,255,0.45), 0 0 4px rgba(255,255,255,0.2)' },
-                  { boxShadow: '0 0 0px rgba(255,255,255,0)' },
-                ] : { opacity: 1, scale: 1, y: 0 }}
+                animate={plusTitleState === 'animate' ? {
+                  opacity: 1, scale: 1, y: 0,
+                  boxShadow: [
+                    '0 0 0px rgba(255,255,255,0)',
+                    '0 0 14px rgba(255,255,255,0.45), 0 0 4px rgba(255,255,255,0.2)',
+                    '0 0 0px rgba(255,255,255,0)',
+                  ],
+                } : { opacity: 1, scale: 1, y: 0 }}
                 transition={{ type: 'spring', stiffness: 420, damping: 18, delay: 0.35 }}
                 style={{
                   display: 'inline-flex',
