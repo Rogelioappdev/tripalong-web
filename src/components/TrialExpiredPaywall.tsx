@@ -96,22 +96,19 @@ export function TrialExpiredPaywall({ onClose }: Props) {
         paddingLeft: 28, paddingRight: 28,
       }}>
 
-        {/* ── Identity badge ── */}
+        {/* ── TripAlong+ wordmark ── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.38, ease: 'easeOut' }}
           style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}
         >
-          <div style={{
-            padding: '6px 18px', borderRadius: 999,
-            backgroundColor: 'rgba(240,235,227,0.1)',
-            border: '0.5px solid rgba(240,235,227,0.28)',
+          <h1 style={{
+            color: '#ffffff', fontSize: 28, fontWeight: 800,
+            letterSpacing: '-0.8px', lineHeight: 1,
           }}>
-            <span style={{ color: '#F0EBE3', fontSize: 10, fontWeight: 700, letterSpacing: '0.14em' }}>
-              ✦ TRIPALONG+ ✦
-            </span>
-          </div>
+            TripAlong<span style={{ color: '#ffffff' }}>+</span>
+          </h1>
         </motion.div>
 
         {/* ── Hero headline ── */}
@@ -177,34 +174,41 @@ export function TrialExpiredPaywall({ onClose }: Props) {
           transition={{ delay: 0.6, duration: 0.34, ease: 'easeOut' }}
           style={{ display: 'flex', gap: 8, marginBottom: 10 }}
         >
-          {(['monthly', 'annual'] as const).map(interval => (
-            <button
-              key={interval}
-              type="button"
-              onClick={() => { haptic(4); setBilling(interval) }}
-              className="flex-1 py-2.5 rounded-2xl font-semibold transition-all relative"
-              style={{
-                fontSize: 13,
-                backgroundColor: billing === interval ? '#F0EBE3' : 'rgba(255,255,255,0.06)',
-                color: billing === interval ? '#000' : 'rgba(255,255,255,0.4)',
-                border: billing === interval ? 'none' : '0.5px solid rgba(255,255,255,0.1)',
-              }}
-            >
-              {interval === 'monthly' ? '$7.99 / mo' : '$4.99 / mo'}
-              {interval === 'annual' && (
-                <span
-                  className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full font-bold whitespace-nowrap"
-                  style={{
-                    backgroundColor: billing === 'annual' ? '#30D158' : 'rgba(48,209,88,0.2)',
-                    color: billing === 'annual' ? '#fff' : '#30D158',
-                    fontSize: 9,
-                  }}
-                >
-                  SAVE 37%
+          {(['monthly', 'annual'] as const).map(interval => {
+            const isSelected = billing === interval
+            const dimColor = isSelected ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.28)'
+            return (
+              <button
+                key={interval}
+                type="button"
+                onClick={() => { haptic(4); setBilling(interval) }}
+                className="flex-1 py-3 rounded-2xl transition-all relative flex flex-col items-center gap-0.5"
+                style={{
+                  backgroundColor: isSelected ? '#F0EBE3' : 'rgba(255,255,255,0.06)',
+                  border: isSelected ? 'none' : '0.5px solid rgba(255,255,255,0.1)',
+                }}
+              >
+                {interval === 'annual' && (
+                  <span
+                    className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full font-bold whitespace-nowrap"
+                    style={{
+                      backgroundColor: isSelected ? '#30D158' : 'rgba(48,209,88,0.2)',
+                      color: isSelected ? '#fff' : '#30D158',
+                      fontSize: 9,
+                    }}
+                  >
+                    SAVE 37%
+                  </span>
+                )}
+                <span style={{ color: isSelected ? '#000' : 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: 700 }}>
+                  {interval === 'monthly' ? '$7.99 / mo' : '$4.99 / mo'}
                 </span>
-              )}
-            </button>
-          ))}
+                <span style={{ color: dimColor, fontSize: 10, fontWeight: 500 }}>
+                  {interval === 'monthly' ? '≈ $0.26 / day' : '$59.99 billed yearly · $0.16 / day'}
+                </span>
+              </button>
+            )
+          })}
         </motion.div>
 
         {/* ── CTA ── */}
