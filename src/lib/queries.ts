@@ -247,9 +247,10 @@ export async function createTrip(data: {
   age_min: number | null
   age_max: number | null
   status: 'planning'
-}) {
-  const { error } = await supabase.from('trips').insert(data)
+}): Promise<string> {
+  const { data: inserted, error } = await supabase.from('trips').insert(data).select('id').single()
   if (error) throw error
+  return inserted.id
 }
 
 export async function getUserTripChats(_userId: string) {

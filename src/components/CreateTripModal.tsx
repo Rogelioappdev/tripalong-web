@@ -77,6 +77,8 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
   const [error, setError] = useState('')
   const [phase, setPhase] = useState<'form' | 'created' | 'slides'>('form')
   const [slideIdx, setSlideIdx] = useState(0)
+  const [createdTripId, setCreatedTripId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -121,7 +123,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
     setError('')
     try {
       const dbGroupPref = groupPref === 'mixed' ? 'everyone' : groupPref
-      await createTrip({
+      const tripId = await createTrip({
         creator_id: userId,
         destination: destination.trim(),
         country: country.trim(),
@@ -143,6 +145,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       })
       queryClient.invalidateQueries({ queryKey: ['trips'] })
       haptic(18)
+      setCreatedTripId(tripId)
       setPhase('created')
       setTimeout(() => setPhase('slides'), 2200)
     } catch (e: unknown) {
@@ -164,9 +167,9 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       body: "When someone vibes with your trip, they join automatically. You'll get a notification and they'll show up in your group chat ready to start planning.",
     },
     {
-      icon: '💬',
-      title: 'Your group chat is ready',
-      body: 'Everyone who joins gets added to your trip chat automatically. Plan, coordinate, and get to know each other.',
+      icon: '🔗',
+      title: 'Share your trip link',
+      body: 'Invite specific people by sharing your trip link. Anyone with the link can see your trip and join.',
     },
   ]
 
@@ -311,6 +314,28 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                     {SLIDES[slideIdx].body}
                   </p>
                 </div>
+
+                {/* Share button on last slide */}
+                {slideIdx === SLIDES.length - 1 && createdTripId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptic(8)
+                      const url = `${window.location.origin}/trip/${createdTripId}`
+                      if (navigator.share) {
+                        navigator.share({ title: `Join my trip to ${destination}`, url })
+                      } else {
+                        navigator.clipboard.writeText(url)
+                        setCopied(true)
+                        setTimeout(() => setCopied(false), 2000)
+                      }
+                    }}
+                    className="w-full py-4 rounded-2xl font-semibold text-base active:scale-[0.98] transition-transform mb-3"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '0.5px solid rgba(255,255,255,0.2)', color: '#fff' }}
+                  >
+                    {copied ? 'Link copied ✓' : 'Share trip link'}
+                  </button>
+                )}
 
                 {/* CTA */}
                 <button
