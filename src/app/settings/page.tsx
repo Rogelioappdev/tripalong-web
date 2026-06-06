@@ -6,7 +6,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
+import { getProfile } from '@/lib/queries'
+import { hasPlus, getTrialStatus, trialDaysLeft } from '@/lib/trial'
 import { haptic } from '@/lib/haptics'
+import type { UserProfile } from '@/lib/types'
 
 // ── Primitives ────────────────────────────────────────────────────────────
 
@@ -80,6 +83,9 @@ export default function SettingsPage() {
 
   const [email, setEmail] = useState('')
   const [provider, setProvider] = useState<string>('email')
+  const [userId, setUserId] = useState<string | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [subLoading, setSubLoading] = useState(false)
 
   // Password change
   const [changingPw, setChangingPw] = useState(false)
@@ -107,8 +113,10 @@ export default function SettingsPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.replace('/'); return }
       setEmail(user.email ?? '')
+      setUserId(user.id)
       const p = user.identities?.[0]?.provider ?? 'email'
       setProvider(p)
+      getProfile(user.id).then(p => setProfile(p))
     })
     // Restore toggles from localStorage
     const load = (key: string, def: boolean) => {
@@ -140,6 +148,56 @@ export default function SettingsPage() {
     setTimeout(() => { setPwSuccess(false); setChangingPw(false) }, 2000)
   }
 
+  const handleUpgrade = async () => {
+    if (!userId || !email) return
+    haptic(12)
+    setSubLoading(true)
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planKey: 'plus_monthly', userId, email }),
+      })
+      const { url } = await res.json()
+      if (url) window.location.href = url
+    } finally {
+      setSubLoading(false)
+    }
+  }
+
+  const handlePortal = async () => {
+    if (!userId) return
+    haptic(8)
+    setSubLoading(true)
+    try {
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      const { url } = await res.json()
+      if (url) window.location.href = url
+    } finally {
+      setSubLoading(false)
+    }
+  }
+
+  const handleClaimTrial = async () => {
+    if (!userId) return
+    haptic(12)
+    setSubLoading(true)
+    try {
+      await fetch('/api/trial/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      router.push('/feed')
+    } finally {
+      setSubLoading(false)
+    }
+  }
+
   const handleDeleteAccount = async () => {
     if (deleteInput !== 'DELETE') return
     setDeleting(true)
@@ -161,6 +219,86 @@ export default function SettingsPage() {
         </div>
 
         <div className="max-w-lg mx-auto px-5 py-4 flex flex-col gap-5">
+
+          {/* ── TripAlong+ ── */}
+          {(() => {
+            const trialStatus = getTrialStatus(profile)
+            const isPaid = profile?.subscription_tier === 'plus' || profile?.subscription_tier === 'pro'
+            const daysLeft = trialDaysLeft(profile)
+
+            if (isPaid) return (
+              <Group title="TripAlong+">
+                <div className="px-4 py-4 flex items-center justify-between border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
+                    <p className="text-white font-semibold text-sm">Active</p>
+                  </div>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>Plus · $7.99/mo</p>
+                </div>
+                <Row label="Manage subscription" chevron border={false}
+                  onPress={handlePortal} />
+              </Group>
+            )
+
+            if (trialStatus === 'active') return (
+              <Group title="TripAlong+">
+                <div className="px-4 pt-4 pb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
+                      <p className="text-white font-semibold text-sm">Trial active</p>
+                    </div>
+                    <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
+                    </p>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full h-1 rounded-full mt-2 mb-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                    <div className="h-1 rounded-full bg-green-400 transition-all"
+                      style={{ width: `${((7 - daysLeft) / 7) * 100}%` }} />
+                  </div>
+                  <button type="button" onClick={handleUpgrade} disabled={subLoading}
+                    className="w-full py-3 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-40"
+                    style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}>
+                    {subLoading ? 'Loading…' : 'Upgrade — $7.99/mo'}
+                  </button>
+                </div>
+              </Group>
+            )
+
+            if (trialStatus === 'expired') return (
+              <Group title="TripAlong+">
+                <div className="px-4 pt-4 pb-1">
+                  <p className="text-white font-semibold text-sm mb-1">Trial ended</p>
+                  <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Upgrade to keep compatibility scores and profile viewers.
+                  </p>
+                  <button type="button" onClick={handleUpgrade} disabled={subLoading}
+                    className="w-full py-3 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-40 mb-3"
+                    style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}>
+                    {subLoading ? 'Loading…' : 'Upgrade — $7.99/mo'}
+                  </button>
+                </div>
+              </Group>
+            )
+
+            // Free — no trial yet
+            return (
+              <Group title="TripAlong+">
+                <div className="px-4 pt-4 pb-1">
+                  <p className="text-white font-semibold text-sm mb-1">Unlock TripAlong+</p>
+                  <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Compatibility scores, see who viewed your profile, and more.
+                  </p>
+                  <button type="button" onClick={handleClaimTrial} disabled={subLoading}
+                    className="w-full py-3 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-40 mb-3"
+                    style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}>
+                    {subLoading ? 'Loading…' : 'Try free for 7 days'}
+                  </button>
+                </div>
+              </Group>
+            )
+          })()}
 
           {/* ── Account ── */}
           <Group title="Account">
