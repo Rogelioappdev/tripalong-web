@@ -95,6 +95,7 @@ export default function TripLandingPage() {
     )
   }
 
+  const isCreator = !!userId && userId === (trip as any).creator_id
   const dateStr = formatDates(trip.start_date ?? null, trip.end_date ?? null)
   const memberCount = Math.max(trip.members?.length ?? 0, trip.member_count ?? 0)
   const pace = (trip as any).pace as string | undefined
@@ -201,6 +202,14 @@ export default function TripLandingPage() {
           )}
         </div>
 
+        {/* "Your trip" label for creator */}
+        {isCreator && (
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 600 }}>Your trip · Live on the feed</p>
+          </div>
+        )}
+
         {/* Creator card */}
         {trip.creator && (
           <div
@@ -269,7 +278,15 @@ export default function TripLandingPage() {
         {joinError && (
           <p className="text-center text-sm mb-3" style={{ color: '#FF453A' }}>{joinError}</p>
         )}
-        {alreadyJoined ? (
+        {isCreator ? (
+          <button
+            onClick={() => getTripChat(tripId).then(c => router.push(`/chat/${c.id}`)).catch(() => router.push('/messages'))}
+            className="w-full rounded-2xl font-bold text-base transition-opacity active:opacity-80"
+            style={{ backgroundColor: '#F0EBE3', color: '#000', padding: '16px 0' }}
+          >
+            Open trip chat →
+          </button>
+        ) : alreadyJoined ? (
           <button
             onClick={() => getTripChat(tripId).then(c => router.push(`/chat/${c.id}`)).catch(() => router.push('/feed'))}
             className="w-full rounded-2xl font-bold text-base transition-opacity active:opacity-80"
