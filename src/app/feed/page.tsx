@@ -39,6 +39,7 @@ function UpgradeToastHandler({ onUpgrade }: { onUpgrade: () => void }) {
 
 export default function FeedPage() {
   const queryClient = useQueryClient()
+  const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
   const [isGuest, setIsGuest] = useState(false)
   const [authGateDestination, setAuthGateDestination] = useState<string | undefined>(undefined)
