@@ -143,11 +143,11 @@ export default function FeedPage() {
   }, [justUpgraded, userId])
 
   // Compute top match score for paywall personalization once trips + profile are ready
-  const trips = (useQueryClient().getQueryData(['trips']) as TripWithDetails[] | undefined)
+  const cachedTrips = (useQueryClient().getQueryData(['trips']) as TripWithDetails[] | undefined)
   useEffect(() => {
-    if (!showTrialExpiredPaywall || !feedProfile || !trips?.length) return
+    if (!showTrialExpiredPaywall || !feedProfile || !cachedTrips?.length) return
     let best: { pct: number; destination: string } | null = null
-    for (const trip of trips) {
+    for (const trip of cachedTrips) {
       const { tripPct, groupPct } = getTripMatchBreakdown(feedProfile, trip)
       const pct = groupPct ?? tripPct
       if (!best || pct > best.pct) best = { pct, destination: trip.destination }
