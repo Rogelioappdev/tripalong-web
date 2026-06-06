@@ -159,9 +159,9 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       body: "Your trip is showing to travelers right now. The right co-traveler could swipe right any minute.",
     },
     {
-      icon: '👆',
-      title: 'Travelers swipe to join',
-      body: "They see your trip, vibe with it, and request to join. You'll see their profile and how well you match before anyone is added.",
+      icon: '🔔',
+      title: 'Travelers join instantly',
+      body: "When someone vibes with your trip, they join automatically. You'll get a notification and they'll show up in your group chat ready to start planning.",
     },
     {
       icon: '💬',
