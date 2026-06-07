@@ -264,7 +264,7 @@ function ProfileCompleteNudge({
                 Profile photo
               </p>
               <p style={{ color: hasPhoto ? 'rgba(48,209,88,0.7)' : 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>
-                {hasPhoto ? 'Done ✓' : 'Travelers want to see who's going'}
+                {hasPhoto ? 'Done ✓' : "Travelers want to see who's going"}
               </p>
             </div>
             {!hasPhoto && (
