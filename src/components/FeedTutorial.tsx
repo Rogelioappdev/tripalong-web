@@ -1,12 +1,126 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useAnimationControls } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 
 interface Props {
   onDone: () => void
+}
+
+// ── Step 1: large realistic swipe card demo ───────────────────────────────────
+function SwipeCardDemo() {
+  const controls = useAnimationControls()
+  const [stamp, setStamp] = useState<'save' | 'pass' | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      while (!cancelled) {
+        await new Promise(r => setTimeout(r, 900))
+        if (cancelled) break
+        // swipe right → SAVE
+        setStamp('save')
+        await controls.start({ x: 280, rotate: 18, opacity: 0, transition: { duration: 0.5, ease: [0.32, 0, 0.67, 0] } })
+        if (cancelled) break
+        setStamp(null)
+        await controls.start({ x: 0, rotate: 0, opacity: 1, transition: { duration: 0 } })
+        await new Promise(r => setTimeout(r, 700))
+        if (cancelled) break
+        // swipe left → PASS
+        setStamp('pass')
+        await controls.start({ x: -280, rotate: -18, opacity: 0, transition: { duration: 0.5, ease: [0.32, 0, 0.67, 0] } })
+        if (cancelled) break
+        setStamp(null)
+        await controls.start({ x: 0, rotate: 0, opacity: 1, transition: { duration: 0 } })
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [controls])
+
+  return (
+    <div style={{ position: 'relative', width: '100%', maxWidth: 300, margin: '0 auto' }}>
+      {/* Back card */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 24,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        transform: 'scale(0.94) translateY(12px) rotate(4deg)',
+      }} />
+      {/* Main card */}
+      <motion.div
+        animate={controls}
+        style={{
+          position: 'relative', borderRadius: 24,
+          overflow: 'hidden', aspectRatio: '3/4',
+          border: stamp === 'save'
+            ? '2.5px solid #30D158'
+            : stamp === 'pass'
+            ? '2.5px solid #FF453A'
+            : '1px solid rgba(255,255,255,0.1)',
+          backgroundColor: '#111',
+          boxShadow: stamp === 'save'
+            ? '0 0 28px rgba(48,209,88,0.25)'
+            : stamp === 'pass'
+            ? '0 0 28px rgba(255,69,58,0.25)'
+            : '0 8px 40px rgba(0,0,0,0.5)',
+          transition: 'border-color 0.12s, box-shadow 0.12s',
+        }}
+      >
+        {/* Photo */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&q=80"
+          alt="Bali"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+        {/* Gradient overlay */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to bottom, transparent 45%, rgba(0,0,0,0.85) 100%)',
+        }} />
+        {/* Trip info */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px 18px' }}>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Bali, Indonesia</p>
+          <p style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px', lineHeight: 1 }}>Bali</p>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, marginTop: 4 }}>Aug 12 – Aug 20 · 4 travelers</p>
+        </div>
+
+        {/* SAVE stamp */}
+        <motion.div
+          animate={{ opacity: stamp === 'save' ? 1 : 0, scale: stamp === 'save' ? 1 : 0.7 }}
+          transition={{ duration: 0.1 }}
+          style={{
+            position: 'absolute', top: 20, right: 16, zIndex: 10,
+            border: '3px solid #30D158', borderRadius: 8, padding: '4px 14px',
+            transform: 'rotate(12deg)',
+          }}
+        >
+          <span style={{ color: '#30D158', fontWeight: 900, fontSize: 18, letterSpacing: '0.05em' }}>SAVE</span>
+        </motion.div>
+
+        {/* PASS stamp */}
+        <motion.div
+          animate={{ opacity: stamp === 'pass' ? 1 : 0, scale: stamp === 'pass' ? 1 : 0.7 }}
+          transition={{ duration: 0.1 }}
+          style={{
+            position: 'absolute', top: 20, left: 16, zIndex: 10,
+            border: '3px solid #FF453A', borderRadius: 8, padding: '4px 14px',
+            transform: 'rotate(-12deg)',
+          }}
+        >
+          <span style={{ color: '#FF453A', fontWeight: 900, fontSize: 18, letterSpacing: '0.05em' }}>PASS</span>
+        </motion.div>
+      </motion.div>
+
+      {/* Swipe labels below card */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, padding: '0 4px' }}>
+        <span style={{ color: 'rgba(255,69,58,0.7)', fontSize: 12, fontWeight: 700 }}>← Pass</span>
+        <span style={{ color: 'rgba(48,209,88,0.7)', fontSize: 12, fontWeight: 700 }}>Save →</span>
+      </div>
+    </div>
+  )
 }
 
 // ── Step 2 & 3: mini feed header mock with one button glowing ─────────────────
@@ -134,7 +248,7 @@ export function FeedTutorial({ onDone }: Props) {
         transition={{ duration: 0.4 }}
         style={{
           position: 'fixed', inset: 0, zIndex: 200,
-          backgroundColor: isSwipeStep ? 'rgba(0,0,0,0.30)' : 'rgba(0,0,0,0.88)',
+          backgroundColor: isSwipeStep ? 'rgba(0,0,0,0.60)' : 'rgba(0,0,0,0.88)',
           backdropFilter: isSwipeStep ? 'none' : 'blur(6px)',
           WebkitBackdropFilter: isSwipeStep ? 'none' : 'blur(6px)',
           display: 'flex', flexDirection: 'column',
@@ -143,55 +257,21 @@ export function FeedTutorial({ onDone }: Props) {
           paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)',
         } as React.CSSProperties}
       >
-        {/* ── Step 1 only: floating swipe hint labels in the middle ── */}
+        {/* ── Step 1 only: large animated swipe card demo ── */}
         {isSwipeStep && (
-          <>
-            <motion.div
-              initial={{ opacity: 0, x: -16 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3, duration: 0.4 }}
-              style={{
-                position: 'absolute', left: 20,
-                top: '38%',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-              }}
-            >
-              <motion.div
-                animate={{ x: [0, -6, 0] }}
-                transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                <span style={{ fontSize: 28 }}>←</span>
-              </motion.div>
-              <span style={{
-                color: '#FF453A', fontWeight: 800, fontSize: 13,
-                textTransform: 'uppercase', letterSpacing: '0.04em',
-                textShadow: '0 0 12px rgba(255,69,58,0.6)',
-              }}>Pass</span>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 16 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3, duration: 0.4 }}
-              style={{
-                position: 'absolute', right: 20,
-                top: '38%',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-              }}
-            >
-              <motion.div
-                animate={{ x: [0, 6, 0] }}
-                transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                <span style={{ fontSize: 28 }}>→</span>
-              </motion.div>
-              <span style={{
-                color: '#30D158', fontWeight: 800, fontSize: 13,
-                textTransform: 'uppercase', letterSpacing: '0.04em',
-                textShadow: '0 0 12px rgba(48,209,88,0.6)',
-              }}>Save</span>
-            </motion.div>
-          </>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.4 }}
+            style={{
+              position: 'absolute', left: 16, right: 16,
+              top: 'calc(env(safe-area-inset-top) + 16px)',
+              bottom: 'calc(env(safe-area-inset-bottom) + 260px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <SwipeCardDemo />
+          </motion.div>
         )}
 
         {/* ── Bottom sheet ── */}
