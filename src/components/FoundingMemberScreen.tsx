@@ -213,6 +213,7 @@ function UnlockAnimation({ onComplete, images }: { onComplete: () => void; image
               backgroundPosition: 'center',
               filter: 'blur(22px) saturate(1.3)',
               transform: 'scale(1.08)',
+              pointerEvents: 'none',
             }}
           />
         )}
@@ -944,6 +945,8 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
                 onPointerDown={startHold}
                 onPointerUp={cancelHold}
                 onPointerLeave={cancelHold}
+                onPointerCancel={cancelHold}
+                onContextMenu={e => e.preventDefault()}
                 className="w-full py-4 rounded-2xl font-bold text-base select-none"
                 style={{
                   position: 'relative', overflow: 'hidden',
@@ -951,7 +954,10 @@ export function FoundingMemberScreen({ userId, profile, onClaimed, onDismiss }: 
                   color: '#000', marginBottom: 4,
                   transform: holding ? 'scale(0.985)' : 'scale(1)',
                   transition: 'transform 0.1s ease',
-                }}
+                  WebkitTouchCallout: 'none',
+                  WebkitUserSelect: 'none',
+                  touchAction: 'none',
+                } as React.CSSProperties}
               >
                 {/* Fill layer sweeps in while holding */}
                 <motion.div
