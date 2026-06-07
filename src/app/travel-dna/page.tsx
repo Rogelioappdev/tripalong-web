@@ -125,7 +125,8 @@ export default function TravelDNAPage() {
 function TravelDNAContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const returnTo = searchParams.get('from') ?? '/feed'
+  const fromParam = searchParams.get('from') ?? ''
+  const returnTo = fromParam.startsWith('/') ? fromParam : '/feed'
 
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
