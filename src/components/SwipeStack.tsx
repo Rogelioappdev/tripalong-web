@@ -165,6 +165,184 @@ function DnaNudgeCard({ pct, onDismiss, onOpen }: { pct: number; onDismiss: () =
   )
 }
 
+// ── Profile complete nudge — bottom sheet after 3rd swipe ────────────────────
+
+function ProfileCompleteNudge({
+  hasPhoto,
+  dnaPct,
+  onPhotoTap,
+  onDnaTap,
+  onDismiss,
+}: {
+  hasPhoto: boolean
+  dnaPct: number
+  onPhotoTap: () => void
+  onDnaTap: () => void
+  onDismiss: () => void
+}) {
+  const allDone = hasPhoto && dnaPct === 100
+  if (allDone) return null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 120,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      } as React.CSSProperties}
+      onClick={onDismiss}
+    >
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 340, damping: 36 }}
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 480,
+          backgroundColor: '#0D0D0D',
+          border: '0.5px solid rgba(255,255,255,0.08)',
+          borderRadius: '28px 28px 0 0',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)',
+          paddingTop: 12,
+        }}
+      >
+        {/* Handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.12)' }} />
+        </div>
+
+        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Header */}
+          <div>
+            <h2 style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.4px', marginBottom: 6 }}>
+              Make your profile work for you
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, lineHeight: 1.5 }}>
+              Travelers with complete profiles get seen more. Takes 2 minutes.
+            </p>
+          </div>
+
+          {/* Profile photo row */}
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.97 }}
+            onClick={() => { haptic(8); onPhotoTap() }}
+            disabled={hasPhoto}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '14px 16px', borderRadius: 18,
+              backgroundColor: hasPhoto ? 'rgba(48,209,88,0.07)' : 'rgba(255,255,255,0.05)',
+              border: hasPhoto ? '0.5px solid rgba(48,209,88,0.25)' : '0.5px solid rgba(255,255,255,0.1)',
+              textAlign: 'left', cursor: hasPhoto ? 'default' : 'pointer',
+            }}
+          >
+            <div style={{
+              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+              backgroundColor: hasPhoto ? 'rgba(48,209,88,0.12)' : 'rgba(255,255,255,0.08)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {hasPhoto ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="8" r="4" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8"/>
+                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              )}
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: hasPhoto ? 'rgba(255,255,255,0.4)' : '#fff', fontWeight: 700, fontSize: 15 }}>
+                Profile photo
+              </p>
+              <p style={{ color: hasPhoto ? 'rgba(48,209,88,0.7)' : 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>
+                {hasPhoto ? 'Done ✓' : 'Travelers want to see who's going'}
+              </p>
+            </div>
+            {!hasPhoto && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                <path d="M9 18l6-6-6-6" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            )}
+          </motion.button>
+
+          {/* Travel DNA row */}
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.97 }}
+            onClick={() => { haptic(8); onDnaTap() }}
+            disabled={dnaPct === 100}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '14px 16px', borderRadius: 18,
+              backgroundColor: dnaPct === 100 ? 'rgba(48,209,88,0.07)' : 'rgba(255,255,255,0.05)',
+              border: dnaPct === 100 ? '0.5px solid rgba(48,209,88,0.25)' : '0.5px solid rgba(255,255,255,0.1)',
+              textAlign: 'left', cursor: dnaPct === 100 ? 'default' : 'pointer',
+            }}
+          >
+            <div style={{
+              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+              backgroundColor: dnaPct === 100 ? 'rgba(48,209,88,0.12)' : 'rgba(255,255,255,0.08)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {dnaPct === 100 ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8"/>
+                  <path d="M8 12h4m0 0V8m0 4l3 3" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              )}
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: dnaPct === 100 ? 'rgba(255,255,255,0.4)' : '#fff', fontWeight: 700, fontSize: 15 }}>
+                Travel DNA
+              </p>
+              <p style={{ color: dnaPct === 100 ? 'rgba(48,209,88,0.7)' : 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }}>
+                {dnaPct === 100 ? 'Done ✓' : `${dnaPct}% complete · tells us your travel style`}
+              </p>
+            </div>
+            {dnaPct !== 100 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {/* Mini progress bar */}
+                <div style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+                  <div style={{ width: `${dnaPct}%`, height: '100%', backgroundColor: '#F0EBE3', borderRadius: 2 }} />
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 18l6-6-6-6" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+            )}
+          </motion.button>
+
+          {/* Dismiss */}
+          <button
+            type="button"
+            onClick={() => { haptic(4); onDismiss() }}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'rgba(255,255,255,0.22)', fontSize: 13, fontWeight: 500,
+              padding: '4px 0', textAlign: 'center',
+            }}
+          >
+            Maybe later
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ── Swipe hint overlay ────────────────────────────────────────────────────────
 
 function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
@@ -267,6 +445,8 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const [showFoundingScreen, setShowFoundingScreen] = useState(false)
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
   const [celebrationTrip, setCelebrationTrip] = useState<TripWithDetails | null>(null)
+  const [showProfileNudge, setShowProfileNudge] = useState(false)
+  const profileNudgeTriggered = useRef(false)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
   const qc = useQueryClient()
@@ -315,6 +495,24 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     dnaNudgeTriggered.current = true
     setDnaNudgeActive(true)
   }, [currentIndex, userProfile, isGuest])
+
+  // Show profile nudge after 3rd swipe — fires on first session, once ever
+  useEffect(() => {
+    if (profileNudgeTriggered.current) return
+    if (currentIndex < 2) return
+    if (isGuest) return
+    if (!userProfile) return
+    if (localStorage.getItem('ta_profile_nudge')) return
+    const hasPhoto = !!userProfile.profile_photo
+    if (hasPhoto && dnaProgress(userProfile) === 100) return
+    profileNudgeTriggered.current = true
+    setShowProfileNudge(true)
+  }, [currentIndex, userProfile, isGuest])
+
+  const dismissProfileNudge = () => {
+    setShowProfileNudge(false)
+    localStorage.setItem('ta_profile_nudge', '1')
+  }
 
   const dismissHint = () => {
     setHintVisible(false)
@@ -658,6 +856,19 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
 
   return (
     <div className="flex flex-col items-center w-full h-full gap-0">
+      {/* Profile complete nudge — bottom sheet after 3rd swipe */}
+      <AnimatePresence>
+        {showProfileNudge && userProfile && (
+          <ProfileCompleteNudge
+            hasPhoto={!!userProfile.profile_photo}
+            dnaPct={dnaProgress(userProfile)}
+            onPhotoTap={() => { dismissProfileNudge(); router.push('/profile?edit=1') }}
+            onDnaTap={() => { dismissProfileNudge(); router.push('/travel-dna?from=nudge') }}
+            onDismiss={dismissProfileNudge}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Join celebration — full screen, shown after tapping Join */}
       <AnimatePresence>
         {celebrationTrip && (
