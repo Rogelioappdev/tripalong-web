@@ -44,6 +44,7 @@ export default function FeedPage() {
   const [isGuest, setIsGuest] = useState(false)
   const [authGateDestination, setAuthGateDestination] = useState<string | undefined>(undefined)
   const [showAuthGate, setShowAuthGate] = useState(false)
+  const [authGateRequired, setAuthGateRequired] = useState(false)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
@@ -98,7 +99,15 @@ export default function FeedPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { setIsGuest(true); return }
+      if (!session) {
+        setIsGuest(true)
+        if (sessionStorage.getItem('ta_require_auth')) {
+          sessionStorage.removeItem('ta_require_auth')
+          setAuthGateRequired(true)
+          setShowAuthGate(true)
+        }
+        return
+      }
       setUserId(session.user.id)
 
       // First-run tutorial — show once, ever
@@ -447,7 +456,8 @@ export default function FeedPage() {
         {showAuthGate && (
           <AuthGate
             destination={authGateDestination}
-            onClose={() => setShowAuthGate(false)}
+            onClose={() => { setShowAuthGate(false); setAuthGateRequired(false) }}
+            required={authGateRequired}
           />
         )}
       </AnimatePresence>

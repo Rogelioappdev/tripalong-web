@@ -9,9 +9,10 @@ import { haptic } from '@/lib/haptics'
 interface AuthGateProps {
   destination?: string
   onClose: () => void
+  required?: boolean
 }
 
-export function AuthGate({ destination, onClose }: AuthGateProps) {
+export function AuthGate({ destination, onClose, required = false }: AuthGateProps) {
   const [showEmail, setShowEmail] = useState(false)
   const [mode, setMode] = useState<'signup' | 'signin'>('signup')
   const [email, setEmail] = useState('')
@@ -56,7 +57,7 @@ export function AuthGate({ destination, onClose }: AuthGateProps) {
 
   return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-[90] flex items-end justify-center" onClick={onClose}>
+      <div className="fixed inset-0 z-[90] flex items-end justify-center" onClick={required ? undefined : onClose}>
         {/* Backdrop */}
         <motion.div
           className="absolute inset-0"
@@ -80,10 +81,13 @@ export function AuthGate({ destination, onClose }: AuthGateProps) {
           }}
           onClick={e => e.stopPropagation()}
         >
-          {/* Handle */}
-          <div className="flex justify-center pt-3 pb-6">
-            <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.14)' }} />
-          </div>
+          {/* Handle — hidden when auth is required (non-dismissible) */}
+          {!required && (
+            <div className="flex justify-center pt-3 pb-6">
+              <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.14)' }} />
+            </div>
+          )}
+          {required && <div style={{ height: 28 }} />}
 
           <div className="px-6 flex flex-col gap-5">
             {/* Copy */}

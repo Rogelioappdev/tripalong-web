@@ -409,7 +409,7 @@ export default function SplashPage() {
             </div>
 
             <button
-              onClick={() => { haptic(12); router.push('/feed') }}
+              onClick={() => { haptic(12); sessionStorage.setItem('ta_require_auth', '1'); router.push('/feed') }}
               style={{
                 width: '100%', padding: '15px 0', borderRadius: 18,
                 fontWeight: 700, fontSize: 15.5,
