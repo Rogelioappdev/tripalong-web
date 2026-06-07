@@ -71,7 +71,7 @@ function SwipeCardDemo() {
         {/* Photo */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&q=80"
+          src="https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/trip-images/asia/bali/bali04.png"
           alt="Bali"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
         />
@@ -248,7 +248,7 @@ export function FeedTutorial({ onDone }: Props) {
         transition={{ duration: 0.4 }}
         style={{
           position: 'fixed', inset: 0, zIndex: 200,
-          backgroundColor: isSwipeStep ? 'rgba(0,0,0,0.60)' : 'rgba(0,0,0,0.88)',
+          backgroundColor: isSwipeStep ? 'rgba(0,0,0,0.78)' : 'rgba(0,0,0,0.88)',
           backdropFilter: isSwipeStep ? 'none' : 'blur(6px)',
           WebkitBackdropFilter: isSwipeStep ? 'none' : 'blur(6px)',
           display: 'flex', flexDirection: 'column',
