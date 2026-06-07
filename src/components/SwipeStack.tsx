@@ -9,7 +9,8 @@ import { SwipeCard, type SwipeCardHandle } from './SwipeCard'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
-import { joinTrip, saveTrip, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
+import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
+import { JoinCelebration } from './JoinCelebration'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { hasPlus, getTrialStatus } from '@/lib/trial'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
@@ -265,6 +266,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const [paywallContext, setPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
   const [showFoundingScreen, setShowFoundingScreen] = useState(false)
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
+  const [celebrationTrip, setCelebrationTrip] = useState<TripWithDetails | null>(null)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
   const qc = useQueryClient()
@@ -375,8 +377,22 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
       onAuthRequired?.(currentTrip.destination)
       return
     }
-    haptic(18)
-    await topCardRef.current?.swipeRight()
+    if (!userId) return
+    haptic([15, 30, 15, 30, 60])
+    const trip = currentTrip
+    advance()
+    // Join + save in background
+    try {
+      await joinTrip(trip.id, userId)
+      setJoinedIds(s => new Set([...s, trip.id]))
+      qc.invalidateQueries({ queryKey: ['trips'] })
+    } catch {}
+    if (!savedIds.has(trip.id)) {
+      setSavedIds(s => new Set([...s, trip.id]))
+      saveTrip(trip.id, userId).catch(() => {})
+      qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
+    }
+    setCelebrationTrip(trip)
   }
 
   const handleSave = async () => {
@@ -642,6 +658,21 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
 
   return (
     <div className="flex flex-col items-center w-full h-full gap-0">
+      {/* Join celebration — full screen, shown after tapping Join */}
+      <AnimatePresence>
+        {celebrationTrip && (
+          <JoinCelebration
+            trip={celebrationTrip}
+            onOpenChat={async () => {
+              const chatId = await joinTripChat(celebrationTrip.id)
+              setCelebrationTrip(null)
+              router.push(`/chat/${chatId}`)
+            }}
+            onClose={() => setCelebrationTrip(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Card area */}
       <div
         className="relative w-full flex-1 min-h-0 overflow-hidden"
