@@ -14,7 +14,6 @@ import { AuthGate } from '@/components/AuthGate'
 import { getTrips, getUserSavedTripIds, saveTrip, getProfile } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
-import { getPushState } from '@/lib/push'
 import { getTripMatchBreakdown } from '@/lib/matching'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
@@ -285,10 +284,11 @@ export default function FeedPage() {
         {showTutorial && (
           <FeedTutorial onDone={() => {
             setShowTutorial(false)
-            // Show notification primer after tutorial — only once, only if supported
+            // Show notification primer after tutorial — only once, always show it.
+            // registerPush handles unsupported devices silently.
             if (userId) {
               const notifKey = `ta_notif_prompt_${userId}`
-              if (!localStorage.getItem(notifKey) && getPushState() !== 'unsupported') {
+              if (!localStorage.getItem(notifKey)) {
                 localStorage.setItem(notifKey, '1')
                 setShowNotifPrompt(true)
               }
