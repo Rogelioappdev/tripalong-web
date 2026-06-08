@@ -230,9 +230,13 @@ export default function ProfilePage() {
       const path = `${profile.id}/profile.${ext}`
       await supabase.storage.from('avatars').upload(path, file, { upsert: true })
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
-      await save({ profile_photo: publicUrl })
+      // Bust the browser cache — same path means same URL, so the old image sticks without this
+      const bustedUrl = `${publicUrl}?v=${Date.now()}`
+      await save({ profile_photo: bustedUrl })
     } finally {
       setUploadingMain(false)
+      // Reset input so selecting the same file again still triggers onChange
+      if (fileRef.current) fileRef.current.value = ''
     }
   }
 
