@@ -14,6 +14,7 @@ import { AuthGate } from '@/components/AuthGate'
 import { getTrips, getUserSavedTripIds, saveTrip, getProfile } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
+import { getPushState } from '@/lib/push'
 import { getTripMatchBreakdown } from '@/lib/matching'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
@@ -25,6 +26,7 @@ const FoundingMemberPaywall = dynamicImport(() => import('@/components/FoundingM
 const TrialExpiredPaywall = dynamicImport(() => import('@/components/TrialExpiredPaywall').then(m => ({ default: m.TrialExpiredPaywall })), { ssr: false })
 const FeedTutorial = dynamicImport(() => import('@/components/FeedTutorial').then(m => ({ default: m.FeedTutorial })), { ssr: false })
 const FoundingMemberScreen = dynamicImport(() => import('@/components/FoundingMemberScreen').then(m => ({ default: m.FoundingMemberScreen })), { ssr: false })
+const NotificationPrompt = dynamicImport(() => import('@/components/NotificationPrompt').then(m => ({ default: m.NotificationPrompt })), { ssr: false })
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
@@ -67,6 +69,7 @@ export default function FeedPage() {
 
   const [justUpgraded, setJustUpgraded] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false)
   const [paywallStats, setPaywallStats] = useState<{ viewerCount: number; topMatch: { pct: number; destination: string } | null } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -280,7 +283,20 @@ export default function FeedPage() {
       {/* First-run swipe tutorial */}
       <AnimatePresence>
         {showTutorial && (
-          <FeedTutorial onDone={() => setShowTutorial(false)} />
+          <FeedTutorial onDone={() => {
+            setShowTutorial(false)
+            // Show notification primer after tutorial — only once, only if supported
+            if (userId) {
+              const notifKey = `ta_notif_prompt_${userId}`
+              if (!localStorage.getItem(notifKey) && getPushState() !== 'unsupported') {
+                localStorage.setItem(notifKey, '1')
+                setShowNotifPrompt(true)
+              }
+            }
+          }} />
+        )}
+        {showNotifPrompt && userId && (
+          <NotificationPrompt userId={userId} onDone={() => setShowNotifPrompt(false)} />
         )}
       </AnimatePresence>
 
