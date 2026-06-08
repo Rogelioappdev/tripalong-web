@@ -379,10 +379,11 @@ export default function SplashPage() {
             style={{
               position: 'absolute', bottom: 0, left: 0, right: 0, top: 0,
               zIndex: 10,
-              background: 'linear-gradient(to bottom, transparent 0%, #000 20%)',
-              display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+              backgroundColor: '#000',
+              display: 'flex', flexDirection: 'column', justifyContent: 'center',
               padding: '0 26px',
-              paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
+              paddingTop: 'calc(env(safe-area-inset-top) + 16px)',
+              paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)',
             }}
           >
             <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
