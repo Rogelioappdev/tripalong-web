@@ -192,7 +192,7 @@ export default function SplashPage() {
 
   useEffect(() => {
     if (cards.length < 2) return
-    const t = setInterval(triggerSwipe, 2800)
+    const t = setInterval(triggerSwipe, 1800)
     return () => clearInterval(t)
   }, [triggerSwipe, cards.length])
 
@@ -213,7 +213,7 @@ export default function SplashPage() {
           left: 26,
         }}
       >
-        <span style={{ color: '#fff', fontSize: 24, fontWeight: 800, letterSpacing: '-0.6px' }}>TripAlong</span>
+        <span className="text-white font-extrabold text-2xl tracking-tight">TripAlong</span>
       </motion.div>
 
       {/* ── Portrait card stack — hidden on guidelines slide ── */}
