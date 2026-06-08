@@ -70,7 +70,6 @@ export default function FeedPage() {
   const [paywallStats, setPaywallStats] = useState<{ viewerCount: number; topMatch: { pct: number; destination: string } | null } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const realtimeDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
 
   // Load initial saved count once userId is known
@@ -218,29 +217,15 @@ export default function FeedPage() {
     }
   }, [])
 
-  // Invalidate trip cards when membership changes — debounced to batch rapid joins
-  useEffect(() => {
-    const invalidate = () => {
-      if (realtimeDebounce.current) clearTimeout(realtimeDebounce.current)
-      realtimeDebounce.current = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['trips'] })
-      }, 2000) // batch up to 2s of join events into one refetch
-    }
-    const channel = supabase
-      .channel('feed-trip-members')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_members' }, invalidate)
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'trip_members' }, invalidate)
-      .subscribe()
-    return () => {
-      if (realtimeDebounce.current) clearTimeout(realtimeDebounce.current)
-      supabase.removeChannel(channel)
-    }
-  }, [queryClient])
-
+  // Feed trip data — background refetch every 5 min instead of a global realtime
+  // subscription. Each open realtime channel costs a Supabase connection slot;
+  // at 5k-10k MAU that would exhaust the Pro plan limit. A silent refetch is
+  // imperceptible to users and frees up realtime slots for chat (which needs it).
   const { data: trips, isLoading, isError, refetch } = useQuery({
     queryKey: ['trips'],
     queryFn: getTrips,
     enabled: !!userId || isGuest,
+    refetchInterval: 5 * 60 * 1000, // quietly refresh member counts every 5 min
   })
 
   // After login: auto-save the trip the guest tried to save, then show it
