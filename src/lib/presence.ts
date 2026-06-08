@@ -22,7 +22,7 @@ export function initPresence(userId: string) {
   if (_channel) return
 
   _updateLastSeen(userId)
-  setInterval(() => _updateLastSeen(userId), 60_000)
+  setInterval(() => _updateLastSeen(userId), 300_000) // 5 min — was 60s, 5x fewer DB writes
 
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {

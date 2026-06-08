@@ -6,22 +6,25 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, useAnimation, AnimatePresence } from 'framer-motion'
+import dynamicImport from 'next/dynamic'
 import { haptic } from '@/lib/haptics'
 import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
-import { TripDetailModal } from '@/components/TripDetailModal'
-import { CreateTripModal } from '@/components/CreateTripModal'
 import { AuthGate } from '@/components/AuthGate'
 import { getTrips, getUserSavedTripIds, saveTrip, getProfile } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
-import { SavedTripsModal } from '@/components/SavedTripsModal'
-import { FoundingMemberPaywall } from '@/components/FoundingMemberPaywall'
-import { TrialExpiredPaywall } from '@/components/TrialExpiredPaywall'
-import { FeedTutorial } from '@/components/FeedTutorial'
-import { FoundingMemberScreen } from '@/components/FoundingMemberScreen'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import { getTripMatchBreakdown } from '@/lib/matching'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
+
+// Heavy modals — only loaded when actually shown (code-split from initial bundle)
+const TripDetailModal = dynamicImport(() => import('@/components/TripDetailModal').then(m => ({ default: m.TripDetailModal })), { ssr: false })
+const CreateTripModal = dynamicImport(() => import('@/components/CreateTripModal').then(m => ({ default: m.CreateTripModal })), { ssr: false })
+const SavedTripsModal = dynamicImport(() => import('@/components/SavedTripsModal').then(m => ({ default: m.SavedTripsModal })), { ssr: false })
+const FoundingMemberPaywall = dynamicImport(() => import('@/components/FoundingMemberPaywall').then(m => ({ default: m.FoundingMemberPaywall })), { ssr: false })
+const TrialExpiredPaywall = dynamicImport(() => import('@/components/TrialExpiredPaywall').then(m => ({ default: m.TrialExpiredPaywall })), { ssr: false })
+const FeedTutorial = dynamicImport(() => import('@/components/FeedTutorial').then(m => ({ default: m.FeedTutorial })), { ssr: false })
+const FoundingMemberScreen = dynamicImport(() => import('@/components/FoundingMemberScreen').then(m => ({ default: m.FoundingMemberScreen })), { ssr: false })
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
@@ -67,6 +70,7 @@ export default function FeedPage() {
   const [paywallStats, setPaywallStats] = useState<{ viewerCount: number; topMatch: { pct: number; destination: string } | null } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const realtimeDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
 
   // Load initial saved count once userId is known
@@ -214,18 +218,23 @@ export default function FeedPage() {
     }
   }, [])
 
-  // Invalidate trip cards whenever anyone joins or leaves any trip
+  // Invalidate trip cards when membership changes — debounced to batch rapid joins
   useEffect(() => {
+    const invalidate = () => {
+      if (realtimeDebounce.current) clearTimeout(realtimeDebounce.current)
+      realtimeDebounce.current = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['trips'] })
+      }, 2000) // batch up to 2s of join events into one refetch
+    }
     const channel = supabase
       .channel('feed-trip-members')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_members' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['trips'] })
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'trip_members' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['trips'] })
-      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_members' }, invalidate)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'trip_members' }, invalidate)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      if (realtimeDebounce.current) clearTimeout(realtimeDebounce.current)
+      supabase.removeChannel(channel)
+    }
   }, [queryClient])
 
   const { data: trips, isLoading, isError, refetch } = useQuery({

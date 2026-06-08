@@ -31,7 +31,7 @@ export async function getTrips(): Promise<TripWithDetails[]> {
   await Promise.all([
     (async () => {
       try {
-        const { data: saves } = await supabase.from('saved_trips').select('trip_id')
+        const { data: saves } = await supabase.from('saved_trips').select('trip_id').limit(500)
         if (saves) saves.forEach((s: any) => { saveCounts[s.trip_id] = (saveCounts[s.trip_id] ?? 0) + 1 })
       } catch {}
     })(),
@@ -451,7 +451,7 @@ export async function isUserBlocked(blockedId: string): Promise<boolean> {
 export async function getBlockedUserIds(): Promise<string[]> {
   const uid = (await supabase.auth.getUser()).data.user?.id
   if (!uid) return []
-  const { data } = await supabase.from('blocked_users').select('blocked_id').eq('blocker_id', uid)
+  const { data } = await supabase.from('blocked_users').select('blocked_id').eq('blocker_id', uid).limit(1000)
   return (data ?? []).map((r: any) => r.blocked_id)
 }
 

@@ -20,12 +20,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 2 * 60 * 1000,
+        staleTime: 5 * 60 * 1000,       // 5 min — Supabase realtime handles live updates
+        gcTime: 10 * 60 * 1000,          // keep unused cache 10 min before GC
         retry: 2,
         retryDelay: attempt => Math.min(800 * (attempt + 1), 4000),
-        refetchOnWindowFocus: true,
-        refetchOnReconnect: true,
-        networkMode: 'always', // always attempt; don't freeze on offline detection
+        refetchOnWindowFocus: false,     // realtime invalidates; tab-switch refetch is wasteful
+        refetchOnReconnect: 'always',
+        networkMode: 'always',
       },
     },
   }))
