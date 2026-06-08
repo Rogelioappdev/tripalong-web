@@ -1,9 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { getPushState, registerPush } from '@/lib/push'
 import { haptic } from '@/lib/haptics'
+import { supabase } from '@/lib/supabase'
 
 interface Props {
   userId: string
@@ -11,11 +12,33 @@ interface Props {
 }
 
 export function NotificationPrompt({ userId, onDone }: Props) {
+  const [loading, setLoading] = useState(false)
+
   if (typeof window === 'undefined') return null
 
   const handleAllow = async () => {
     haptic([10, 30, 10])
-    await registerPush(userId)
+
+    // No Notification API at all (old iOS Safari without PWA)
+    if (!('Notification' in window)) {
+      onDone()
+      return
+    }
+
+    setLoading(true)
+    try {
+      // Notification.requestPermission() MUST be the first await after the tap —
+      // browsers reject it if called after other awaits (breaks user-gesture chain)
+      const permission = await Notification.requestPermission()
+
+      if (permission === 'granted') {
+        // Service worker + subscription in background — don't block UI
+        registerInBackground(userId)
+      }
+    } catch {
+      // Silently swallow — some browsers throw on unsupported devices
+    }
+
     onDone()
   }
 
@@ -76,7 +99,7 @@ export function NotificationPrompt({ userId, onDone }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 40 }}>
           {[
             { icon: '💬', text: 'New messages from your travel group' },
-            { icon: '🧳', text: 'Someone joins a trip you\'re on' },
+            { icon: '🧳', text: "Someone joins a trip you're on" },
             { icon: '🌍', text: 'New trips that match your style' },
           ].map(({ icon, text }) => (
             <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -107,14 +130,16 @@ export function NotificationPrompt({ userId, onDone }: Props) {
         <button
           type="button"
           onClick={handleAllow}
+          disabled={loading}
           style={{
             width: '100%', padding: '16px 0', borderRadius: 18,
             fontWeight: 700, fontSize: 16,
-            backgroundColor: '#F0EBE3', color: '#000',
-            border: 'none', cursor: 'pointer', letterSpacing: '-0.1px',
+            backgroundColor: loading ? 'rgba(240,235,227,0.5)' : '#F0EBE3',
+            color: '#000', border: 'none', cursor: 'pointer', letterSpacing: '-0.1px',
+            transition: 'background-color 0.15s',
           }}
         >
-          Turn on notifications
+          {loading ? 'One sec...' : 'Turn on notifications'}
         </button>
         <button
           type="button"
@@ -131,4 +156,43 @@ export function NotificationPrompt({ userId, onDone }: Props) {
     </motion.div>,
     document.body
   )
+}
+
+// Runs after permission granted — doesn't block the UI
+async function registerInBackground(userId: string) {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return
+
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    await navigator.serviceWorker.ready
+
+    const existing = await reg.pushManager.getSubscription()
+    const subscription = existing ?? await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    })
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+
+    const sub = subscription.toJSON()
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        userId,
+        endpoint: sub.endpoint,
+        p256dh: sub.keys?.p256dh,
+        auth: sub.keys?.auth,
+      }),
+    })
+
+    localStorage.setItem('push_registered', '1')
+  } catch {
+    // Silent — subscription failure shouldn't affect the user
+  }
 }
