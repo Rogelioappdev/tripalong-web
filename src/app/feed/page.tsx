@@ -284,17 +284,20 @@ export default function FeedPage() {
         {showTutorial && (
           <FeedTutorial onDone={() => {
             setShowTutorial(false)
-            // Show notification primer after tutorial — only once, always show it.
-            // registerPush handles unsupported devices silently.
             if (userId) {
               const notifKey = `ta_notif_prompt_${userId}`
               if (!localStorage.getItem(notifKey)) {
                 localStorage.setItem(notifKey, '1')
-                setShowNotifPrompt(true)
+                // Delay so tutorial fade-out finishes before prompt appears
+                setTimeout(() => setShowNotifPrompt(true), 450)
               }
             }
           }} />
         )}
+      </AnimatePresence>
+
+      {/* Notification permission primer — separate AnimatePresence to avoid conflicts */}
+      <AnimatePresence>
         {showNotifPrompt && userId && (
           <NotificationPrompt userId={userId} onDone={() => setShowNotifPrompt(false)} />
         )}
