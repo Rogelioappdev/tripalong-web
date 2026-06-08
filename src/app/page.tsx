@@ -217,19 +217,24 @@ export default function SplashPage() {
       </motion.div>
 
       {/* ── Portrait card stack — hidden on guidelines slide ── */}
+      {/* Centering wrapper is separate from the motion element so translateX(-50%)
+          isn't overridden by Framer Motion's scale transform */}
+      <div style={{
+        position: 'absolute',
+        top: 'calc(env(safe-area-inset-top) + 54px)',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '68vw',
+        maxWidth: 282,
+        height: '58dvh',
+        zIndex: 5,
+      }}>
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: step === 'guidelines' ? 0 : 1, scale: step === 'guidelines' ? 0.96 : 1 }}
         transition={{ duration: 0.3 }}
         style={{
-          position: 'absolute',
-          top: 'calc(env(safe-area-inset-top) + 54px)',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '68vw',
-          maxWidth: 282,
-          height: '58dvh',
-          zIndex: 5,
+          width: '100%', height: '100%',
           overflow: 'visible',
           pointerEvents: step === 'guidelines' ? 'none' : undefined,
           visibility: step === 'guidelines' ? 'hidden' : 'visible',
@@ -287,6 +292,7 @@ export default function SplashPage() {
           zIndex: 30, pointerEvents: 'none',
         }} />
       </motion.div>
+      </div>
 
       {/* ── Slide 1: Hook + social proof + CTAs ── */}
       <AnimatePresence mode="wait">
