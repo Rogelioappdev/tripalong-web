@@ -29,6 +29,7 @@ import {
   searchChatMessages,
 } from '@/lib/queries'
 import type { TripMessage, TripWithDetails } from '@/lib/types'
+import { isNativeApp } from '@/lib/native-app'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function highlightText(text: string, query: string) {
@@ -65,6 +66,30 @@ function groupReactions(reactions: TripMessage['reactions']) {
     map[r.emoji].push(r.user_id)
   }
   return Object.entries(map).map(([emoji, users]) => ({ emoji, count: users.length, users }))
+}
+
+// ── Chat skeleton ──────────────────────────────────────────────────────────
+const SKELETON_ROWS: { isMe: boolean; w: string }[] = [
+  { isMe: false, w: '55%' }, { isMe: false, w: '38%' },
+  { isMe: true, w: '48%' },  { isMe: true, w: '62%' },
+  { isMe: false, w: '70%' }, { isMe: false, w: '42%' },
+  { isMe: true, w: '35%' },  { isMe: false, w: '58%' },
+]
+
+function ChatSkeleton() {
+  return (
+    <div className="flex-1 overflow-hidden py-4 px-4 flex flex-col gap-3">
+      {SKELETON_ROWS.map((r, i) => (
+        <div key={i} className={`flex items-end gap-2 ${r.isMe ? 'flex-row-reverse' : ''}`}>
+          {!r.isMe && <div className="w-7 h-7 rounded-full animate-pulse shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.07)' }} />}
+          <div
+            className="h-9 rounded-2xl animate-pulse"
+            style={{ width: r.w, backgroundColor: r.isMe ? 'rgba(224,222,218,0.10)' : 'rgba(255,255,255,0.06)' }}
+          />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -197,6 +222,7 @@ export default function ChatPage() {
       return msgs
     },
     enabled: !!chatId,
+    staleTime: 30_000,
   })
 
   // ── Read positions ────────────────────────────────────────────────────────
@@ -540,7 +566,7 @@ export default function ChatPage() {
           </div>
 
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
 
             {/* Search results count */}
             {searchOpen && (
@@ -593,7 +619,7 @@ export default function ChatPage() {
               </button>
             )}
 
-            {isLoading && <div className="text-white/30 text-sm text-center py-8">Loading messages…</div>}
+            {isLoading && <ChatSkeleton />}
 
             {displayMessages.map((msg, idx) => {
               const isMe = msg.sender_id === userId
@@ -813,7 +839,7 @@ export default function ChatPage() {
           <form
             onSubmit={handleSend}
             className="shrink-0 pt-3 border-t border-white/8 flex gap-2 md:pb-4"
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
+            style={{ paddingBottom: isNativeApp ? 12 : 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
           >
             {/* Hidden file input */}
             <input

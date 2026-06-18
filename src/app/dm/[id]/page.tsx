@@ -27,6 +27,7 @@ import {
 } from '@/lib/queries'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 import type { DMMessage, TripMessage } from '@/lib/types'
+import { isNativeApp } from '@/lib/native-app'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function highlightText(text: string, query: string) {
@@ -55,6 +56,30 @@ function groupReactions(reactions: DMMessage['reactions']) {
     map[r.emoji].push(r.user_id)
   }
   return Object.entries(map).map(([emoji, users]) => ({ emoji, count: users.length, users }))
+}
+
+// ── Chat skeleton ──────────────────────────────────────────────────────────
+const SKELETON_ROWS: { isMe: boolean; w: string }[] = [
+  { isMe: false, w: '52%' }, { isMe: false, w: '35%' },
+  { isMe: true, w: '45%' },  { isMe: true, w: '60%' },
+  { isMe: false, w: '68%' }, { isMe: false, w: '40%' },
+  { isMe: true, w: '32%' },  { isMe: false, w: '55%' },
+]
+
+function ChatSkeleton() {
+  return (
+    <div className="flex-1 overflow-hidden py-4 px-4 flex flex-col gap-3">
+      {SKELETON_ROWS.map((r, i) => (
+        <div key={i} className={`flex items-end gap-2 ${r.isMe ? 'flex-row-reverse' : ''}`}>
+          {!r.isMe && <div className="w-7 h-7 rounded-full animate-pulse shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.07)' }} />}
+          <div
+            className="h-9 rounded-2xl animate-pulse"
+            style={{ width: r.w, backgroundColor: r.isMe ? 'rgba(224,222,218,0.10)' : 'rgba(255,255,255,0.06)' }}
+          />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -176,6 +201,7 @@ export default function DMPage() {
       return msgs
     },
     enabled: !!conversationId,
+    staleTime: 30_000,
   })
 
   // ── Search query ──────────────────────────────────────────────────────────
@@ -471,7 +497,7 @@ export default function DMPage() {
           </div>
 
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
 
             {/* Safety notice — shown once per conversation until dismissed */}
             {!searchOpen && !safetyDismissed && otherUser && (
@@ -529,7 +555,7 @@ export default function DMPage() {
               </button>
             )}
 
-            {isLoading && <div className="text-white/30 text-sm text-center py-8">Loading…</div>}
+            {isLoading && <ChatSkeleton />}
 
             {displayMessages.map((msg: DMMessage, idx: number) => {
               const isMe = msg.sender_id === userId
@@ -729,7 +755,7 @@ export default function DMPage() {
           <form
             onSubmit={handleSend}
             className="shrink-0 pt-3 border-t border-white/8 flex items-center gap-2.5 md:pb-4"
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
+            style={{ paddingBottom: isNativeApp ? 12 : 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
           >
             {/* Photo button */}
             <button
