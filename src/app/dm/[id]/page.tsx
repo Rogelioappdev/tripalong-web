@@ -755,7 +755,7 @@ export default function DMPage() {
           <form
             onSubmit={handleSend}
             className="shrink-0 pt-3 border-t border-white/8 flex items-center gap-2.5 md:pb-4"
-            style={{ paddingBottom: isNativeApp ? 12 : 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
           >
             {/* Photo button */}
             <button

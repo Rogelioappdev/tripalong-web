@@ -15,10 +15,8 @@ export function BottomTabBar() {
   const pathname = usePathname()
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
-  const [isNative, setIsNative] = useState(false)
 
   useEffect(() => {
-    setIsNative(!!(window as any).ReactNativeWebView)
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
 
@@ -30,7 +28,6 @@ export function BottomTabBar() {
     refetchInterval: 60_000,
   })
 
-  if (isNative) return null
   if (HIDE_ON.some(p => pathname === p) || pathname.startsWith('/auth')) return null
 
   const tabs = [

@@ -32,7 +32,7 @@ function MessagesSkeleton() {
   return (
     <>
       <NavBar />
-      <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: isNativeApp ? 16 : 'calc(env(safe-area-inset-bottom) + 82px)' }}>
+      <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>
         <div className="max-w-2xl mx-auto">
           {/* Header */}
           <div className="flex items-center justify-between px-5 pt-6 pb-4">
@@ -153,7 +153,7 @@ export default function MessagesPage() {
           <ProfileViewsSheet onClose={() => { setShowViews(false) }} isPlus={isPlus} />
         )}
       </AnimatePresence>
-      <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: isNativeApp ? 16 : 'calc(env(safe-area-inset-bottom) + 82px)' }}>
+      <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>
         <div className="max-w-2xl mx-auto">
           {/* Mobile header */}
           <div className="md:hidden flex items-center justify-between px-5 pt-6 pb-4">
