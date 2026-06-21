@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, CSSProperties, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Playfair_Display } from 'next/font/google'
@@ -31,7 +31,7 @@ function useCountdown() {
   return t
 }
 
-const INPUT_STYLE: React.CSSProperties = {
+const INPUT_STYLE: CSSProperties = {
   width: '100%', padding: '13px 14px', borderRadius: 14,
   background: 'rgba(255,255,255,0.06)',
   border: '1px solid rgba(255,255,255,0.1)',
@@ -44,7 +44,7 @@ function TesterModal({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState({ name: '', age: '', email: '', reason: '' })
   const [state, setState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+  const set = (k: keyof typeof form) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
   const submit = async () => {
@@ -563,7 +563,7 @@ export default function SplashPage() {
           overflow: 'visible',
           pointerEvents: step === 'guidelines' ? 'none' : undefined,
           visibility: step === 'guidelines' ? 'hidden' : 'visible',
-        } as React.CSSProperties}
+        } as CSSProperties}
       >
         {/* 5 stacked cards — rendered back to front */}
         {cards.length > 0 && [...Array(5)].map((_, slotIdx) => {
