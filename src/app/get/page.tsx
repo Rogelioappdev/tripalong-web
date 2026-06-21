@@ -12,31 +12,29 @@ function PhoneMockup() {
   return (
     <div style={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
-      {/* Floating chip — right — z-index 1 so it sits BEHIND the phone */}
+      {/* Floating chip — right — z-index 1 so phone sits in front of it */}
       <div style={{
-        position: 'absolute', top: '20%', right: 0,
+        position: 'absolute', top: '22%', right: 10,
         background: 'rgba(14,14,14,0.92)',
         border: '0.5px solid rgba(255,255,255,0.1)',
         borderRadius: 20, padding: '7px 12px',
         display: 'flex', alignItems: 'center', gap: 6,
         boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
         backdropFilter: 'blur(12px)',
-        transform: 'translateX(72%)',
         zIndex: 1,
       }}>
         <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#30D158', boxShadow: '0 0 8px #30D158' }} />
         <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>2 matches found</span>
       </div>
 
-      {/* Floating chip — left — z-index 1 so it sits BEHIND the phone */}
+      {/* Floating chip — left — z-index 1 so phone sits in front of it */}
       <div style={{
-        position: 'absolute', bottom: '30%', left: 0,
+        position: 'absolute', bottom: '28%', left: 10,
         background: 'rgba(14,14,14,0.92)',
         border: '0.5px solid rgba(255,255,255,0.1)',
         borderRadius: 20, padding: '7px 12px',
         boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
         backdropFilter: 'blur(12px)',
-        transform: 'translateX(-72%)',
         zIndex: 1,
       }}>
         <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>✈️  3,200+ trips</span>
