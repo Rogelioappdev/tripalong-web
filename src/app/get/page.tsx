@@ -23,8 +23,8 @@ function PhoneMockup() {
         backdropFilter: 'blur(12px)',
         zIndex: 1,
       }}>
-        <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#30D158', boxShadow: '0 0 8px #30D158' }} />
-        <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>2 matches found</span>
+        <span style={{ color: '#30D158', fontSize: 12, fontWeight: 800 }}>88%</span>
+        <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>travel style match</span>
       </div>
 
       {/* Floating chip — left — z-index 1 so phone sits in front of it */}
