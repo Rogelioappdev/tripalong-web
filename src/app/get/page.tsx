@@ -3,268 +3,98 @@
 const APP_STORE = 'https://apps.apple.com/us/app/tagalong-find-trips-together/id6758787857'
 const ANDROID_URL = 'https://tripalong-web.vercel.app/'
 
-// SVG icons matching the actual app
-function IconMessage({ opacity = 1 }: { opacity?: number }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ opacity }}>
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-        stroke="white" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  )
-}
-function IconProfile({ opacity = 1 }: { opacity?: number }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ opacity }}>
-      <circle cx="12" cy="8" r="4" stroke="white" strokeWidth="1.8" />
-      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  )
-}
-function IconPlane({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="white">
-      <path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2A1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" />
-    </svg>
-  )
-}
-
 function PhoneMockup() {
   return (
     <div style={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
       {/* Floating chip — right */}
       <div style={{
-        position: 'absolute', top: '18%', right: -4,
-        background: 'rgba(18,18,18,0.95)',
-        border: '0.5px solid rgba(255,255,255,0.12)',
-        borderRadius: 20, padding: '7px 11px',
-        display: 'flex', alignItems: 'center', gap: 5,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        position: 'absolute', top: '20%', right: 0,
+        background: 'rgba(14,14,14,0.96)',
+        border: '0.5px solid rgba(255,255,255,0.1)',
+        borderRadius: 20, padding: '7px 12px',
+        display: 'flex', alignItems: 'center', gap: 6,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(16px)',
+        transform: 'translateX(78%)',
         zIndex: 10,
-        backdropFilter: 'blur(12px)',
-        transform: 'translateX(70%)',
       }}>
-        <div style={{ width: 7, height: 7, borderRadius: 4, background: '#30D158', boxShadow: '0 0 6px #30D158' }} />
-        <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>2 matches found</span>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#30D158', boxShadow: '0 0 8px #30D158' }} />
+        <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>2 matches found</span>
       </div>
 
       {/* Floating chip — left */}
       <div style={{
-        position: 'absolute', bottom: '28%', left: -4,
-        background: 'rgba(18,18,18,0.95)',
-        border: '0.5px solid rgba(255,255,255,0.12)',
-        borderRadius: 20, padding: '7px 11px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        position: 'absolute', bottom: '30%', left: 0,
+        background: 'rgba(14,14,14,0.96)',
+        border: '0.5px solid rgba(255,255,255,0.1)',
+        borderRadius: 20, padding: '7px 12px',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(16px)',
+        transform: 'translateX(-78%)',
         zIndex: 10,
-        backdropFilter: 'blur(12px)',
-        transform: 'translateX(-70%)',
       }}>
-        <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>✈️ 3,200+ trips</span>
+        <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>✈️  3,200+ trips</span>
       </div>
 
-      {/* Phone outer frame */}
+      {/* iPhone outer shell — titanium gradient */}
       <div style={{
         height: '100%',
-        maxHeight: 460,
+        maxHeight: 480,
         aspectRatio: '9 / 19.5',
-        background: 'linear-gradient(145deg, #2a2a2a 0%, #1a1a1a 40%, #111 100%)',
-        borderRadius: 46,
-        padding: 8,
-        boxShadow: [
-          '0 0 0 0.5px rgba(255,255,255,0.08)',
-          'inset 0 0 0 0.5px rgba(255,255,255,0.05)',
-          '0 50px 120px rgba(0,0,0,0.95)',
-          '0 20px 60px rgba(0,0,0,0.8)',
-          '0 0 80px rgba(240,235,227,0.03)',
-        ].join(', '),
+        background: 'linear-gradient(160deg, #3a3a3c 0%, #2c2c2e 30%, #1c1c1e 70%, #141414 100%)',
+        borderRadius: 50,
+        padding: 10,
         position: 'relative',
         flexShrink: 0,
+        boxShadow: [
+          /* outer edge highlight */
+          '0 0 0 0.5px rgba(255,255,255,0.15)',
+          /* inner edge shadow */
+          'inset 0 0 0 0.5px rgba(0,0,0,0.8)',
+          /* depth shadow */
+          '0 60px 140px rgba(0,0,0,1)',
+          '0 24px 60px rgba(0,0,0,0.85)',
+          /* subtle warm glow */
+          '0 0 100px rgba(240,235,227,0.04)',
+        ].join(', '),
       }}>
-        {/* Side buttons (decorative) */}
-        <div style={{ position: 'absolute', left: -2.5, top: '22%', width: 2.5, height: 28, background: '#2a2a2a', borderRadius: '2px 0 0 2px' }} />
-        <div style={{ position: 'absolute', left: -2.5, top: '30%', width: 2.5, height: 28, background: '#2a2a2a', borderRadius: '2px 0 0 2px' }} />
-        <div style={{ position: 'absolute', right: -2.5, top: '26%', width: 2.5, height: 44, background: '#2a2a2a', borderRadius: '0 2px 2px 0' }} />
 
-        {/* Screen */}
+        {/* Left side buttons */}
+        <div style={{ position: 'absolute', left: -3, top: '18%', width: 3, height: 24, background: 'linear-gradient(to right, #1a1a1a, #2a2a2a)', borderRadius: '2px 0 0 2px', boxShadow: '-1px 0 2px rgba(0,0,0,0.5)' }} />
+        <div style={{ position: 'absolute', left: -3, top: '26%', width: 3, height: 40, background: 'linear-gradient(to right, #1a1a1a, #2a2a2a)', borderRadius: '2px 0 0 2px', boxShadow: '-1px 0 2px rgba(0,0,0,0.5)' }} />
+        <div style={{ position: 'absolute', left: -3, top: '34%', width: 3, height: 40, background: 'linear-gradient(to right, #1a1a1a, #2a2a2a)', borderRadius: '2px 0 0 2px', boxShadow: '-1px 0 2px rgba(0,0,0,0.5)' }} />
+        {/* Right side button */}
+        <div style={{ position: 'absolute', right: -3, top: '28%', width: 3, height: 60, background: 'linear-gradient(to left, #1a1a1a, #2a2a2a)', borderRadius: '0 2px 2px 0', boxShadow: '1px 0 2px rgba(0,0,0,0.5)' }} />
+
+        {/* Screen bezel — slight inner shadow for depth */}
         <div style={{
           width: '100%', height: '100%',
-          background: '#000',
-          borderRadius: 40,
+          borderRadius: 42,
           overflow: 'hidden',
-          display: 'flex', flexDirection: 'column',
+          background: '#000',
+          boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.04)',
           position: 'relative',
         }}>
-          {/* Dynamic island */}
+          {/* Real app screenshot — fills the screen completely */}
+          <img
+            src="/screenshots/app-feed.jpg"
+            alt="TripAlong app"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'top center',
+              display: 'block',
+            }}
+          />
+
+          {/* Subtle screen glass reflection */}
           <div style={{
-            position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
-            width: '30%', height: '5%', maxHeight: 28,
-            background: '#000', borderRadius: 20, zIndex: 30,
-            boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 50%)',
+            borderRadius: 42,
           }} />
-
-          {/* Status bar */}
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '14% 6% 0',
-            flexShrink: 0,
-          }}>
-            <span style={{ color: '#fff', fontSize: '10px', fontWeight: 700, letterSpacing: '-0.2px' }}>9:41</span>
-            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-              {/* Signal */}
-              <svg width="13" height="9" viewBox="0 0 16 12" fill="white">
-                <rect x="0" y="6" width="3" height="6" rx="0.8" />
-                <rect x="4.5" y="4" width="3" height="8" rx="0.8" />
-                <rect x="9" y="2" width="3" height="10" rx="0.8" />
-                <rect x="13.5" y="0" width="3" height="12" rx="0.8" opacity="0.3" />
-              </svg>
-              {/* WiFi */}
-              <svg width="13" height="9" viewBox="0 0 20 15" fill="white">
-                <path d="M10 11.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" />
-                <path d="M10 7.5c1.8 0 3.4.7 4.6 1.9l1.5-1.5A8.5 8.5 0 0 0 10 5.5a8.5 8.5 0 0 0-6.1 2.4l1.5 1.5A6.4 6.4 0 0 1 10 7.5z" />
-                <path d="M10 3.5c2.9 0 5.5 1.1 7.5 3l1.5-1.5A12.5 12.5 0 0 0 10 1.5 12.5 12.5 0 0 0 1 5l1.5 1.5A10.4 10.4 0 0 1 10 3.5z" />
-              </svg>
-              {/* Battery */}
-              <svg width="20" height="9" viewBox="0 0 28 13" fill="none">
-                <rect x="0" y="1" width="24" height="11" rx="2.5" stroke="white" strokeWidth="1.2" opacity="0.9" />
-                <rect x="25" y="4" width="3" height="5" rx="1.5" fill="white" opacity="0.5" />
-                <rect x="1.5" y="2.5" width="18" height="8" rx="1.5" fill="white" opacity="0.9" />
-              </svg>
-            </div>
-          </div>
-
-          {/* App header */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '4% 5% 3%', flexShrink: 0,
-          }}>
-            <span style={{ color: '#fff', fontWeight: 800, fontSize: '13px', letterSpacing: '-0.3px' }}>TripAlong</span>
-            <div style={{
-              background: 'rgba(240,235,227,0.92)',
-              borderRadius: 10, padding: '3px 7px',
-              fontSize: '8px', fontWeight: 700, color: '#000', letterSpacing: '-0.1px',
-            }}>
-              + Create Trip
-            </div>
-          </div>
-
-          {/* Trip card — fills remaining space */}
-          <div style={{ flex: 1, padding: '0 5% 0', minHeight: 0, position: 'relative' }}>
-            <div style={{ width: '100%', height: '100%', borderRadius: 16, overflow: 'hidden', position: 'relative', background: '#1a1a1a' }}>
-
-              {/* Cover image */}
-              <img
-                src="https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600&q=90&fit=crop&crop=center"
-                alt="Tokyo"
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-
-              {/* Gradient overlay — matches the real app exactly */}
-              <div style={{
-                position: 'absolute', inset: 0,
-                background: 'linear-gradient(to bottom, rgba(0,0,0,0.12) 0%, transparent 22%, rgba(0,0,0,0.55) 52%, rgba(0,0,0,0.97) 100%)',
-              }} />
-
-              {/* SAVE stamp (subtle) */}
-              <div style={{
-                position: 'absolute', top: '8%', right: '6%', zIndex: 5,
-                border: '1.5px solid #F0EBE3', borderRadius: 5, padding: '2px 6px',
-                transform: 'rotate(15deg)',
-              }}>
-                <span style={{ color: '#F0EBE3', fontWeight: 900, fontSize: '7px', letterSpacing: '1px' }}>SAVE</span>
-              </div>
-
-              {/* Trip info */}
-              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 8% 5%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2 }}>
-                  <svg width="7" height="7" viewBox="0 0 24 24" fill="rgba(240,235,227,0.5)">
-                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-                  </svg>
-                  <span style={{ color: 'rgba(240,235,227,0.5)', fontSize: '7.5px', fontWeight: 500 }}>japan</span>
-                </div>
-                <h3 style={{ color: '#fff', fontWeight: 800, margin: '0 0 2px', fontSize: '19px', letterSpacing: '-0.4px', lineHeight: 1.05 }}>
-                  Tokyo
-                </h3>
-                <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: '7.5px', margin: '0 0 5px' }}>
-                  Jul 12 – Jul 22 · Flexible
-                </p>
-                <div style={{ display: 'flex', gap: 3, marginBottom: 8 }}>
-                  {['Cultural', 'Foodie'].map(v => (
-                    <span key={v} style={{
-                      fontSize: '7px', borderRadius: 8, padding: '2px 6px', fontWeight: 600,
-                      background: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.18)',
-                      color: '#F0EBE3',
-                    }}>{v}</span>
-                  ))}
-                </div>
-                {/* Creator row */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <div style={{
-                    width: 16, height: 16, borderRadius: 8,
-                    border: '1.5px solid #000', overflow: 'hidden', background: '#333', flexShrink: 0,
-                  }}>
-                    <img
-                      src="https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/avatars/a50cfe93-fd2d-4676-b4da-8c970f696690/avatar.jpg"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      alt=""
-                    />
-                  </div>
-                  <span style={{ color: 'rgba(255,255,255,0.42)', fontSize: '7.5px' }}>Rogelio P. · going</span>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div style={{
-                position: 'absolute', bottom: '2%', left: 0, right: 0,
-                display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8%',
-                padding: '0 5% 6%',
-              }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 16, background: 'rgba(20,20,20,0.9)', border: '0.5px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF453A" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </div>
-                  <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '7px', fontWeight: 600 }}>Pass</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 20, background: 'rgba(20,20,20,0.9)', border: '0.5px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
-                    <svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 2 9 13 4 8"/></svg>
-                  </div>
-                  <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '7px', fontWeight: 600 }}>Join</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 16, background: 'rgba(20,20,20,0.9)', border: '0.5px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                  </div>
-                  <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '7px', fontWeight: 600 }}>Save</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Tab bar — floating pill */}
-          <div style={{
-            margin: '3% 5% 5%',
-            background: '#080808',
-            border: '0.5px solid rgba(255,255,255,0.08)',
-            borderRadius: 24,
-            height: '11%',
-            maxHeight: 50,
-            display: 'flex', alignItems: 'center',
-            flexShrink: 0,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
-          }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <IconMessage opacity={0.35} />
-              <span style={{ color: 'rgba(255,255,255,0.32)', fontSize: '6.5px', fontWeight: 600 }}>Messages</span>
-            </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <IconPlane size={18} />
-              <span style={{ color: '#fff', fontSize: '6.5px', fontWeight: 600 }}>TripAlong</span>
-            </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <IconProfile opacity={0.35} />
-              <span style={{ color: 'rgba(255,255,255,0.32)', fontSize: '6.5px', fontWeight: 600 }}>Profile</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
