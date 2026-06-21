@@ -7,6 +7,151 @@ import { Playfair_Display } from 'next/font/google'
 import { supabase } from '@/lib/supabase'
 import { haptic } from '@/lib/haptics'
 
+// ── Pre-launch gate ────────────────────────────────────────────────────────────
+const LAUNCH = new Date('2026-07-01T00:00:00')
+const ACCESS_KEY = 'tripalong_early_access'
+
+function pad(n: number) { return String(n).padStart(2, '0') }
+
+function useCountdown() {
+  const calc = () => {
+    const diff = Math.max(0, LAUNCH.getTime() - Date.now())
+    return {
+      days:    Math.floor(diff / 86400000),
+      hours:   Math.floor((diff % 86400000) / 3600000),
+      minutes: Math.floor((diff % 3600000) / 60000),
+      seconds: Math.floor((diff % 60000) / 1000),
+    }
+  }
+  const [t, setT] = useState(calc)
+  useEffect(() => {
+    const id = setInterval(() => setT(calc()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return t
+}
+
+function PreLaunchPage() {
+  const router = useRouter()
+  const { days, hours, minutes, seconds } = useCountdown()
+  const [notif, setNotif] = useState<'idle' | 'loading' | 'granted' | 'denied'>('idle')
+
+  const handleNotify = async () => {
+    if (!('Notification' in window)) return
+    setNotif('loading')
+    const perm = await Notification.requestPermission()
+    if (perm === 'granted') {
+      setNotif('granted')
+      setTimeout(() => router.push('/notify-confirmed'), 600)
+    } else {
+      setNotif('denied')
+    }
+  }
+
+  const units = [
+    { v: days, l: 'days' },
+    { v: hours, l: 'hrs' },
+    { v: minutes, l: 'min' },
+    { v: seconds, l: 'sec' },
+  ]
+
+  return (
+    <main style={{
+      background: '#000', height: '100dvh', overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      padding: '0 28px', position: 'relative',
+    }}>
+      <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 20px)', left: 26 }}>
+        <span style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.3px' }}>TripAlong</span>
+      </div>
+
+      <div style={{ textAlign: 'center', width: '100%', maxWidth: 360 }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center',
+          background: 'rgba(240,235,227,0.07)',
+          border: '0.5px solid rgba(240,235,227,0.15)',
+          borderRadius: 20, padding: '5px 14px', marginBottom: 22,
+        }}>
+          <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+            Launching July 1st
+          </span>
+        </div>
+
+        <h1 style={{
+          color: '#fff', fontSize: 'clamp(30px, 8.5vw, 46px)',
+          fontWeight: 900, lineHeight: 1.08, letterSpacing: '-0.8px', margin: '0 0 10px',
+        }}>
+          Your travel crew<br />
+          <span style={{ color: 'rgba(255,255,255,0.28)' }}>is waiting.</span>
+        </h1>
+
+        <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, marginBottom: 32 }}>
+          Be the first in when we go live.
+        </p>
+
+        {/* Countdown */}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 36 }}>
+          {units.map(({ v, l }) => (
+            <div key={l} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                background: 'rgba(255,255,255,0.05)',
+                border: '0.5px solid rgba(255,255,255,0.1)',
+                borderRadius: 14, padding: '14px 0', width: 70,
+              }}>
+                <span style={{
+                  display: 'block', textAlign: 'center',
+                  color: '#fff', fontSize: 30, fontWeight: 800,
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {pad(v)}
+                </span>
+              </div>
+              <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                {l}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Notify button */}
+        <button
+          onClick={handleNotify}
+          disabled={notif === 'loading' || notif === 'granted'}
+          style={{
+            width: '100%', padding: '16px 0', borderRadius: 18,
+            fontWeight: 700, fontSize: 16,
+            backgroundColor: notif === 'granted' ? '#30D158' : '#F0EBE3',
+            color: '#000', border: 'none',
+            cursor: notif === 'loading' || notif === 'granted' ? 'default' : 'pointer',
+            marginBottom: 10, transition: 'background-color 0.3s',
+          }}
+        >
+          {notif === 'loading' ? 'One sec…' : notif === 'granted' ? "✓ You're on the list!" : '🔔  Notify me at launch'}
+        </button>
+
+        {notif === 'denied' && (
+          <p style={{ color: 'rgba(255,100,100,0.7)', fontSize: 12.5, marginBottom: 8 }}>
+            Notifications blocked — enable them in browser settings
+          </p>
+        )}
+
+        {/* Early access — tiny and subtle */}
+        <button
+          onClick={() => router.push('/early-access')}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'rgba(255,255,255,0.18)', fontSize: 12.5, fontWeight: 500,
+            padding: '10px 0', display: 'block', width: '100%',
+          }}
+        >
+          Have an early access code? →
+        </button>
+      </div>
+    </main>
+  )
+}
+
 const playfair = Playfair_Display({ subsets: ['latin'], weight: ['700', '800', '900'] })
 
 interface SplashTrip {
@@ -148,6 +293,7 @@ const GUIDELINES = [
 
 export default function SplashPage() {
   const router = useRouter()
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [step, setStep] = useState<'splash' | 'guidelines'>('splash')
   const [cards, setCards] = useState<SplashTrip[]>([])
   const [topIndex, setTopIndex] = useState(0)
@@ -156,6 +302,10 @@ export default function SplashPage() {
   const [isAnimating, setIsAnimating] = useState(false)
   const swipeCount = useRef(0)
   const exitDir = useRef(1)
+
+  useEffect(() => {
+    setHasAccess(localStorage.getItem(ACCESS_KEY) === 'true')
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -195,6 +345,9 @@ export default function SplashPage() {
     const t = setInterval(triggerSwipe, 1800)
     return () => clearInterval(t)
   }, [triggerSwipe, cards.length])
+
+  if (hasAccess === null) return null
+  if (!hasAccess) return <PreLaunchPage />
 
   return (
     <main style={{
