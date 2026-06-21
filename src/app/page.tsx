@@ -36,6 +36,12 @@ function PreLaunchPage() {
   const { days, hours, minutes, seconds } = useCountdown()
   const [notif, setNotif] = useState<'idle' | 'loading' | 'granted' | 'denied'>('idle')
 
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      setNotif('granted')
+    }
+  }, [])
+
   const handleNotify = async () => {
     if (!('Notification' in window)) return
     setNotif('loading')
@@ -127,7 +133,7 @@ function PreLaunchPage() {
             marginBottom: 10, transition: 'background-color 0.3s',
           }}
         >
-          {notif === 'loading' ? 'One sec…' : notif === 'granted' ? "✓ You're on the list!" : '🔔  Notify me at launch'}
+          {notif === 'loading' ? 'One sec…' : notif === 'granted' ? '✓ Notifications accepted' : '🔔  Notify me at launch'}
         </button>
 
         {notif === 'denied' && (
