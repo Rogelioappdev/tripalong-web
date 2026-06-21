@@ -4,6 +4,11 @@ const APP_STORE = 'https://apps.apple.com/us/app/tagalong-find-trips-together/id
 const ANDROID_URL = 'https://tripalong-web.vercel.app/'
 
 function PhoneMockup() {
+  // SVG coordinate space matches iPhone 15 Pro points: 393 × 852
+  // Outer corner radius: 47  |  Screen inset: 9px  |  Screen corner radius: 40
+  const OUTER = 'M47,0 L346,0 A47,47 0 0 1 393,47 L393,805 A47,47 0 0 1 346,852 L47,852 A47,47 0 0 1 0,805 L0,47 A47,47 0 0 1 47,0 Z'
+  const SCREEN = 'M49,9 L344,9 A40,40 0 0 1 384,49 L384,803 A40,40 0 0 1 344,843 L49,843 A40,40 0 0 1 9,803 L9,49 A40,40 0 0 1 49,9 Z'
+
   return (
     <div style={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
@@ -16,7 +21,7 @@ function PhoneMockup() {
         display: 'flex', alignItems: 'center', gap: 6,
         boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
         backdropFilter: 'blur(16px)',
-        transform: 'translateX(78%)',
+        transform: 'translateX(82%)',
         zIndex: 10,
       }}>
         <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#30D158', boxShadow: '0 0 8px #30D158' }} />
@@ -31,71 +36,104 @@ function PhoneMockup() {
         borderRadius: 20, padding: '7px 12px',
         boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
         backdropFilter: 'blur(16px)',
-        transform: 'translateX(-78%)',
+        transform: 'translateX(-82%)',
         zIndex: 10,
       }}>
         <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>✈️  3,200+ trips</span>
       </div>
 
-      {/* iPhone outer shell — titanium gradient */}
+      {/* Phone wrapper — drop shadow here so overflow:hidden doesn't clip it */}
       <div style={{
         height: '100%',
-        maxHeight: 480,
-        aspectRatio: '9 / 19.5',
-        background: 'linear-gradient(160deg, #3a3a3c 0%, #2c2c2e 30%, #1c1c1e 70%, #141414 100%)',
-        borderRadius: 50,
-        padding: 10,
+        maxHeight: 500,
+        aspectRatio: '393 / 852',
         position: 'relative',
         flexShrink: 0,
-        boxShadow: [
-          /* outer edge highlight */
-          '0 0 0 0.5px rgba(255,255,255,0.15)',
-          /* inner edge shadow */
-          'inset 0 0 0 0.5px rgba(0,0,0,0.8)',
-          /* depth shadow */
-          '0 60px 140px rgba(0,0,0,1)',
-          '0 24px 60px rgba(0,0,0,0.85)',
-          /* subtle warm glow */
-          '0 0 100px rgba(240,235,227,0.04)',
-        ].join(', '),
+        filter: [
+          'drop-shadow(0 60px 40px rgba(0,0,0,0.9))',
+          'drop-shadow(0 20px 20px rgba(0,0,0,0.7))',
+          'drop-shadow(0 0 1px rgba(255,255,255,0.12))',
+        ].join(' '),
       }}>
 
-        {/* Left side buttons */}
-        <div style={{ position: 'absolute', left: -3, top: '18%', width: 3, height: 24, background: 'linear-gradient(to right, #1a1a1a, #2a2a2a)', borderRadius: '2px 0 0 2px', boxShadow: '-1px 0 2px rgba(0,0,0,0.5)' }} />
-        <div style={{ position: 'absolute', left: -3, top: '26%', width: 3, height: 40, background: 'linear-gradient(to right, #1a1a1a, #2a2a2a)', borderRadius: '2px 0 0 2px', boxShadow: '-1px 0 2px rgba(0,0,0,0.5)' }} />
-        <div style={{ position: 'absolute', left: -3, top: '34%', width: 3, height: 40, background: 'linear-gradient(to right, #1a1a1a, #2a2a2a)', borderRadius: '2px 0 0 2px', boxShadow: '-1px 0 2px rgba(0,0,0,0.5)' }} />
-        {/* Right side button */}
-        <div style={{ position: 'absolute', right: -3, top: '28%', width: 3, height: 60, background: 'linear-gradient(to left, #1a1a1a, #2a2a2a)', borderRadius: '0 2px 2px 0', boxShadow: '1px 0 2px rgba(0,0,0,0.5)' }} />
-
-        {/* Screen bezel — slight inner shadow for depth */}
+        {/* Screenshot clipped to screen area */}
         <div style={{
-          width: '100%', height: '100%',
-          borderRadius: 42,
+          position: 'absolute',
+          // Inset matches the 9pt screen margin in SVG coordinate space
+          // 9/393 = 2.29% horizontal, 9/852 = 1.056% vertical
+          top: '1.06%', left: '2.29%',
+          width: '95.42%', height: '97.89%',
+          borderRadius: '10.2%', // 40/393 ≈ 10.2%
           overflow: 'hidden',
           background: '#000',
-          boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.04)',
-          position: 'relative',
         }}>
-          {/* Real app screenshot — fills the screen completely */}
           <img
             src="/screenshots/app-feed.jpg"
             alt="TripAlong app"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              objectPosition: 'top center',
-              display: 'block',
-            }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }}
           />
-
-          {/* Subtle screen glass reflection */}
+          {/* Subtle glass sheen */}
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 50%)',
-            borderRadius: 42,
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 45%)',
           }} />
         </div>
+
+        {/* SVG frame — exact iPhone 15 Pro geometry */}
+        <svg
+          viewBox="0 0 393 852"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}
+        >
+          <defs>
+            {/* Natural Titanium: lighter at edges where light catches the chamfer */}
+            <linearGradient id="g-titanium" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%"   stopColor="#6e6e70" />
+              <stop offset="15%"  stopColor="#5a5a5c" />
+              <stop offset="40%"  stopColor="#3d3d3f" />
+              <stop offset="70%"  stopColor="#2c2c2e" />
+              <stop offset="100%" stopColor="#1c1c1e" />
+            </linearGradient>
+            {/* Edge highlight — simulates the chamfered/polished rim */}
+            <linearGradient id="g-edge" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%"   stopColor="rgba(255,255,255,0.18)" />
+              <stop offset="8%"   stopColor="rgba(255,255,255,0.04)" />
+              <stop offset="92%"  stopColor="rgba(255,255,255,0.04)" />
+              <stop offset="100%" stopColor="rgba(255,255,255,0.14)" />
+            </linearGradient>
+            <linearGradient id="g-edge-v" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="rgba(255,255,255,0.14)" />
+              <stop offset="6%"   stopColor="rgba(255,255,255,0.02)" />
+              <stop offset="94%"  stopColor="rgba(255,255,255,0.01)" />
+              <stop offset="100%" stopColor="rgba(255,255,255,0.06)" />
+            </linearGradient>
+          </defs>
+
+          {/* ── Main titanium frame (outer - screen cutout) ── */}
+          <path fillRule="evenodd" fill="url(#g-titanium)" d={`${OUTER} ${SCREEN}`} />
+
+          {/* ── Edge highlight passes ── */}
+          <path fillRule="evenodd" fill="url(#g-edge)"   d={`${OUTER} ${SCREEN}`} opacity="0.6" />
+          <path fillRule="evenodd" fill="url(#g-edge-v)" d={`${OUTER} ${SCREEN}`} opacity="0.5" />
+
+          {/* ── Screen inner border — subtle depth shadow ── */}
+          <path fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="1.5" d={SCREEN} />
+          <path fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" d={SCREEN} />
+
+          {/* ── Dynamic island ── */}
+          <rect x="131.5" y="24" width="130" height="37" rx="18.5" fill="#000" />
+
+          {/* ── Action button (top-left) ── */}
+          <rect x="-4" y="108" width="4" height="40" rx="2" fill="#3d3d3f" />
+          {/* ── Volume up ── */}
+          <rect x="-4" y="166" width="4" height="72" rx="2" fill="#3d3d3f" />
+          {/* ── Volume down ── */}
+          <rect x="-4" y="256" width="4" height="72" rx="2" fill="#3d3d3f" />
+          {/* ── Power / side button ── */}
+          <rect x="393" y="222" width="4" height="90" rx="2" fill="#3d3d3f" />
+
+          {/* ── Home indicator ── */}
+          <rect x="146" y="822" width="101" height="5" rx="2.5" fill="rgba(255,255,255,0.22)" />
+        </svg>
       </div>
     </div>
   )
