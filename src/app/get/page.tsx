@@ -14,7 +14,7 @@ function PhoneMockup() {
 
       {/* Floating chip — right — z-index 1 so phone sits in front of it */}
       <div style={{
-        position: 'absolute', top: '22%', right: 10,
+        position: 'absolute', top: '22%', right: 0,
         background: 'rgba(14,14,14,0.92)',
         border: '0.5px solid rgba(255,255,255,0.1)',
         borderRadius: 20, padding: '7px 12px',
