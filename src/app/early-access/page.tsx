@@ -15,6 +15,8 @@ export default function EarlyAccessPage() {
     if (code === CORRECT_CODE) {
       setState('success')
       localStorage.setItem(ACCESS_KEY, 'true')
+      // Cookie lets the server-side middleware verify access on every request
+      document.cookie = 'ta_access=true; path=/; max-age=31536000; SameSite=Lax'
       setTimeout(() => router.replace('/'), 1000)
     } else {
       setState('error')
