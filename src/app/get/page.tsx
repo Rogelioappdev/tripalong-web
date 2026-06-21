@@ -12,46 +12,47 @@ function PhoneMockup() {
   return (
     <div style={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
-      {/* Floating chip — right */}
+      {/* Floating chip — right — z-index 1 so it sits BEHIND the phone */}
       <div style={{
         position: 'absolute', top: '20%', right: 0,
-        background: 'rgba(14,14,14,0.96)',
+        background: 'rgba(14,14,14,0.92)',
         border: '0.5px solid rgba(255,255,255,0.1)',
         borderRadius: 20, padding: '7px 12px',
         display: 'flex', alignItems: 'center', gap: 6,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(16px)',
-        transform: 'translateX(82%)',
-        zIndex: 10,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(12px)',
+        transform: 'translateX(72%)',
+        zIndex: 1,
       }}>
         <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#30D158', boxShadow: '0 0 8px #30D158' }} />
         <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>2 matches found</span>
       </div>
 
-      {/* Floating chip — left */}
+      {/* Floating chip — left — z-index 1 so it sits BEHIND the phone */}
       <div style={{
         position: 'absolute', bottom: '30%', left: 0,
-        background: 'rgba(14,14,14,0.96)',
+        background: 'rgba(14,14,14,0.92)',
         border: '0.5px solid rgba(255,255,255,0.1)',
         borderRadius: 20, padding: '7px 12px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(16px)',
-        transform: 'translateX(-82%)',
-        zIndex: 10,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(12px)',
+        transform: 'translateX(-72%)',
+        zIndex: 1,
       }}>
         <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>✈️  3,200+ trips</span>
       </div>
 
-      {/* Phone wrapper — drop shadow here so overflow:hidden doesn't clip it */}
+      {/* Phone wrapper — z-index 2 so it overlaps the chips (chips float behind) */}
       <div style={{
         height: '100%',
         maxHeight: 500,
         aspectRatio: '393 / 852',
         position: 'relative',
         flexShrink: 0,
+        zIndex: 2,
         filter: [
-          'drop-shadow(0 60px 40px rgba(0,0,0,0.9))',
-          'drop-shadow(0 20px 20px rgba(0,0,0,0.7))',
+          'drop-shadow(0 30px 24px rgba(0,0,0,0.85))',
+          'drop-shadow(0 10px 10px rgba(0,0,0,0.6))',
           'drop-shadow(0 0 1px rgba(255,255,255,0.12))',
         ].join(' '),
       }}>
@@ -188,7 +189,7 @@ export default function GetPage() {
       </div>
 
       {/* ── Download buttons ── */}
-      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14, position: 'relative', zIndex: 10 }}>
 
         {/* iOS */}
         <a
@@ -245,7 +246,7 @@ export default function GetPage() {
       {/* Social proof */}
       <p style={{
         color: 'rgba(255,255,255,0.16)', fontSize: 11, textAlign: 'center',
-        margin: '12px 0 0', flexShrink: 0,
+        margin: '12px 0 0', flexShrink: 0, position: 'relative', zIndex: 10,
       }}>
         3,200+ travelers already planning their next trip
       </p>
