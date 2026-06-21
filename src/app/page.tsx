@@ -31,10 +31,158 @@ function useCountdown() {
   return t
 }
 
+const INPUT_STYLE: React.CSSProperties = {
+  width: '100%', padding: '13px 14px', borderRadius: 14,
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  color: '#fff', fontSize: 15, outline: 'none',
+  boxSizing: 'border-box',
+  fontFamily: 'inherit',
+}
+
+function TesterModal({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState({ name: '', age: '', contact: '', reason: '' })
+  const [state, setState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const submit = async () => {
+    if (!form.name || !form.age || !form.contact || !form.reason) return
+    setState('submitting')
+    const { error } = await supabase.from('tester_requests').insert({
+      name: form.name.trim(),
+      age: parseInt(form.age),
+      contact: form.contact.trim(),
+      reason: form.reason.trim(),
+    })
+    if (error) { setState('error'); return }
+    setState('success')
+  }
+
+  if (state === 'success') {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(12px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '0 24px',
+      }}>
+        <div style={{
+          background: '#111', border: '0.5px solid rgba(255,255,255,0.1)',
+          borderRadius: 28, padding: '40px 28px', textAlign: 'center', maxWidth: 340, width: '100%',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
+        }}>
+          <div style={{ fontSize: 52, marginBottom: 16 }}>✈️</div>
+          <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 800, margin: '0 0 10px', letterSpacing: '-0.3px' }}>
+            Request sent!
+          </h2>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, lineHeight: 1.6, margin: '0 0 28px' }}>
+            We'll reach out via Instagram or email to get you set up as an early tester. Keep an eye out — we'll be in touch soon!
+          </p>
+          <button
+            onClick={onClose}
+            style={{
+              width: '100%', padding: '14px 0', borderRadius: 16,
+              background: '#F0EBE3', color: '#000',
+              fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer',
+            }}
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(12px)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      padding: '0',
+    }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{
+        background: '#111', border: '0.5px solid rgba(255,255,255,0.1)',
+        borderRadius: '28px 28px 0 0',
+        padding: '28px 24px',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)',
+        width: '100%', maxWidth: 480,
+        boxShadow: '0 -20px 60px rgba(0,0,0,0.7)',
+      }}>
+        {/* Handle */}
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)', margin: '0 auto 22px' }} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.3px' }}>
+            Become a tester
+          </h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', fontSize: 22, lineHeight: 1, padding: '4px 8px' }}>×</button>
+        </div>
+        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, margin: '0 0 22px', lineHeight: 1.5 }}>
+          Get early access before launch. We'll personally reach out.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input
+            placeholder="Your name"
+            value={form.name}
+            onChange={set('name')}
+            style={INPUT_STYLE}
+          />
+          <input
+            placeholder="Your age"
+            type="number"
+            inputMode="numeric"
+            value={form.age}
+            onChange={set('age')}
+            style={INPUT_STYLE}
+          />
+          <input
+            placeholder="Instagram @handle or email"
+            value={form.contact}
+            onChange={set('contact')}
+            style={INPUT_STYLE}
+          />
+          <textarea
+            placeholder="Why do you want to test TripAlong?"
+            value={form.reason}
+            onChange={set('reason')}
+            rows={3}
+            style={{ ...INPUT_STYLE, resize: 'none', lineHeight: 1.5 }}
+          />
+        </div>
+
+        {state === 'error' && (
+          <p style={{ color: 'rgba(255,80,80,0.8)', fontSize: 13, marginTop: 10 }}>
+            Something went wrong — try again.
+          </p>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={state === 'submitting' || !form.name || !form.age || !form.contact || !form.reason}
+          style={{
+            marginTop: 16, width: '100%', padding: '15px 0', borderRadius: 16,
+            background: '#F0EBE3', color: '#000',
+            fontWeight: 700, fontSize: 15, border: 'none',
+            cursor: state === 'submitting' || !form.name || !form.age || !form.contact || !form.reason ? 'default' : 'pointer',
+            opacity: !form.name || !form.age || !form.contact || !form.reason ? 0.4 : 1,
+            transition: 'opacity 0.2s',
+          }}
+        >
+          {state === 'submitting' ? 'Sending…' : 'Send request →'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function PreLaunchPage() {
   const router = useRouter()
   const { days, hours, minutes, seconds } = useCountdown()
   const [notif, setNotif] = useState<'idle' | 'loading' | 'granted' | 'denied'>('idle')
+  const [showTester, setShowTester] = useState(false)
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -68,6 +216,8 @@ function PreLaunchPage() {
       alignItems: 'center', justifyContent: 'center',
       padding: '0 28px', position: 'relative',
     }}>
+      {showTester && <TesterModal onClose={() => setShowTester(false)} />}
+
       <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 20px)', left: 26 }}>
         <span style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.3px' }}>TripAlong</span>
       </div>
@@ -137,10 +287,25 @@ function PreLaunchPage() {
         </button>
 
         {notif === 'denied' && (
-          <p style={{ color: 'rgba(255,100,100,0.7)', fontSize: 12.5, marginBottom: 8 }}>
+          <p style={{ color: 'rgba(255,100,100,0.7)', fontSize: 12.5, marginBottom: 4 }}>
             Notifications blocked — enable them in browser settings
           </p>
         )}
+
+        {/* Tester CTA — prominent secondary button */}
+        <button
+          onClick={() => setShowTester(true)}
+          style={{
+            width: '100%', padding: '15px 0', borderRadius: 18,
+            fontWeight: 700, fontSize: 15,
+            background: 'rgba(255,255,255,0.08)',
+            border: '1px solid rgba(255,255,255,0.16)',
+            color: '#fff', cursor: 'pointer', marginBottom: 10,
+            letterSpacing: '-0.1px',
+          }}
+        >
+          🧪  Request to be a tester
+        </button>
 
         {/* Early access — tiny and subtle */}
         <button
