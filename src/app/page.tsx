@@ -41,22 +41,21 @@ const INPUT_STYLE: React.CSSProperties = {
 }
 
 function TesterModal({ onClose }: { onClose: () => void }) {
-  const [form, setForm] = useState({ name: '', age: '', contact: '', reason: '' })
+  const [form, setForm] = useState({ name: '', age: '', email: '', reason: '' })
   const [state, setState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
   const submit = async () => {
-    if (!form.name || !form.age || !form.contact || !form.reason) return
+    if (!form.name || !form.age || !form.email || !form.reason) return
     setState('submitting')
-    const { error } = await supabase.from('tester_requests').insert({
-      name: form.name.trim(),
-      age: parseInt(form.age),
-      contact: form.contact.trim(),
-      reason: form.reason.trim(),
+    const res = await fetch('/api/tester-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
     })
-    if (error) { setState('error'); return }
+    if (!res.ok) { setState('error'); return }
     setState('success')
   }
 
@@ -78,7 +77,7 @@ function TesterModal({ onClose }: { onClose: () => void }) {
             Request sent!
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, lineHeight: 1.6, margin: '0 0 28px' }}>
-            We'll reach out via Instagram or email to get you set up as an early tester. Keep an eye out — we'll be in touch soon!
+            We'll email you to get you set up as an early tester. Keep an eye on your inbox — we'll be in touch soon!
           </p>
           <button
             onClick={onClose}
@@ -139,9 +138,11 @@ function TesterModal({ onClose }: { onClose: () => void }) {
             style={INPUT_STYLE}
           />
           <input
-            placeholder="Instagram @handle or email"
-            value={form.contact}
-            onChange={set('contact')}
+            placeholder="Your email address"
+            type="email"
+            inputMode="email"
+            value={form.email}
+            onChange={set('email')}
             style={INPUT_STYLE}
           />
           <textarea
@@ -161,13 +162,13 @@ function TesterModal({ onClose }: { onClose: () => void }) {
 
         <button
           onClick={submit}
-          disabled={state === 'submitting' || !form.name || !form.age || !form.contact || !form.reason}
+          disabled={state === 'submitting' || !form.name || !form.age || !form.email || !form.reason}
           style={{
             marginTop: 16, width: '100%', padding: '15px 0', borderRadius: 16,
             background: '#F0EBE3', color: '#000',
             fontWeight: 700, fontSize: 15, border: 'none',
-            cursor: state === 'submitting' || !form.name || !form.age || !form.contact || !form.reason ? 'default' : 'pointer',
-            opacity: !form.name || !form.age || !form.contact || !form.reason ? 0.4 : 1,
+            cursor: state === 'submitting' || !form.name || !form.age || !form.email || !form.reason ? 'default' : 'pointer',
+            opacity: !form.name || !form.age || !form.email || !form.reason ? 0.4 : 1,
             transition: 'opacity 0.2s',
           }}
         >
