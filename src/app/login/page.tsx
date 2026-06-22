@@ -21,12 +21,17 @@ export default function LoginPage() {
     })
   }
 
+  const postLoginRedirect = () => {
+    const hasBeta = document.cookie.includes('ta_access=true')
+    window.location.href = hasBeta ? '/feed' : '/early-access'
+  }
+
   const handleSignIn = async () => {
     setError('')
     setStatus('Signing in...')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError(error.message); setStatus('') }
-    else window.location.href = '/feed'
+    else postLoginRedirect()
   }
 
   const handleSignUp = async () => {

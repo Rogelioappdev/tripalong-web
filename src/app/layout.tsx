@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Outfit } from 'next/font/google'
 import { Providers } from '@/lib/providers'
 import { BottomTabBar } from '@/components/BottomTabBar'
+import { BetaFeedbackButton } from '@/components/BetaFeedbackButton'
 import './globals.css'
 
 const outfit = Outfit({ subsets: ['latin'], weight: ['400', '600', '700', '800'] })
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           {children}
           <BottomTabBar />
+          <BetaFeedbackButton />
         </Providers>
       </body>
     </html>

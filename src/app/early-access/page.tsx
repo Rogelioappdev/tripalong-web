@@ -2,26 +2,46 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-
-const CORRECT_CODE = '0371'
-const ACCESS_KEY = 'tripalong_early_access'
+import { supabase } from '@/lib/supabase'
 
 export default function EarlyAccessPage() {
   const router = useRouter()
   const [code, setCode] = useState('')
-  const [state, setState] = useState<'idle' | 'error' | 'success'>('idle')
+  const [state, setState] = useState<'idle' | 'error' | 'success' | 'loading'>('idle')
+  const [errorMsg, setErrorMsg] = useState('Invalid code — try again.')
 
-  const submit = () => {
-    if (code === CORRECT_CODE) {
-      setState('success')
-      localStorage.setItem(ACCESS_KEY, 'true')
-      // Cookie lets the server-side middleware verify access on every request
-      document.cookie = 'ta_access=true; path=/; max-age=31536000; SameSite=Lax'
-      setTimeout(() => router.replace('/'), 1000)
-    } else {
-      setState('error')
-      setTimeout(() => setState('idle'), 2000)
+  const submit = async () => {
+    const trimmed = code.trim().toUpperCase()
+    if (!trimmed) return
+    setState('loading')
+
+    // Must be logged in to redeem a code (code is tied to the user)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      // Save where they were going and send to login first
+      sessionStorage.setItem('post_login_redirect', '/early-access')
+      router.replace('/login')
+      return
     }
+
+    const { data, error } = await supabase.rpc('redeem_beta_code', { p_code: trimmed })
+
+    if (error || !data?.ok) {
+      const reason = data?.error
+      if (reason === 'code_already_used') {
+        setErrorMsg('This code has already been used.')
+      } else {
+        setErrorMsg('Invalid code — try again.')
+      }
+      setState('error')
+      setTimeout(() => setState('idle'), 2500)
+      return
+    }
+
+    // Grant access via cookie (same cookie the protected layout checks)
+    document.cookie = 'ta_access=true; path=/; max-age=31536000; SameSite=Lax'
+    setState('success')
+    setTimeout(() => router.replace('/feed'), 900)
   }
 
   return (
@@ -49,28 +69,28 @@ export default function EarlyAccessPage() {
           color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600,
           letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 10,
         }}>
-          Early Access
+          Beta Access
         </p>
         <h1 style={{ color: '#fff', fontSize: 28, fontWeight: 800, marginBottom: 8, lineHeight: 1.15 }}>
-          Enter your code
+          Enter your invite code
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 14, marginBottom: 32, lineHeight: 1.5 }}>
-          Get in before launch day.
+          You should have received a code in your email.
         </p>
 
         <input
           type="text"
-          inputMode="numeric"
           value={code}
           onChange={e => { setCode(e.target.value); setState('idle') }}
           onKeyDown={e => e.key === 'Enter' && submit()}
-          placeholder="_ _ _ _"
-          maxLength={4}
+          placeholder="TRIP-XXXX"
+          maxLength={9}
           autoFocus
+          autoCapitalize="characters"
           style={{
             width: '100%', padding: '18px 20px',
-            borderRadius: 16, fontSize: 28, fontWeight: 700,
-            textAlign: 'center', letterSpacing: '12px',
+            borderRadius: 16, fontSize: 22, fontWeight: 700,
+            textAlign: 'center', letterSpacing: '4px',
             background: 'rgba(255,255,255,0.05)',
             border: state === 'error'
               ? '1.5px solid rgba(255,80,80,0.7)'
@@ -85,7 +105,7 @@ export default function EarlyAccessPage() {
 
         {state === 'error' && (
           <p style={{ color: 'rgba(255,80,80,0.8)', fontSize: 13, marginTop: 10 }}>
-            Invalid code — try again.
+            {errorMsg}
           </p>
         )}
         {state === 'success' && (
@@ -96,18 +116,18 @@ export default function EarlyAccessPage() {
 
         <button
           onClick={submit}
-          disabled={code.length === 0 || state === 'success'}
+          disabled={code.length === 0 || state === 'success' || state === 'loading'}
           style={{
             marginTop: 16, width: '100%', padding: '16px 0',
             borderRadius: 18, fontWeight: 700, fontSize: 16,
             backgroundColor: state === 'success' ? '#30D158' : '#F0EBE3',
             color: '#000', border: 'none',
-            cursor: code.length === 0 || state === 'success' ? 'default' : 'pointer',
-            opacity: code.length === 0 ? 0.4 : 1,
+            cursor: code.length === 0 || state === 'success' || state === 'loading' ? 'default' : 'pointer',
+            opacity: code.length === 0 || state === 'loading' ? 0.4 : 1,
             transition: 'opacity 0.2s, background-color 0.3s',
           }}
         >
-          {state === 'success' ? 'Welcome! ✓' : 'Enter →'}
+          {state === 'loading' ? 'Checking...' : state === 'success' ? 'Welcome! ✓' : 'Enter →'}
         </button>
       </div>
     </main>
