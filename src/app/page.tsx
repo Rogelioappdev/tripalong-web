@@ -50,13 +50,22 @@ function TesterModal({ onClose }: { onClose: () => void }) {
   const submit = async () => {
     if (!form.name || !form.age || !form.email || !form.reason) return
     setState('submitting')
-    const res = await fetch('/api/tester-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    if (!res.ok) { setState('error'); return }
-    setState('success')
+    try {
+      const res = await fetch('https://formspree.io/f/xgojwbgp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          age: form.age,
+          email: form.email,
+          reason: form.reason,
+        }),
+      })
+      if (!res.ok) { setState('error'); return }
+      setState('success')
+    } catch {
+      setState('error')
+    }
   }
 
   if (state === 'success') {
