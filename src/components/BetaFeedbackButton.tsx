@@ -17,7 +17,7 @@ export function BetaFeedbackButton() {
       style={{
         position: 'fixed',
         // Sits just above the bottom tab bar (74px) with a small gap
-        bottom: 'calc(74px + env(safe-area-inset-bottom) + 12px)',
+        bottom: 'calc(74px + env(safe-area-inset-bottom) + 28px)',
         right: 16,
         zIndex: 999,
         display: 'flex',
