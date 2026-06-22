@@ -5,17 +5,14 @@ const TRIAL_DAYS = 7
 
 export type TrialStatus = 'none' | 'active' | 'expired'
 
-export function getTrialStatus(profile: UserProfile | null): TrialStatus {
-  if (!profile?.trial_start_at) return 'none'
-  const ms = Date.now() - new Date(profile.trial_start_at).getTime()
-  const days = ms / (1000 * 60 * 60 * 24)
-  return days < TRIAL_DAYS ? 'active' : 'expired'
+export function getTrialStatus(_profile: UserProfile | null): TrialStatus {
+  // TripAlong+ paused — app is fully free during beta
+  return 'active'
 }
 
-export function hasPlus(profile: UserProfile | null): boolean {
-  if (!profile) return false
-  if (profile.subscription_tier === 'plus' || profile.subscription_tier === 'pro') return true
-  return getTrialStatus(profile) === 'active'
+export function hasPlus(_profile: UserProfile | null): boolean {
+  // TripAlong+ paused — app is fully free during beta
+  return true
 }
 
 export function trialDaysLeft(profile: UserProfile | null): number {
