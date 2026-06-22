@@ -1,17 +1,7 @@
 'use client'
 
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query'
-import { MotionConfig } from 'framer-motion'
 import { useState, useEffect } from 'react'
-
-// Our WebView sets userAgent "TripAlong/1.0 (Mobile)".
-// The app has 20+ framer-motion elements that start at opacity:0 —
-// fine in a browser, but each one briefly exposes the black native
-// WKWebView background causing whole-screen black flashes.
-// reducedMotion="always" snaps all animations to their final state
-// instantly so the browser never paints an intermediate opacity:0 frame.
-const isNativeApp =
-  typeof navigator !== 'undefined' && navigator.userAgent.includes('TripAlong')
 
 // Tell React Query to use browser online/offline events
 if (typeof window !== 'undefined') {
@@ -41,11 +31,5 @@ export function Providers({ children }: { children: React.ReactNode }) {
     },
   }))
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      <MotionConfig reducedMotion={isNativeApp ? 'always' : 'never'}>
-        {children}
-      </MotionConfig>
-    </QueryClientProvider>
-  )
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 }
