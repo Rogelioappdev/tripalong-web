@@ -7,9 +7,7 @@ import { useRouter } from 'next/navigation'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getProfile } from '@/lib/queries'
-import { hasPlus, getTrialStatus, trialDaysLeft } from '@/lib/trial'
 import { haptic } from '@/lib/haptics'
-import { PlusDetailsSheet } from '@/components/PlusDetailsSheet'
 import type { UserProfile } from '@/lib/types'
 
 // ── Primitives ────────────────────────────────────────────────────────────
@@ -86,7 +84,6 @@ export default function SettingsPage() {
   const [provider, setProvider] = useState<string>('email')
   const [userId, setUserId] = useState<string | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [subLoading, setSubLoading] = useState(false)
 
   // Password change
   const [changingPw, setChangingPw] = useState(false)
@@ -100,8 +97,6 @@ export default function SettingsPage() {
   const [deletePhase, setDeletePhase] = useState<'idle' | 'confirm' | 'typing'>('idle')
   const [deleteInput, setDeleteInput] = useState('')
   const [deleting, setDeleting] = useState(false)
-
-  const [showUpgradeSheet, setShowUpgradeSheet] = useState(false)
 
   // Notification toggles (localStorage)
   const [notifMessages, setNotifMessages] = useState(true)
@@ -151,55 +146,6 @@ export default function SettingsPage() {
     setTimeout(() => { setPwSuccess(false); setChangingPw(false) }, 2000)
   }
 
-  const handleUpgrade = async () => {
-    if (!userId || !email) return
-    haptic(12)
-    setSubLoading(true)
-    try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planKey: 'plus_monthly', userId, email }),
-      })
-      const { url } = await res.json()
-      if (url) window.location.href = url
-    } finally {
-      setSubLoading(false)
-    }
-  }
-
-  const handlePortal = async () => {
-    if (!userId) return
-    haptic(8)
-    setSubLoading(true)
-    try {
-      const res = await fetch('/api/stripe/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      })
-      const { url } = await res.json()
-      if (url) window.location.href = url
-    } finally {
-      setSubLoading(false)
-    }
-  }
-
-  const handleClaimTrial = async () => {
-    if (!userId) return
-    haptic(12)
-    setSubLoading(true)
-    try {
-      await fetch('/api/trial/claim', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      })
-      router.push('/feed')
-    } finally {
-      setSubLoading(false)
-    }
-  }
 
   const handleDeleteAccount = async () => {
     if (deleteInput !== 'DELETE') return
@@ -222,98 +168,6 @@ export default function SettingsPage() {
         </div>
 
         <div className="max-w-lg mx-auto px-5 py-4 flex flex-col gap-5">
-
-          {/* ── TripAlong+ ── */}
-          {(() => {
-            const trialStatus = getTrialStatus(profile)
-            const isPaid = profile?.subscription_tier === 'plus' || profile?.subscription_tier === 'pro'
-            const daysLeft = trialDaysLeft(profile)
-
-            if (isPaid) return (
-              <Group title="TripAlong+">
-                <div className="px-4 py-3.5 flex items-center justify-between border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
-                    <p className="text-white font-medium text-sm">Active</p>
-                  </div>
-                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>Plus · $7.99/mo</span>
-                </div>
-                <Row label="Manage subscription" chevron border={false} onPress={handlePortal} />
-              </Group>
-            )
-
-            if (trialStatus === 'active') return (
-              <Group title="TripAlong+">
-                <button type="button" onClick={() => { haptic(8); setShowUpgradeSheet(true) }}
-                  className="w-full text-left active:bg-white/5 transition-colors">
-                  <div className="px-4 py-3.5">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
-                        <p className="text-white font-medium text-sm">Trial active</p>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                          {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
-                        </span>
-                        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
-                      </div>
-                    </div>
-                    <div className="w-full h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                      <div className="h-1 rounded-full bg-green-400"
-                        style={{ width: `${((7 - daysLeft) / 7) * 100}%` }} />
-                    </div>
-                    <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                      Tap to see plans and keep Plus after your trial
-                    </p>
-                  </div>
-                </button>
-              </Group>
-            )
-
-            if (trialStatus === 'expired') return (
-              <Group title="TripAlong+">
-                <button type="button" onClick={() => { haptic(8); setShowUpgradeSheet(true) }}
-                  className="w-full text-left active:bg-white/5 transition-colors">
-                  <div className="px-4 py-3.5 flex items-center justify-between">
-                    <div>
-                      <p className="text-white font-medium text-sm">Trial ended</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                        Upgrade to keep your scores and viewers
-                      </p>
-                    </div>
-                    <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
-                  </div>
-                </button>
-              </Group>
-            )
-
-            // Free — no trial yet
-            return (
-              <Group title="TripAlong+">
-                <button type="button" onClick={() => { haptic(8); setShowUpgradeSheet(true) }}
-                  className="w-full text-left active:bg-white/5 transition-colors">
-                  <div className="px-4 py-3.5 flex items-center justify-between">
-                    <div>
-                      <p className="text-white font-medium text-sm">Unlock TripAlong+</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                        Scores, profile viewers, unlimited swipes
-                      </p>
-                    </div>
-                    <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
-                  </div>
-                </button>
-              </Group>
-            )
-          })()}
-
-          {showUpgradeSheet && userId && (
-            <PlusDetailsSheet
-              profile={profile}
-              userId={userId}
-              onClose={() => setShowUpgradeSheet(false)}
-            />
-          )}
 
           {/* ── Account ── */}
           <Group title="Account">

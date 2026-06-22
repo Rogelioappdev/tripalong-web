@@ -194,18 +194,7 @@ export default function FeedPage() {
     if (best) setPaywallStats(prev => ({ viewerCount: prev?.viewerCount ?? 0, topMatch: best }))
   }, [showTrialExpiredPaywall, feedProfile, queryClient])
 
-  // First-time Plus title animation — one-shot per user
-  useEffect(() => {
-    if (!userId || !feedProfile) return
-    if (!hasPlus(feedProfile)) return
-    const key = `ta_plus_title_seen_${userId}`
-    if (localStorage.getItem(key)) {
-      setPlusTitleState('static')
-    } else {
-      localStorage.setItem(key, '1')
-      setPlusTitleState('animate')
-    }
-  }, [userId, feedProfile])
+  // TripAlong+ paused — title stays as "TripAlong" (plusTitleState stays 'none')
 
   // Lock page scroll — feed is a fixed app screen, not a scrollable document
   useEffect(() => {
