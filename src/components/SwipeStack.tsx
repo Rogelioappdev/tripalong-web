@@ -556,9 +556,9 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
       }
     }
 
-    // Every AD_FREQUENCY swipes in the native app, request an ad (skip for Plus)
+    // Every AD_FREQUENCY swipes in the native app, request an ad
     swipesSinceAd.current += 1
-    if (isNativeApp() && !hasPlus(localProfile ?? userProfile) && swipesSinceAd.current >= AD_FREQUENCY) {
+    if (isNativeApp() && swipesSinceAd.current >= AD_FREQUENCY) {
       swipesSinceAd.current = 0
       setWaitingForAd(true)
       ;(window as any).ReactNativeWebView?.postMessage(
