@@ -457,8 +457,6 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const hintWasSeenBeforeMount = useRef(false)
   const dnaNudgeTriggered = useRef(false)
   const swipesSinceAd = useRef(0)
-  const [waitingForAd, setWaitingForAd] = useState(false)
-  const adTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     hintWasSeenBeforeMount.current = !!localStorage.getItem('ta_swipe_hint')
@@ -466,26 +464,6 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Listen for ad dismissed signal from native shell
-  useEffect(() => {
-    if (!isNativeApp()) return
-    const handler = () => {
-      if (adTimeoutRef.current) {
-        clearTimeout(adTimeoutRef.current)
-        adTimeoutRef.current = null
-      }
-      setWaitingForAd(false)
-      setCurrentIndex(i => {
-        const next = i + 1
-        sessionStorage.setItem('ta_feed_index', String(next))
-        return next
-      })
-      topCardX.set(0)
-    }
-    window.addEventListener('tripalong_ad_dismissed', handler)
-    return () => window.removeEventListener('tripalong_ad_dismissed', handler)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   useEffect(() => {
     if (!userId) return
@@ -561,26 +539,14 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
       }
     }
 
-    // Every AD_FREQUENCY swipes in the native app, request an ad
+    // Every AD_FREQUENCY swipes in the native app, request an ad.
+    // The overlay appears on top and blocks input — no web freeze state needed.
     swipesSinceAd.current += 1
     if (isNativeApp() && swipesSinceAd.current >= AD_FREQUENCY) {
       swipesSinceAd.current = 0
-      setWaitingForAd(true)
       ;(window as any).ReactNativeWebView?.postMessage(
         JSON.stringify({ type: 'show_ad' })
       )
-      // Safety net — if native never responds, unfreeze after 10s
-      adTimeoutRef.current = setTimeout(() => {
-        adTimeoutRef.current = null
-        setWaitingForAd(false)
-        setCurrentIndex(i => {
-          const next = i + 1
-          sessionStorage.setItem('ta_feed_index', String(next))
-          return next
-        })
-        topCardX.set(0)
-      }, 10000)
-      return // advance happens after ad_dismissed event
     }
 
     setCurrentIndex(i => {
@@ -593,7 +559,6 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   }
 
   const handleSwipeRight = async (trip: TripWithDetails) => {
-    if (waitingForAd) return
     if (isGuest) {
       localStorage.setItem('ta_pending_save', trip.id)
       onAuthRequired?.(trip.destination)
@@ -610,7 +575,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     }
   }
 
-  const handleSwipeLeft = () => { if (!waitingForAd) advance() }
+  const handleSwipeLeft = () => { advance() }
 
   const handlePass = async () => {
     if (!currentTrip) return
