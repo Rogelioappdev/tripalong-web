@@ -16,7 +16,11 @@ import { hasPlus, getTrialStatus } from '@/lib/trial'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 const DAILY_LIMIT = 15
+const AD_FREQUENCY = 6 // show ad every N swipes
 const todayKey = (uid: string) => `ta_swipes_${uid}_${new Date().toISOString().slice(0, 10)}`
+
+const isNativeApp = () =>
+  typeof window !== 'undefined' && navigator.userAgent.includes('TripAlong/1.0')
 
 function useMidnightCountdown() {
   const getSecsUntilMidnight = () => {
@@ -452,10 +456,29 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const qc = useQueryClient()
   const hintWasSeenBeforeMount = useRef(false)
   const dnaNudgeTriggered = useRef(false)
+  const swipesSinceAd = useRef(0)
+  const [waitingForAd, setWaitingForAd] = useState(false)
 
   useEffect(() => {
     hintWasSeenBeforeMount.current = !!localStorage.getItem('ta_swipe_hint')
     // Hint removed — observing natural user behaviour
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Listen for ad dismissed signal from native shell
+  useEffect(() => {
+    if (!isNativeApp()) return
+    const handler = () => {
+      setWaitingForAd(false)
+      setCurrentIndex(i => {
+        const next = i + 1
+        sessionStorage.setItem('ta_feed_index', String(next))
+        return next
+      })
+      topCardX.set(0)
+    }
+    window.addEventListener('tripalong_ad_dismissed', handler)
+    return () => window.removeEventListener('tripalong_ad_dismissed', handler)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -529,11 +552,21 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
       const count = incrementDailySwipes(userId)
       if (count >= DAILY_LIMIT) {
         setSwipeLimitReached(true)
-        // Don't open any modal here — user sees the limit screen first,
-        // then taps the CTA to get the founding offer or paywall.
         return
       }
     }
+
+    // Every AD_FREQUENCY swipes in the native app, request an ad (skip for Plus)
+    swipesSinceAd.current += 1
+    if (isNativeApp() && !hasPlus(localProfile ?? userProfile) && swipesSinceAd.current >= AD_FREQUENCY) {
+      swipesSinceAd.current = 0
+      setWaitingForAd(true)
+      ;(window as any).ReactNativeWebView?.postMessage(
+        JSON.stringify({ type: 'show_ad' })
+      )
+      return // advance happens after ad_dismissed event
+    }
+
     setCurrentIndex(i => {
       const next = i + 1
       sessionStorage.setItem('ta_feed_index', String(next))
@@ -544,6 +577,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   }
 
   const handleSwipeRight = async (trip: TripWithDetails) => {
+    if (waitingForAd) return
     if (isGuest) {
       localStorage.setItem('ta_pending_save', trip.id)
       onAuthRequired?.(trip.destination)
@@ -560,7 +594,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     }
   }
 
-  const handleSwipeLeft = () => advance()
+  const handleSwipeLeft = () => { if (!waitingForAd) advance() }
 
   const handlePass = async () => {
     if (!currentTrip) return
