@@ -92,17 +92,23 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
         </>
       )}
 
-      {/* Empty card frame — same background as trip card */}
-      <div className="absolute inset-0 bg-[#111] rounded-[22px] overflow-hidden">
+      {/* Empty card frame — slightly lighter than the #111 card area so rounded corners are visible */}
+      <div
+        className="absolute inset-0 rounded-[22px] overflow-hidden"
+        style={{
+          backgroundColor: '#1c1c1c',
+          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.07)',
+        }}
+      >
         {/* Subtle bottom gradient so "Sponsored" text is readable */}
         <div
           className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.5) 100%)' }}
+          style={{ background: 'linear-gradient(to bottom, transparent 65%, rgba(0,0,0,0.45) 100%)' }}
         />
         {/* Sponsored label — same position and style as the location pin in trip cards */}
         <div className="absolute bottom-5 left-5 flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-[rgba(240,235,227,0.5)]" />
-          <span className="text-[rgba(240,235,227,0.5)] text-xs font-medium tracking-wide">Sponsored</span>
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(240,235,227,0.45)' }} />
+          <span className="text-xs font-medium tracking-wide" style={{ color: 'rgba(240,235,227,0.45)' }}>Sponsored</span>
         </div>
       </div>
     </motion.div>
