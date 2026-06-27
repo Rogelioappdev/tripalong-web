@@ -550,6 +550,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
         JSON.stringify({
           type: 'show_ad',
           cardRect: r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null,
+          coverImage: trips[currentIndex + 1]?.cover_image ?? trips[currentIndex]?.cover_image ?? null,
         })
       )
     }
