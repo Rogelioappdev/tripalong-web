@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/haptics'
 import { useQueryClient } from '@tanstack/react-query'
 import { SwipeCard, type SwipeCardHandle } from './SwipeCard'
+import { AdCard } from './AdCard'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
@@ -457,7 +458,6 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const qc = useQueryClient()
   const hintWasSeenBeforeMount = useRef(false)
   const dnaNudgeTriggered = useRef(false)
-  const swipesSinceAd = useRef(0)
 
   useEffect(() => {
     hintWasSeenBeforeMount.current = !!localStorage.getItem('ta_swipe_hint')
@@ -535,29 +535,14 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     localStorage.setItem('ta_dna_nudge', '1')
   }
 
-  const advance = () => {
-    if (!isGuest && userId && !hasPlus(localProfile ?? userProfile)) {
+  const advance = (skipDailyCount = false) => {
+    if (!skipDailyCount && !isGuest && userId && !hasPlus(localProfile ?? userProfile)) {
       const count = incrementDailySwipes(userId)
       if (count >= DAILY_LIMIT) {
         setSwipeLimitReached(true)
         return
       }
     }
-
-    // Every AD_FREQUENCY swipes in the native app, request an ad.
-    // The overlay appears on top and blocks input — no web freeze state needed.
-    swipesSinceAd.current += 1
-    if (isNativeApp() && swipesSinceAd.current >= AD_FREQUENCY) {
-      swipesSinceAd.current = 0
-      const r = cardAreaRef.current?.getBoundingClientRect()
-      ;(window as any).ReactNativeWebView?.postMessage(
-        JSON.stringify({
-          type: 'show_ad',
-          cardRect: r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null,
-        })
-      )
-    }
-
     setCurrentIndex(i => {
       const next = i + 1
       sessionStorage.setItem('ta_feed_index', String(next))
@@ -584,15 +569,16 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     }
   }
 
-  const handleSwipeLeft = () => { advance() }
+  const handleSwipeLeft = (isAd = false) => { advance(isAd) }
 
   const handlePass = async () => {
-    if (!currentTrip) return
+    if (!currentTrip && !isCurrentAd) return
     haptic([6, 20, 6])
     await topCardRef.current?.swipeLeft()
   }
 
   const handleJoin = async () => {
+    if (isCurrentAd) { await topCardRef.current?.swipeRight(); return }
     if (!currentTrip) return
     if (isGuest) {
       localStorage.setItem('ta_pending_save', currentTrip.id)
@@ -618,6 +604,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   }
 
   const handleSave = async () => {
+    if (isCurrentAd) { await topCardRef.current?.swipeRight(); return }
     if (!currentTrip) return
     if (isGuest) {
       localStorage.setItem('ta_pending_save', currentTrip.id)
@@ -628,9 +615,25 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     await topCardRef.current?.swipeRight()
   }
 
-  const visibleTrips = trips.slice(currentIndex, currentIndex + 2)
-  const hasMore = currentIndex < trips.length
-  const currentTrip = visibleTrips[0]
+  // Interleave ad slots into the feed: one ad card after every AD_FREQUENCY trips
+  type FeedItem = { type: 'trip'; trip: TripWithDetails } | { type: 'ad'; id: string }
+  const feedItems = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = []
+    let adIdx = 0
+    trips.forEach((trip, i) => {
+      items.push({ type: 'trip', trip })
+      if ((i + 1) % AD_FREQUENCY === 0) items.push({ type: 'ad', id: `ad-${adIdx++}` })
+    })
+    return items
+  }, [trips])
+
+  const visibleItems = feedItems.slice(currentIndex, currentIndex + 2)
+  const currentItem = visibleItems[0]
+  const nextItem = visibleItems[1]
+  const isCurrentAd = currentItem?.type === 'ad'
+  const currentTrip = currentItem?.type === 'trip' ? currentItem.trip : null
+  const nextTrip = nextItem?.type === 'trip' ? nextItem.trip : null
+  const hasMore = currentIndex < feedItems.length
 
   if (!limitChecked && !isGuest) return null
 
@@ -873,7 +876,6 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const isPlus = hasPlus(effectiveProfileForMatch)
   const matchPct = currentTrip ? calculateTripMatch(effectiveProfileForMatch, currentTrip) : undefined
   const matchingVibes = currentTrip ? getMatchingVibes(effectiveProfileForMatch, currentTrip) : []
-  const nextTrip = visibleTrips[1]
   const nextMatchPct = nextTrip ? calculateTripMatch(effectiveProfileForMatch, nextTrip) : undefined
   const nextMatchingVibes = nextTrip ? getMatchingVibes(effectiveProfileForMatch, nextTrip) : []
   const pct = dnaProgress(userProfile)
@@ -915,32 +917,52 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
         style={{ backgroundColor: '#111' }}
         onPointerDown={() => { if (hintVisible) dismissHint() }}
       >
-        {nextTrip && (
-          <SwipeCard
-            key={nextTrip.id}
-            trip={nextTrip}
-            isTop={false}
-            sharedX={topCardX}
-            matchPct={nextMatchPct}
-            matchingVibes={nextMatchingVibes}
-            isPlus={isPlus}
-            onSwipeLeft={handleSwipeLeft}
-            onSwipeRight={() => handleSwipeRight(nextTrip)}
-            onTap={() => {}}
-          />
+        {nextItem && (
+          nextItem.type === 'ad' ? (
+            <AdCard
+              key={nextItem.id}
+              isTop={false}
+              sharedX={topCardX}
+              onSwipeLeft={() => handleSwipeLeft(true)}
+              onSwipeRight={() => advance(true)}
+            />
+          ) : (
+            <SwipeCard
+              key={nextItem.trip.id}
+              trip={nextItem.trip}
+              isTop={false}
+              sharedX={topCardX}
+              matchPct={nextMatchPct}
+              matchingVibes={nextMatchingVibes}
+              isPlus={isPlus}
+              onSwipeLeft={() => handleSwipeLeft()}
+              onSwipeRight={() => handleSwipeRight(nextItem.trip)}
+              onTap={() => {}}
+            />
+          )
         )}
-        {currentTrip && (
-          <SwipeCard
-            key={currentTrip.id}
-            ref={topCardRef}
-            trip={currentTrip}
-            isTop={true}
-            sharedX={topCardX}
-            isJoined={isCurrentJoined}
-            matchPct={matchPct}
-            matchingVibes={matchingVibes}
-            isPlus={isPlus}
-            onCompatibilityTap={() => {
+        {currentItem && (
+          currentItem.type === 'ad' ? (
+            <AdCard
+              key={currentItem.id}
+              ref={topCardRef}
+              isTop={true}
+              sharedX={topCardX}
+              onSwipeLeft={() => handleSwipeLeft(true)}
+              onSwipeRight={() => advance(true)}
+            />
+          ) : (
+            <SwipeCard
+              key={currentItem.trip.id}
+              ref={topCardRef}
+              trip={currentItem.trip}
+              isTop={true}
+              sharedX={topCardX}
+              isJoined={isCurrentJoined}
+              matchPct={matchPct}
+              matchingVibes={matchingVibes}
+              isPlus={isPlus}
+              onCompatibilityTap={() => {
                 const profile = localProfile ?? userProfile
                 const trialStatus = getTrialStatus(profile)
                 if (trialStatus === 'none') {
@@ -950,10 +972,11 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
                   setShowPaywall(true)
                 }
               }}
-            onSwipeLeft={handleSwipeLeft}
-            onSwipeRight={() => handleSwipeRight(currentTrip)}
-            onTap={() => onTripTap(currentTrip)}
-          />
+              onSwipeLeft={() => handleSwipeLeft()}
+              onSwipeRight={() => handleSwipeRight(currentItem.trip)}
+              onTap={() => onTripTap(currentItem.trip)}
+            />
+          )
         )}
 
         {/* DNA nudge card — overlays the current trip card */}
