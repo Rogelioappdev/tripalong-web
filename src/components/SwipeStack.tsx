@@ -563,15 +563,16 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
 
   // Interleave ad slots into the feed: one ad card after every AD_FREQUENCY trips
   type FeedItem = { type: 'trip'; trip: TripWithDetails } | { type: 'ad'; id: string }
+  const showAds = isNativeApp() && !hasPlus(localProfile ?? userProfile)
   const feedItems = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = []
     let adIdx = 0
     trips.forEach((trip, i) => {
       items.push({ type: 'trip', trip })
-      if ((i + 1) % AD_FREQUENCY === 0) items.push({ type: 'ad', id: `ad-${adIdx++}` })
+      if (showAds && (i + 1) % AD_FREQUENCY === 0) items.push({ type: 'ad', id: `ad-${adIdx++}` })
     })
     return items
-  }, [trips])
+  }, [trips, showAds])
 
   const visibleItems = feedItems.slice(currentIndex, currentIndex + 2)
   const currentItem = visibleItems[0]
