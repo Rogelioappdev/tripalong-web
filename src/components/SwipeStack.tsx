@@ -582,17 +582,17 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const nextTrip = nextItem?.type === 'trip' ? nextItem.trip : null
   const hasMore = currentIndex < feedItems.length
 
-  // When an ad slot becomes the top card, tell native to show AdMob content inside the frame
+  // When an ad slot becomes the top card, tell native to show AdMob content inside the frame.
+  // Using isCurrentAd as the dep so the effect always sees the freshly computed value —
+  // avoids the stale-feedItems closure that [currentIndex] alone would cause.
   useEffect(() => {
-    const item = feedItems[currentIndex]
-    if (item?.type !== 'ad' || !isNativeApp()) return
+    if (!isCurrentAd || !isNativeApp()) return
     const r = cardAreaRef.current?.getBoundingClientRect()
     ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({
       type: 'show_ad_content',
       cardRect: r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null,
     }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex])
+  }, [isCurrentAd])
 
   const handleSwipeRight = async (trip: TripWithDetails) => {
     if (isGuest) {
