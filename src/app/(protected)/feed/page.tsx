@@ -451,6 +451,7 @@ export default function FeedPage() {
           initialProfile={feedProfile}
           onAuthRequired={triggerAuthGate}
           onProfileClaimed={setFeedProfile}
+          fromFeed
         />
       )}
 

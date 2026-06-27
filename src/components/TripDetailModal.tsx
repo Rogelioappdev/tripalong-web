@@ -24,6 +24,7 @@ interface TripDetailModalProps {
   initialProfile?: UserProfile | null
   onAuthRequired?: (destination?: string) => void
   onProfileClaimed?: (profile: UserProfile) => void
+  fromFeed?: boolean
 }
 
 const VIBE_EMOJI: Record<string, string> = {
@@ -43,7 +44,7 @@ function formatDates(start: string | null, end: string | null, flexible: boolean
   return `${s.toLocaleDateString('en-US', opts)} – ${e.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
 }
 
-export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuthRequired, onProfileClaimed }: TripDetailModalProps) {
+export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuthRequired, onProfileClaimed, fromFeed }: TripDetailModalProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
@@ -157,13 +158,28 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
     <>
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: fromFeed ? 0.18 : 0.22 }}
+        onClick={onClose}
+      />
 
       {/* Sheet — no overflow-hidden here so nested scroll containers and portals work on iOS */}
       <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
+        initial={fromFeed
+          ? { clipPath: 'inset(6% 3% 32% 3% round 22px)', opacity: 0.92 }
+          : { y: '100%' }
+        }
+        animate={fromFeed
+          ? { clipPath: 'inset(0% 0% 0% 0% round 28px 28px 0 0)', opacity: 1 }
+          : { y: 0 }
+        }
+        transition={fromFeed
+          ? { type: 'spring', stiffness: 300, damping: 28, mass: 1.0 }
+          : { type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }
+        }
         className="relative w-full sm:max-w-lg flex flex-col"
         style={{
           backgroundColor: '#000',
