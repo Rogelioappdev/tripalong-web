@@ -453,6 +453,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const profileNudgeTriggered = useRef(false)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
+  const cardAreaRef = useRef<HTMLDivElement>(null)
   const qc = useQueryClient()
   const hintWasSeenBeforeMount = useRef(false)
   const dnaNudgeTriggered = useRef(false)
@@ -544,8 +545,12 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     swipesSinceAd.current += 1
     if (isNativeApp() && swipesSinceAd.current >= AD_FREQUENCY) {
       swipesSinceAd.current = 0
+      const r = cardAreaRef.current?.getBoundingClientRect()
       ;(window as any).ReactNativeWebView?.postMessage(
-        JSON.stringify({ type: 'show_ad' })
+        JSON.stringify({
+          type: 'show_ad',
+          cardRect: r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null,
+        })
       )
     }
 
@@ -901,6 +906,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
 
       {/* Card area */}
       <div
+        ref={cardAreaRef}
         className="relative w-full flex-1 min-h-0 overflow-hidden"
         style={{ backgroundColor: '#111' }}
         onPointerDown={() => { if (hintVisible) dismissHint() }}
