@@ -465,6 +465,10 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'app_ready' }))
+  }, [])
+
 
   useEffect(() => {
     if (!userId) return
