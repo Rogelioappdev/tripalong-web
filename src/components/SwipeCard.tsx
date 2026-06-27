@@ -78,49 +78,48 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
     }
   }
 
-  if (!isTop) {
-    return (
-      <motion.div
-        className="absolute inset-0 rounded-[22px] overflow-hidden"
-        style={{ scale: behindScale, y: behindY, zIndex: 0, transformOrigin: 'bottom center' }}
-      >
-        <CardContent trip={trip} dateLabel={dateLabel} isJoined={false} matchPct={matchPct} matchingVibes={matchingVibes} isPlus={isPlus} />
-      </motion.div>
-    )
-  }
-
+  // Single motion element for both top and behind states — avoids Framer Motion
+  // reinitializing drag/controls when isTop flips (same DOM node, just updated props)
   return (
     <motion.div
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.7}
-      animate={controls}
-      style={{ x, rotate, touchAction: 'none', zIndex: 10, position: 'absolute', inset: 0 }}
-      className="rounded-[22px] overflow-hidden cursor-grab active:cursor-grabbing"
-      onDragEnd={handleDragEnd}
-      onClick={onTap}
+      drag={isTop ? 'x' : false}
+      dragConstraints={isTop ? { left: 0, right: 0 } : undefined}
+      dragElastic={isTop ? 0.7 : undefined}
+      animate={isTop ? controls : undefined}
+      style={{
+        x: isTop ? x : 0,
+        rotate: isTop ? rotate : 0,
+        scale: isTop ? 1 : behindScale,
+        y: isTop ? 0 : behindY,
+        touchAction: isTop ? 'none' : 'auto',
+        zIndex: isTop ? 10 : 0,
+        transformOrigin: isTop ? 'center' : 'bottom center',
+        position: 'absolute',
+        inset: 0,
+      }}
+      className={`rounded-[22px] overflow-hidden${isTop ? ' cursor-grab active:cursor-grabbing' : ''}`}
+      onDragEnd={isTop ? handleDragEnd : undefined}
+      onClick={isTop ? onTap : undefined}
     >
-      {/* Color wash overlays */}
-      <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#F0EBE3', opacity: greenOverlay }} />
-      <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#FF453A', opacity: redOverlay }} />
-
-      {/* PASS stamp */}
-      <motion.div
-        className="absolute top-7 left-5 z-20 border-2 border-red-400 rounded-xl px-4 py-1.5 rotate-[-15deg]"
-        style={{ opacity: passOpacity }}
-      >
-        <span className="text-red-400 font-black text-xl tracking-widest">PASS</span>
-      </motion.div>
-
-      {/* SAVE stamp */}
-      <motion.div
-        className="absolute top-7 right-5 z-20 border-2 rounded-xl px-4 py-1.5 rotate-[15deg]"
-        style={{ opacity: joinOpacity, borderColor: '#F0EBE3' }}
-      >
-        <span className="font-black text-xl tracking-widest" style={{ color: '#F0EBE3' }}>SAVE</span>
-      </motion.div>
-
-      <CardContent trip={trip} dateLabel={dateLabel} isJoined={isJoined} matchPct={matchPct} matchingVibes={matchingVibes} isPlus={isPlus} onCompatibilityTap={onCompatibilityTap} />
+      {isTop && (
+        <>
+          <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#F0EBE3', opacity: greenOverlay }} />
+          <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#FF453A', opacity: redOverlay }} />
+          <motion.div
+            className="absolute top-7 left-5 z-20 border-2 border-red-400 rounded-xl px-4 py-1.5 rotate-[-15deg]"
+            style={{ opacity: passOpacity }}
+          >
+            <span className="text-red-400 font-black text-xl tracking-widest">PASS</span>
+          </motion.div>
+          <motion.div
+            className="absolute top-7 right-5 z-20 border-2 rounded-xl px-4 py-1.5 rotate-[15deg]"
+            style={{ opacity: joinOpacity, borderColor: '#F0EBE3' }}
+          >
+            <span className="font-black text-xl tracking-widest" style={{ color: '#F0EBE3' }}>SAVE</span>
+          </motion.div>
+        </>
+      )}
+      <CardContent trip={trip} dateLabel={dateLabel} isJoined={isTop ? isJoined : false} matchPct={matchPct} matchingVibes={matchingVibes} isPlus={isPlus} onCompatibilityTap={isTop ? onCompatibilityTap : undefined} />
     </motion.div>
   )
 })
