@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip, getProfile } from '@/lib/queries'
 import { getTripMatchBreakdown, getMatchingVibes, memberCompatibility } from '@/lib/matching'
@@ -160,7 +160,10 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Sheet — no overflow-hidden here so nested scroll containers and portals work on iOS */}
-      <div
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
         className="relative w-full sm:max-w-lg flex flex-col"
         style={{
           backgroundColor: '#000',
@@ -519,7 +522,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
             <p className="text-red-400 text-xs text-center mt-2">Something went wrong. Try again.</p>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
 
     {profileUserId && (

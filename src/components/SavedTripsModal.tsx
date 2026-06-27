@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat, updateTripMemberStatus } from '@/lib/queries'
@@ -153,7 +153,10 @@ export function SavedTripsModal({ userId, onClose }: Props) {
       />
 
       {/* Sheet */}
-      <div
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
         className="fixed bottom-0 left-0 right-0 z-[60] rounded-t-[28px] overflow-hidden flex flex-col"
         style={{
           backgroundColor: '#0d0d0d',
@@ -297,7 +300,7 @@ export function SavedTripsModal({ userId, onClose }: Props) {
             )
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Unsave confirm sheet */}
       {confirmUnsave && (

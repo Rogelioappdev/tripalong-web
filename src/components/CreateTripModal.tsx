@@ -435,7 +435,10 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       )}
       </AnimatePresence>
 
-      <div
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
         className="relative w-full sm:max-w-lg sm:rounded-3xl flex flex-col overflow-hidden"
         style={{
           backgroundColor: '#0d0d0d',
@@ -888,7 +891,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
         </div>
 
 
-      </div>
+      </motion.div>
     </div>
   )
 }

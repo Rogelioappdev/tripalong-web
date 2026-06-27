@@ -7,15 +7,15 @@ const isNativeApp =
   typeof navigator !== 'undefined' && navigator.userAgent.includes('TripAlong')
 
 export default function Template({ children }: { children: React.ReactNode }) {
-  // In the native WebView, this wrapper starts at opacity:0 on every navigation,
-  // making the entire page invisible and flashing the black native background.
-  // Skip the animation entirely in the app — the web browser keeps it.
-  if (isNativeApp) return <>{children}</>
-
   const dir = getTabDir()
+
+  // No animation for direct navigation (non-tab-switch)
+  if (dir === 0) return <>{children}</>
+
   return (
     <motion.div
-      initial={{ x: dir * 28, opacity: 0 }}
+      // Native: no opacity change (avoids black flash through WebView background)
+      initial={{ x: dir * 24, opacity: isNativeApp ? 1 : 0.85 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
     >

@@ -258,7 +258,10 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
-      <div
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
         className="relative w-full sm:max-w-lg flex flex-col overflow-hidden"
         style={{ backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh' }}
       >
@@ -659,7 +662,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
             </>
           )
         })()}
-      </div>
+      </motion.div>
     </div>
   )
 
