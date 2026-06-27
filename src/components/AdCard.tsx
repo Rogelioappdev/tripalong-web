@@ -92,23 +92,57 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
         </>
       )}
 
-      {/* Empty card frame — slightly lighter than the #111 card area so rounded corners are visible */}
+      {/* Loading skeleton — matches SwipeCard's #111 frame so the rounded corners read as
+          an intentional card while the native AdMob overlay positions on top of it. */}
       <div
-        className="absolute inset-0 rounded-[22px] overflow-hidden"
+        className="absolute inset-0 rounded-[22px] overflow-hidden select-none"
         style={{
-          backgroundColor: '#1c1c1c',
-          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.07)',
+          backgroundColor: '#111',
+          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06)',
         }}
       >
-        {/* Subtle bottom gradient so "Sponsored" text is readable */}
+        {/* Base tone — a touch lighter than #111 so the surface has depth like a cover image */}
+        <div className="absolute inset-0" style={{ backgroundColor: '#161616' }} />
+
+        {/* Moving shimmer sweep — signals "loading", not "broken" */}
+        <motion.div
+          className="absolute inset-y-0 pointer-events-none"
+          style={{
+            width: '60%',
+            background:
+              'linear-gradient(105deg, transparent 0%, rgba(240,235,227,0.06) 45%, rgba(240,235,227,0.10) 50%, rgba(240,235,227,0.06) 55%, transparent 100%)',
+          }}
+          initial={{ left: '-60%' }}
+          animate={{ left: '110%' }}
+          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut', repeatDelay: 0.2 }}
+        />
+
+        {/* Bottom gradient — same falloff as a trip card so text stays legible */}
         <div
           className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, transparent 65%, rgba(0,0,0,0.45) 100%)' }}
+          style={{ background: 'linear-gradient(to bottom, transparent 55%, rgba(0,0,0,0.6) 100%)' }}
         />
-        {/* Sponsored label — same position and style as the location pin in trip cards */}
-        <div className="absolute bottom-5 left-5 flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(240,235,227,0.45)' }} />
-          <span className="text-xs font-medium tracking-wide" style={{ color: 'rgba(240,235,227,0.45)' }}>Sponsored</span>
+
+        {/* Skeleton content blocks — mirror the trip card layout (title + meta line) */}
+        <div className="absolute bottom-0 left-0 right-0 p-5 flex flex-col gap-3">
+          {/* Title block */}
+          <div
+            className="rounded-lg"
+            style={{ width: '62%', height: 30, backgroundColor: 'rgba(255,255,255,0.07)' }}
+          />
+          {/* Meta line */}
+          <div
+            className="rounded-md"
+            style={{ width: '40%', height: 14, backgroundColor: 'rgba(255,255,255,0.05)' }}
+          />
+
+          {/* Sponsored label — same dot + text treatment as the trip card location pin */}
+          <div className="flex items-center gap-1.5 mt-1">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(240,235,227,0.45)' }} />
+            <span className="text-xs font-medium tracking-wide" style={{ color: 'rgba(240,235,227,0.45)' }}>
+              Sponsored
+            </span>
+          </div>
         </div>
       </div>
     </motion.div>
