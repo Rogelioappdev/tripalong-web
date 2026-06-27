@@ -563,7 +563,10 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
 
   // Interleave ad slots into the feed: one ad card after every AD_FREQUENCY trips
   type FeedItem = { type: 'trip'; trip: TripWithDetails } | { type: 'ad'; id: string }
-  const showAds = isNativeApp() && !hasPlus(localProfile ?? userProfile)
+  // isNativeApp() is false during SSR so we can't use it in feedItems —
+  // the client would hydrate with a stale no-ads array and never recompute.
+  // The show_ad_content effect has its own isNativeApp() guard.
+  const showAds = !hasPlus(localProfile ?? userProfile)
   const feedItems = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = []
     let adIdx = 0
