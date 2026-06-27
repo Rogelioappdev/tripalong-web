@@ -452,6 +452,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const [celebrationTrip, setCelebrationTrip] = useState<TripWithDetails | null>(null)
   const [showProfileNudge, setShowProfileNudge] = useState(false)
   const profileNudgeTriggered = useRef(false)
+  const [rewardedAdError, setRewardedAdError] = useState(false)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle>(null)
   const cardAreaRef = useRef<HTMLDivElement>(null)
@@ -560,6 +561,30 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     ;(window as any).__tripalongAdvanceFeed = () => advanceRef.current(true)
     return () => { delete (window as any).__tripalongAdvanceFeed }
   }, [])
+
+  // Bridge for rewarded ad callbacks from native
+  useEffect(() => {
+    if (!isNativeApp()) return
+    ;(window as any).__tripalongUnlockSwipes = (bonus: number) => {
+      if (userId) {
+        const current = getDailySwipes(userId)
+        localStorage.setItem(todayKey(userId), String(Math.max(0, current - bonus)))
+      }
+      setSwipeLimitReached(false)
+      setRewardedAdError(false)
+    }
+    ;(window as any).__tripalongAdDismissed = () => {
+      // User closed without finishing — stay on limit screen, no action needed
+    }
+    ;(window as any).__tripalongAdNotReady = () => {
+      setRewardedAdError(true)
+    }
+    return () => {
+      delete (window as any).__tripalongUnlockSwipes
+      delete (window as any).__tripalongAdDismissed
+      delete (window as any).__tripalongAdNotReady
+    }
+  }, [userId])
 
   // Interleave ad slots into the feed: one ad card after every AD_FREQUENCY trips
   type FeedItem = { type: 'trip'; trip: TripWithDetails } | { type: 'ad'; id: string }
@@ -799,6 +824,34 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
               {isFirstTime && (
                 <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12, textAlign: 'center' }}>
                   No card required
+                </p>
+              )}
+              {isNativeApp() && (
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  type="button"
+                  onClick={() => {
+                    haptic(6)
+                    setRewardedAdError(false)
+                    ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'show_rewarded_ad' }))
+                  }}
+                  className="w-full font-semibold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2"
+                  style={{
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '0.5px solid rgba(255,255,255,0.12)',
+                    color: 'rgba(255,255,255,0.65)',
+                  }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8"/>
+                    <path d="M10 8l6 4-6 4V8z" fill="currentColor"/>
+                  </svg>
+                  Watch a short video for +10 swipes
+                </motion.button>
+              )}
+              {rewardedAdError && (
+                <p style={{ color: 'rgba(255,100,100,0.7)', fontSize: 11, textAlign: 'center', marginTop: -4 }}>
+                  Ad not available right now — try again shortly
                 </p>
               )}
             </motion.div>
