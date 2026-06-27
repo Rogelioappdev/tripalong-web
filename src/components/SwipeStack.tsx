@@ -561,6 +561,38 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     return () => { delete (window as any).__tripalongAdvanceFeed }
   }, [])
 
+  // Interleave ad slots into the feed: one ad card after every AD_FREQUENCY trips
+  type FeedItem = { type: 'trip'; trip: TripWithDetails } | { type: 'ad'; id: string }
+  const feedItems = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = []
+    let adIdx = 0
+    trips.forEach((trip, i) => {
+      items.push({ type: 'trip', trip })
+      if ((i + 1) % AD_FREQUENCY === 0) items.push({ type: 'ad', id: `ad-${adIdx++}` })
+    })
+    return items
+  }, [trips])
+
+  const visibleItems = feedItems.slice(currentIndex, currentIndex + 2)
+  const currentItem = visibleItems[0]
+  const nextItem = visibleItems[1]
+  const isCurrentAd = currentItem?.type === 'ad'
+  const currentTrip = currentItem?.type === 'trip' ? currentItem.trip : null
+  const nextTrip = nextItem?.type === 'trip' ? nextItem.trip : null
+  const hasMore = currentIndex < feedItems.length
+
+  // When an ad slot becomes the top card, tell native to show AdMob content inside the frame
+  useEffect(() => {
+    const item = feedItems[currentIndex]
+    if (item?.type !== 'ad' || !isNativeApp()) return
+    const r = cardAreaRef.current?.getBoundingClientRect()
+    ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({
+      type: 'show_ad_content',
+      cardRect: r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null,
+    }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex])
+
   const handleSwipeRight = async (trip: TripWithDetails) => {
     if (isGuest) {
       localStorage.setItem('ta_pending_save', trip.id)
@@ -624,38 +656,6 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     await topCardRef.current?.swipeRight()
   }
 
-  // Interleave ad slots into the feed: one ad card after every AD_FREQUENCY trips
-  type FeedItem = { type: 'trip'; trip: TripWithDetails } | { type: 'ad'; id: string }
-  const feedItems = useMemo<FeedItem[]>(() => {
-    const items: FeedItem[] = []
-    let adIdx = 0
-    trips.forEach((trip, i) => {
-      items.push({ type: 'trip', trip })
-      if ((i + 1) % AD_FREQUENCY === 0) items.push({ type: 'ad', id: `ad-${adIdx++}` })
-    })
-    return items
-  }, [trips])
-
-  const visibleItems = feedItems.slice(currentIndex, currentIndex + 2)
-  const currentItem = visibleItems[0]
-  const nextItem = visibleItems[1]
-  const isCurrentAd = currentItem?.type === 'ad'
-  const currentTrip = currentItem?.type === 'trip' ? currentItem.trip : null
-  const nextTrip = nextItem?.type === 'trip' ? nextItem.trip : null
-  const hasMore = currentIndex < feedItems.length
-
-  // When an ad slot becomes the top card, tell native to show AdMob content inside the frame
-  // Placed here so both feedItems and currentIndex are defined
-  useEffect(() => {
-    const item = feedItems[currentIndex]
-    if (item?.type !== 'ad' || !isNativeApp()) return
-    const r = cardAreaRef.current?.getBoundingClientRect()
-    ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({
-      type: 'show_ad_content',
-      cardRect: r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null,
-    }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex])
 
   if (!limitChecked && !isGuest) return null
 
