@@ -469,6 +469,27 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'app_ready' }))
   }, [])
 
+  // Keep a stable ref so native can call advance without stale closure
+  const advanceRef = useRef<(skip?: boolean) => void>(() => {})
+  advanceRef.current = advance
+  useEffect(() => {
+    ;(window as any).__tripalongAdvanceFeed = () => advanceRef.current(true)
+    return () => { delete (window as any).__tripalongAdvanceFeed }
+  }, [])
+
+  // When an ad card becomes the top card, tell native to show AdMob content inside it
+  useEffect(() => {
+    const item = feedItems[currentIndex]
+    if (item?.type !== 'ad' || !isNativeApp()) return
+    const r = cardAreaRef.current?.getBoundingClientRect()
+    ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({
+      type: 'show_ad_content',
+      cardRect: r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null,
+    }))
+  // feedItems is memoized so this fires only when currentIndex actually changes to an ad slot
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex])
+
 
   useEffect(() => {
     if (!userId) return
