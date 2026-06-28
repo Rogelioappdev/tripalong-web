@@ -49,6 +49,16 @@ function formatTime(d: string) {
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
+function CheckTick({ seen }: { seen: boolean }) {
+  const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.28)'
+  return (
+    <svg width="16" height="10" viewBox="0 0 16 10" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M1 5.5L3.5 8L8 1.5" stroke={c} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 5.5L7.5 8L12 1.5" stroke={c} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
 function groupReactions(reactions: DMMessage['reactions']) {
   const map: Record<string, string[]> = {}
   for (const r of reactions ?? []) {
@@ -603,12 +613,10 @@ export default function DMPage() {
                           ))}
                         </div>
                       )}
-                      <span className="text-white/20 text-xs px-1">{formatTime(msg.created_at)}</span>
-                      {isMe && isLastMyMsg && (
-                        <span className="text-xs px-1" style={{ color: lastMyMsgIsRead ? '#30D158' : 'rgba(255,255,255,0.25)' }}>
-                          {lastMyMsgIsRead ? 'Read' : 'Sent'}
-                        </span>
-                      )}
+                      <div className={`flex items-center gap-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+                        <span className="text-white/20 text-xs">{formatTime(msg.created_at)}</span>
+                        {isMe && <CheckTick seen={!!otherLastRead && otherLastRead >= msg.created_at} />}
+                      </div>
                     </div>
                   </div>
                 )
@@ -668,13 +676,9 @@ export default function DMPage() {
                         ))}
                       </div>
                     )}
-                    <div className={`flex items-center gap-1.5 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+                    <div className={`flex items-center gap-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
                       <span className="text-white/20 text-xs">{formatTime(msg.created_at)}</span>
-                      {isMe && isLastMyMsg && (
-                        <span className="text-xs" style={{ color: lastMyMsgIsRead ? '#30D158' : 'rgba(255,255,255,0.25)' }}>
-                          {lastMyMsgIsRead ? 'Read' : 'Sent'}
-                        </span>
-                      )}
+                      {isMe && <CheckTick seen={!!otherLastRead && otherLastRead >= msg.created_at} />}
                     </div>
                   </div>
                 </div>

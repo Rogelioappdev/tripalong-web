@@ -51,6 +51,16 @@ function formatTime(d: string) {
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
+function CheckTick({ seen }: { seen: boolean }) {
+  const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.28)'
+  return (
+    <svg width="16" height="10" viewBox="0 0 16 10" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M1 5.5L3.5 8L8 1.5" stroke={c} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 5.5L7.5 8L12 1.5" stroke={c} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
 function formatDates(start: string | null, end: string | null): string {
   if (!start && !end) return ''
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -723,8 +733,9 @@ export default function ChatPage() {
                     )}
 
                     {/* Time + seen */}
-                    <div className={`flex items-center gap-1.5 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+                    <div className={`flex items-center gap-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
                       <span className="text-white/20 text-xs">{formatTime(msg.created_at)}</span>
+                      {isMe && <CheckTick seen={otherReadPositions.some(r => r.last_read_at && r.last_read_at >= msg.created_at)} />}
                       {seenBy.length > 0 && (
                         <div className="flex items-center gap-0.5">
                           {seenBy.slice(0, 3).map(r => (
