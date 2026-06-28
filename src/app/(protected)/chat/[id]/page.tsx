@@ -734,7 +734,7 @@ export default function ChatPage() {
 
                     {/* Time + seen */}
                     <div className={`flex items-center gap-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
-                      <span className="text-white/20 text-xs">{formatTime(msg.created_at)}</span>
+                      <span className="text-white/45 text-xs">{formatTime(msg.created_at)}</span>
                       {isMe && <CheckTick seen={otherReadPositions.some(r => r.last_read_at && r.last_read_at >= msg.created_at)} />}
                       {seenBy.length > 0 && (
                         <div className="flex items-center gap-0.5">

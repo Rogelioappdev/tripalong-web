@@ -614,7 +614,7 @@ export default function DMPage() {
                         </div>
                       )}
                       <div className={`flex items-center gap-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
-                        <span className="text-white/20 text-xs">{formatTime(msg.created_at)}</span>
+                        <span className="text-white/45 text-xs">{formatTime(msg.created_at)}</span>
                         {isMe && <CheckTick seen={!!otherLastRead && otherLastRead >= msg.created_at} />}
                       </div>
                     </div>
@@ -677,7 +677,7 @@ export default function DMPage() {
                       </div>
                     )}
                     <div className={`flex items-center gap-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
-                      <span className="text-white/20 text-xs">{formatTime(msg.created_at)}</span>
+                      <span className="text-white/45 text-xs">{formatTime(msg.created_at)}</span>
                       {isMe && <CheckTick seen={!!otherLastRead && otherLastRead >= msg.created_at} />}
                     </div>
                   </div>
