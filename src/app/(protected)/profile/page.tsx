@@ -333,7 +333,7 @@ export default function ProfilePage() {
           {/* Hero photo */}
           <div className="relative w-full aspect-[3/2] rounded-3xl overflow-hidden bg-white/6">
             {profile?.profile_photo ? (
-              <img src={profile.profile_photo} alt="" className="w-full h-full object-cover" />
+              <img key={profile.profile_photo} src={profile.profile_photo} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-5xl">👤</div>
             )}

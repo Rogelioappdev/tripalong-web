@@ -270,7 +270,11 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
             <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
           </div>
         ) : (() => {
-          const allPhotos = profile.photos?.length ? profile.photos : profile.profile_photo ? [profile.profile_photo] : []
+          const profilePhotoBase = profile.profile_photo?.split('?')[0]
+          const allPhotos = [
+            ...(profile.profile_photo ? [profile.profile_photo] : []),
+            ...(profile.photos ?? []).filter(p => p.split('?')[0] !== profilePhotoBase),
+          ]
           const mainPhoto = allPhotos[photoIndex] ?? null
           const travelStyles = profile.travel_styles ?? []
           const languages = profile.languages ?? []
