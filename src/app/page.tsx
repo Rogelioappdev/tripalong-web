@@ -472,6 +472,77 @@ const GUIDELINES = [
   { icon: '🚨', text: 'Report anything that feels off — we review every report' },
 ]
 
+function SplashSkeleton() {
+  return (
+    <main style={{ position: 'relative', background: '#000', height: '100dvh', overflow: 'hidden' }}>
+      {/* Wordmark */}
+      <div style={{
+        position: 'absolute', zIndex: 20,
+        top: 'calc(env(safe-area-inset-top) + 16px)', left: 26,
+      }}>
+        <span className="text-white font-extrabold text-2xl tracking-tight">TripAlong</span>
+      </div>
+
+      {/* Card stack */}
+      <div style={{
+        position: 'absolute',
+        top: 'calc(env(safe-area-inset-top) + 54px)',
+        left: '50%', transform: 'translateX(-50%)',
+        width: '68vw', maxWidth: 282, height: '58dvh',
+      }}>
+        {[...Array(5)].map((_, i) => (
+          <motion.div
+            key={i}
+            animate={{ opacity: [0.4, 0.65, 0.4] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: i * 0.08 }}
+            style={{
+              position: 'absolute', inset: 0, borderRadius: 24,
+              background: `rgb(${20 + (4 - i) * 7}, ${20 + (4 - i) * 7}, ${20 + (4 - i) * 7})`,
+              transform: `scale(${STACK[i].scale}) translateY(${STACK[i].y}px) rotate(${STACK[i].rotate}deg)`,
+              transformOrigin: 'bottom center', zIndex: STACK[i].z,
+            }}
+          />
+        )).reverse()}
+      </div>
+
+      {/* Bottom content */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
+        padding: '0 26px',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
+        background: 'linear-gradient(to bottom, transparent 0%, #000 18%)',
+        display: 'flex', flexDirection: 'column', gap: 10,
+      }}>
+        <motion.div
+          animate={{ opacity: [0.3, 0.55, 0.3] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}
+        >
+          <div style={{ width: '72%', height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.08)' }} />
+          <div style={{ width: '52%', height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.06)' }} />
+        </motion.div>
+
+        <motion.div
+          animate={{ opacity: [0.25, 0.45, 0.25] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: 0.15 }}
+          style={{ width: '78%', height: 14, borderRadius: 6, background: 'rgba(255,255,255,0.05)', marginBottom: 8 }}
+        />
+
+        <motion.div
+          animate={{ opacity: [0.3, 0.5, 0.3] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: 0.25 }}
+          style={{ width: '100%', height: 52, borderRadius: 18, background: 'rgba(255,255,255,0.07)' }}
+        />
+        <motion.div
+          animate={{ opacity: [0.2, 0.35, 0.2] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
+          style={{ width: '52%', height: 18, borderRadius: 6, background: 'rgba(255,255,255,0.04)', alignSelf: 'center' }}
+        />
+      </div>
+    </main>
+  )
+}
+
 export default function SplashPage() {
   const router = useRouter()
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
@@ -527,7 +598,7 @@ export default function SplashPage() {
     return () => clearInterval(t)
   }, [triggerSwipe, cards.length])
 
-  if (hasAccess === null) return null
+  if (hasAccess === null) return <SplashSkeleton />
   if (!hasAccess) return <PreLaunchPage />
 
   return (
