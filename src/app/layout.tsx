@@ -3,6 +3,7 @@ import { Outfit } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Providers } from '@/lib/providers'
+import { PostHogProvider } from '@/components/PostHogProvider'
 import { BottomTabBar } from '@/components/BottomTabBar'
 import './globals.css'
 
@@ -31,10 +32,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={outfit.className} style={{ margin: 0, background: '#000', color: '#fff' }}>
-        <Providers>
-          {children}
-          <BottomTabBar />
-        </Providers>
+        <PostHogProvider>
+          <Providers>
+            {children}
+            <BottomTabBar />
+          </Providers>
+        </PostHogProvider>
         <Analytics />
         <SpeedInsights />
       </body>
