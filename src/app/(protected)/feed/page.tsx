@@ -217,6 +217,15 @@ export default function FeedPage() {
     refetchInterval: 5 * 60 * 1000, // quietly refresh member counts every 5 min
   })
 
+  // Signal native shell when trips are ready so it can fade out the splash overlay
+  useEffect(() => {
+    if (isLoading || trips === undefined) return
+    const w = window as any
+    if (w.ReactNativeWebView) {
+      w.ReactNativeWebView.postMessage(JSON.stringify({ type: 'app_ready' }))
+    }
+  }, [isLoading, trips])
+
   // After login: auto-save the trip the guest tried to save, then show it
   useEffect(() => {
     if (!pendingTripId || !trips || !userId) return
