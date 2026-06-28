@@ -116,14 +116,14 @@ export default function MessagesPage() {
     })
   }, [router])
 
-  const { data: tripChats = [], isError: chatsError, refetch: refetchChats } = useQuery({
+  const { data: tripChats = [], isLoading: chatsLoading, isError: chatsError, refetch: refetchChats } = useQuery({
     queryKey: ['tripChats', userId],
     queryFn: () => getUserTripChats(userId!),
     enabled: !!userId,
     staleTime: 30_000,
   })
 
-  const { data: dms = [], isError: dmsError, refetch: refetchDms } = useQuery({
+  const { data: dms = [], isLoading: dmsLoading, isError: dmsError, refetch: refetchDms } = useQuery({
     queryKey: ['dms', userId],
     queryFn: () => getDMConversations(userId!),
     enabled: !!userId,
@@ -143,7 +143,7 @@ export default function MessagesPage() {
     })
   }, [dms])
 
-  if (pageLoading) return <MessagesSkeleton />
+  if (pageLoading || chatsLoading || dmsLoading) return <MessagesSkeleton />
 
   return (
     <>
