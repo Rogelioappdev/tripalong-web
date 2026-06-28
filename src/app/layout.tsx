@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Outfit } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Providers } from '@/lib/providers'
 import { BottomTabBar } from '@/components/BottomTabBar'
 import './globals.css'
@@ -33,6 +35,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <BottomTabBar />
         </Providers>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
