@@ -432,8 +432,20 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
             {/* Who's Going */}
             {members.length > 0 && (
               <div>
-                <p className="text-white font-bold" style={{ fontSize: 17 }}>Who's Going</p>
-                <div className="flex gap-4 overflow-x-auto mt-3 pb-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-white font-bold" style={{ fontSize: 17 }}>Who's Going</p>
+                  <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
+                    {members.length} {members.length === 1 ? 'person' : 'people'}
+                  </span>
+                </div>
+                <div
+                  className="no-scrollbar flex gap-4 mt-3 pb-2 -mx-4 px-4"
+                  style={{
+                    overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehaviorX: 'contain',
+                  } as React.CSSProperties}
+                >
                   {members.map(m => {
                     const rawMember = (displayTrip.members ?? []).find(dm => dm.user_id === m.id)
                     // Compute score for everyone — free users see color hint, Plus sees the number
