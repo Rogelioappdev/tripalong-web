@@ -25,7 +25,6 @@ const FoundingMemberPaywall = dynamicImport(() => import('@/components/FoundingM
 const TrialExpiredPaywall = dynamicImport(() => import('@/components/TrialExpiredPaywall').then(m => ({ default: m.TrialExpiredPaywall })), { ssr: false })
 const FeedTutorial = dynamicImport(() => import('@/components/FeedTutorial').then(m => ({ default: m.FeedTutorial })), { ssr: false })
 const FoundingMemberScreen = dynamicImport(() => import('@/components/FoundingMemberScreen').then(m => ({ default: m.FoundingMemberScreen })), { ssr: false })
-const NotificationPrompt = dynamicImport(() => import('@/components/NotificationPrompt').then(m => ({ default: m.NotificationPrompt })), { ssr: false })
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
@@ -68,7 +67,6 @@ export default function FeedPage() {
 
   const [justUpgraded, setJustUpgraded] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
-  const [showNotifPrompt, setShowNotifPrompt] = useState(false)
   const [paywallStats, setPaywallStats] = useState<{ viewerCount: number; topMatch: { pct: number; destination: string } | null } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -273,22 +271,7 @@ export default function FeedPage() {
         {showTutorial && (
           <FeedTutorial onDone={() => {
             setShowTutorial(false)
-            if (userId) {
-              const notifKey = `ta_notif_prompt_${userId}`
-              if (!localStorage.getItem(notifKey)) {
-                localStorage.setItem(notifKey, '1')
-                // Delay so tutorial fade-out finishes before prompt appears
-                setTimeout(() => setShowNotifPrompt(true), 450)
-              }
-            }
           }} />
-        )}
-      </AnimatePresence>
-
-      {/* Notification permission primer — separate AnimatePresence to avoid conflicts */}
-      <AnimatePresence>
-        {showNotifPrompt && userId && (
-          <NotificationPrompt userId={userId} onDone={() => setShowNotifPrompt(false)} />
         )}
       </AnimatePresence>
 
