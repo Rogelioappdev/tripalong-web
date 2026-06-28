@@ -338,7 +338,7 @@ export default function FeedPage() {
         {/* Mobile header */}
         <div className="md:hidden flex items-center justify-between px-5 shrink-0"
           style={{ paddingTop: isGuest ? 8 : 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
-          <h1 className="text-white font-extrabold text-2xl tracking-tight">
+          <h1 className="text-red-500 font-extrabold text-2xl tracking-tight">
             TripAlong{plusTitleState !== 'none' ? '+' : ''}
           </h1>
           <div className="flex items-center gap-2">
