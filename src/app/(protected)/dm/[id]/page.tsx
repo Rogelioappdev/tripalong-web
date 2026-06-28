@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
 import { ReportMessageSheet } from '@/components/ReportMessageSheet'
@@ -421,7 +421,13 @@ export default function DMPage() {
   return (
     <>
       <NavBar />
-      <main className="md:pt-14 bg-black flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
+      <motion.main
+        className="md:pt-14 bg-black flex flex-col overflow-hidden"
+        style={{ height: '100dvh' }}
+        initial={{ x: 32, opacity: 0.88 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+      >
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
 
           {/* Header */}
@@ -565,9 +571,9 @@ export default function DMPage() {
               </button>
             )}
 
-            {isLoading && <ChatSkeleton />}
+            {(isLoading || !userId) && <ChatSkeleton />}
 
-            {displayMessages.map((msg: DMMessage, idx: number) => {
+            {!isLoading && !!userId && displayMessages.map((msg: DMMessage, idx: number) => {
               const isMe = msg.sender_id === userId
               const reacted = groupReactions(msg.reactions)
               const myReactionEmojis = (msg.reactions ?? []).filter(r => r.user_id === userId).map(r => r.emoji)
@@ -799,7 +805,7 @@ export default function DMPage() {
             </button>
           </form>
         </div>
-      </main>
+      </motion.main>
 
       {/* Action sheet */}
       <AnimatePresence>

@@ -491,7 +491,13 @@ export default function ChatPage() {
   return (
     <>
       <NavBar />
-      <main className="md:pt-14 bg-black flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
+      <motion.main
+        className="md:pt-14 bg-black flex flex-col overflow-hidden"
+        style={{ height: '100dvh' }}
+        initial={{ x: 32, opacity: 0.88 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+      >
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
 
           {/* Chat header */}
@@ -629,9 +635,9 @@ export default function ChatPage() {
               </button>
             )}
 
-            {isLoading && <ChatSkeleton />}
+            {(isLoading || !userId) && <ChatSkeleton />}
 
-            {displayMessages.map((msg, idx) => {
+            {!isLoading && !!userId && displayMessages.map((msg, idx) => {
               const isMe = msg.sender_id === userId
               const isSystem = msg.type === 'system'
               const reactionGroups = groupReactions(msg.reactions)
@@ -896,7 +902,7 @@ export default function ChatPage() {
             </button>
           </form>
         </div>
-      </main>
+      </motion.main>
 
       {/* Group Info sheet */}
       <AnimatePresence>
