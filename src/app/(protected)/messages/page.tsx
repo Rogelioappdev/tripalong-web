@@ -16,6 +16,16 @@ import { haptic } from '@/lib/haptics'
 import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 import { isNativeApp } from '@/lib/native-app'
 
+function CheckTick({ seen }: { seen: boolean }) {
+  const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.55)'
+  return (
+    <svg width="19" height="12" viewBox="0 0 16 10" fill="none" style={{ flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M1 5.5L3.5 8L8 1.5" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 5.5L7.5 8L12 1.5" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
   if (diff < 60) return 'now'
@@ -224,6 +234,7 @@ export default function MessagesPage() {
                 const trip = chat?.trip
                 if (!chat || !trip) return null
                 const hasUnread = item.unread_count > 0 && !item.is_muted
+                const iMySentLast = item.last_message_sender_id === userId
                 return (
                   <button
                     key={chat.id}
@@ -241,9 +252,12 @@ export default function MessagesPage() {
                       <p className={`text-sm truncate ${hasUnread ? 'text-white font-semibold' : 'text-white/70 font-medium'}`}>
                         {trip.destination}{trip.country ? `, ${trip.country}` : ''}
                       </p>
-                      <p className={`text-xs mt-0.5 truncate ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
-                        {item.last_message?.startsWith('https://') ? '📷 Photo' : (item.last_message ?? 'Group chat')}
-                      </p>
+                      <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
+                        {iMySentLast && <CheckTick seen={item.others_read} />}
+                        <p className="text-xs truncate">
+                          {item.last_message?.startsWith('https://') ? '📷 Photo' : (item.last_message ?? 'Group chat')}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       {item.last_message_at && (
@@ -284,6 +298,8 @@ export default function MessagesPage() {
                 const isOnline = other?.id ? onlineUsers.has(other.id) : false
                 const lastSeen = other?.id ? lastSeenMap[other.id] : null
                 const presenceText = formatLastSeen(lastSeen, isOnline)
+                const iMySentLast = dm.last_message_sender_id === userId
+                const dmSeen = iMySentLast && !!dm.other_last_read_at && dm.other_last_read_at >= dm.last_message_at
                 return (
                   <button
                     key={dm.id}
@@ -314,9 +330,10 @@ export default function MessagesPage() {
                           {presenceText}
                         </p>
                       ) : dm.last_message ? (
-                        <p className={`text-xs mt-0.5 truncate ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
-                          {dm.last_message}
-                        </p>
+                        <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
+                          {iMySentLast && <CheckTick seen={dmSeen} />}
+                          <p className="text-xs truncate">{dm.last_message}</p>
+                        </div>
                       ) : null}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">

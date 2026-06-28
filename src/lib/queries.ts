@@ -269,6 +269,8 @@ export async function getUserTripChats(_userId: string) {
     },
     last_message: row.last_message ?? null,
     last_message_at: row.last_message_at ?? null,
+    last_message_sender_id: row.last_message_sender_id ?? null,
+    others_read: row.others_read ?? false,
     unread_count: Number(row.unread_count ?? 0),
     is_muted: row.is_muted ?? false,
   }))
@@ -333,6 +335,8 @@ export async function getDMConversations(_userId: string) {
       updated_at: row.updated_at,
       last_message: row.last_message ?? null,
       last_message_at: row.last_message_at ?? null,
+      last_message_sender_id: row.last_message_sender_id ?? null,
+      other_last_read_at: row.other_last_read_at ?? null,
       unread_count: Number(row.unread_count ?? 0),
       other_user: {
         id: row.other_user_id,
