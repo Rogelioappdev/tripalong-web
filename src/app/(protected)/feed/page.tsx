@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import { getTripMatchBreakdown } from '@/lib/matching'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
+import { MemberJoinToast } from '@/components/MemberJoinToast'
 
 // Heavy modals — only loaded when actually shown (code-split from initial bundle)
 const TripDetailModal = dynamicImport(() => import('@/components/TripDetailModal').then(m => ({ default: m.TripDetailModal })), { ssr: false })
@@ -244,6 +245,8 @@ export default function FeedPage() {
 
   return (
     <>
+      {userId && <MemberJoinToast userId={userId} />}
+
       <Suspense fallback={null}>
         <UpgradeToastHandler onUpgrade={handleUpgradeSuccess} />
       </Suspense>
