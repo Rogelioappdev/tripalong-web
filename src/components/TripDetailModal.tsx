@@ -143,16 +143,27 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   const matchPct = userProfile ? (groupPct ?? tripPct) : undefined
   const matchingVibes = userProfile ? getMatchingVibes(userProfile, displayTrip) : []
   const isPlus = hasPlus(userProfile)
-  const memberCount = displayTrip.members?.length ?? 0
+  const rawMembers = displayTrip.members ?? []
+  const creatorId = (displayTrip as any).creator_id
+  const creatorInMembers = rawMembers.some((m: any) => m.user_id === creatorId)
+  const memberCount = rawMembers.length + (creatorInMembers ? 0 : 1)
   const spotsLeft = displayTrip.max_group_size - memberCount
   const dates = formatDates(displayTrip.start_date, displayTrip.end_date, displayTrip.is_flexible_dates)
 
-  const members = (displayTrip.members ?? []).map(m => ({
-    id: m.user_id,
-    name: (m.user as any)?.name ?? 'Traveler',
-    photo: (m.user as any)?.profile_photo ?? null,
-    isCreator: m.user_id === (displayTrip as any).creator_id,
-  }))
+  const members = [
+    ...(!creatorInMembers ? [{
+      id: creatorId,
+      name: (displayTrip as any).creator?.name ?? 'Traveler',
+      photo: (displayTrip as any).creator?.profile_photo ?? null,
+      isCreator: true,
+    }] : []),
+    ...rawMembers.map((m: any) => ({
+      id: m.user_id,
+      name: m.user?.name ?? 'Traveler',
+      photo: m.user?.profile_photo ?? null,
+      isCreator: m.user_id === creatorId,
+    })),
+  ]
 
   return (
     <>

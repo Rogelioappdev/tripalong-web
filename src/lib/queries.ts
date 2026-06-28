@@ -45,7 +45,7 @@ export async function getTrips(): Promise<TripWithDetails[]> {
     .filter((trip: any) => !blockedSet.has(trip.creator_id) && trip.creator_id !== userId)
     .map((trip: any) => ({
       ...trip,
-      member_count: trip.members?.length ?? 0,
+      member_count: (trip.members?.length ?? 0) + (trip.members?.some((m: any) => m.user_id === trip.creator_id) ? 0 : 1),
       save_count: saveCounts[trip.id] ?? 0,
     })) as TripWithDetails[]
 }
@@ -67,7 +67,7 @@ export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
   if (error) throw error
   return {
     ...(data as any),
-    member_count: (data as any).members?.length ?? 0,
+    member_count: ((data as any).members?.length ?? 0) + ((data as any).members?.some((m: any) => m.user_id === (data as any).creator_id) ? 0 : 1),
     save_count: 0,
   } as TripWithDetails
 }
