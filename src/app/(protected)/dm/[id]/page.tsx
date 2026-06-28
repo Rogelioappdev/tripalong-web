@@ -50,11 +50,11 @@ function formatTime(d: string) {
 }
 
 function CheckTick({ seen }: { seen: boolean }) {
-  const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.28)'
+  const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.55)'
   return (
-    <svg width="16" height="10" viewBox="0 0 16 10" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M1 5.5L3.5 8L8 1.5" stroke={c} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5 5.5L7.5 8L12 1.5" stroke={c} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="19" height="12" viewBox="0 0 16 10" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M1 5.5L3.5 8L8 1.5" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 5.5L7.5 8L12 1.5" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   )
 }
