@@ -153,6 +153,7 @@ export default function DMPage() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const userIdRef = useRef<string | null>(null)
+  const keyboardOpenRef = useRef(false)
 
   const onlineUsers = useOnlineUsers()
 
@@ -196,6 +197,15 @@ export default function DMPage() {
     }
   }, [otherUser?.id])
 
+  // ── Keyboard detection (prevents smooth scroll fighting OS keyboard animation) ──
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onResize = () => { keyboardOpenRef.current = vv.height < window.innerHeight - 80 }
+    vv.addEventListener('resize', onResize)
+    return () => vv.removeEventListener('resize', onResize)
+  }, [])
+
   // ── Search debounce ───────────────────────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery), 300)
@@ -224,7 +234,9 @@ export default function DMPage() {
 
   // ── Scroll to bottom ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!searchOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!searchOpen) bottomRef.current?.scrollIntoView({
+      behavior: keyboardOpenRef.current ? 'instant' : 'smooth',
+    } as ScrollIntoViewOptions)
   }, [messages, searchOpen])
 
   // ── Realtime channel ──────────────────────────────────────────────────────
@@ -764,7 +776,7 @@ export default function DMPage() {
           {/* Input */}
           <form
             onSubmit={handleSend}
-            className="shrink-0 pt-3 border-t border-white/8 flex items-center gap-2.5 md:pb-4"
+            className="shrink-0 pt-3 border-t border-white/8 flex gap-2 md:pb-4"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
           >
             {/* Photo button */}
@@ -798,8 +810,7 @@ export default function DMPage() {
             <button
               type="submit"
               disabled={!input.trim() || sending || isBlockedByMe}
-              className="shrink-0 bg-white text-black font-semibold px-5 rounded-2xl text-sm hover:bg-white/90 transition-colors disabled:opacity-30"
-              style={{ height: 44 }}
+              className="bg-white text-black font-semibold px-5 rounded-2xl text-sm hover:bg-white/90 transition-colors disabled:opacity-30"
             >
               Send
             </button>
