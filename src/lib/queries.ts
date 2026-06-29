@@ -837,6 +837,11 @@ export async function joinHangalong(hangalongId: string, userId: string): Promis
   return { ok: true }
 }
 
+export async function getHangalongChatId(hangalongId: string): Promise<string | null> {
+  const { data } = await supabase.from('trip_chats').select('id').eq('hangalong_id', hangalongId).maybeSingle()
+  return data ? (data as any).id : null
+}
+
 export async function leaveHangalong(hangalongId: string, userId: string): Promise<void> {
   await supabase.from('hangalong_members').delete().eq('hangalong_id', hangalongId).eq('user_id', userId)
 }

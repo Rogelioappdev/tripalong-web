@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
-import { joinHangalong, leaveHangalong } from '@/lib/queries'
+import { joinHangalong, leaveHangalong, getHangalongChatId } from '@/lib/queries'
 import { PublicProfileModal } from './PublicProfileModal'
 import type { HangalongWithDetails, ActivityType, WhenLabel } from '@/lib/types'
 
@@ -37,8 +37,12 @@ const WHEN_DISPLAY: Record<WhenLabel, string> = {
 export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange, onAuthRequired }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [joinedChatId, setJoinedChatId] = useState<string | null>(null)
+  const [chatId, setChatId] = useState<string | null>(null)
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isJoined) getHangalongChatId(hang.id).then(id => { if (id) setChatId(id) })
+  }, [hang.id, isJoined])
   const cfg = ACTIVITY_CONFIG[hang.activity_type] ?? ACTIVITY_CONFIG.other
   const spotsLeft = hang.max_people - hang.member_count
   const otherMembers = (hang.members ?? []).filter(m => m.user_id !== hang.creator_id)
@@ -50,14 +54,14 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
     try {
       if (isJoined) {
         await leaveHangalong(hang.id, userId)
-        setJoinedChatId(null)
+        setChatId(null)
         onJoinChange(false)
       } else {
-        const { ok, chatId } = await joinHangalong(hang.id, userId)
+        const { ok, chatId: newChatId } = await joinHangalong(hang.id, userId)
         if (ok) {
           onJoinChange(true)
           haptic(20)
-          if (chatId) setJoinedChatId(chatId)
+          if (newChatId) setChatId(newChatId)
         }
       }
     } finally {
@@ -139,7 +143,7 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
             <p className="text-white/40 text-xs">Going</p>
           </div>
           <div className="flex-1 rounded-xl px-4 py-3 text-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)' }}>
-            <p className="text-white font-bold text-lg" style={{ color: spotsLeft > 0 ? cfg.color : '#ff453a' }}>{spotsLeft > 0 ? spotsLeft : '0'}</p>
+            <p className="text-white font-bold text-lg" style={{ color: spotsLeft > 0 ? '#F0EBE3' : '#ff453a' }}>{spotsLeft > 0 ? spotsLeft : '0'}</p>
             <p className="text-white/40 text-xs">Spots left</p>
           </div>
           <div className="flex-1 rounded-xl px-4 py-3 text-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)' }}>
@@ -201,43 +205,43 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
       </div>
 
       {/* CTA */}
-      <div className="px-5 shrink-0 flex flex-col gap-2.5" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}>
-        {/* Group chat button — shown after joining */}
-        {isJoined && joinedChatId && (
-          <motion.button
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => { haptic(10); onClose(); router.push(`/chat/${joinedChatId}`) }}
-            className="w-full h-12 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2"
-            style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.15)', color: 'white' }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Open Group Chat
-          </motion.button>
-        )}
-
+      <div className="px-5 shrink-0 flex flex-col gap-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}>
         {spotsLeft <= 0 && !isJoined ? (
           <div className="w-full h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}>
             <span className="text-white/40 font-semibold">This hangout is full</span>
           </div>
+        ) : isJoined ? (
+          <>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => { if (chatId) { haptic(10); onClose(); router.push(`/chat/${chatId}`) } }}
+              disabled={!chatId || loading}
+              className="w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all disabled:opacity-40"
+              style={{ backgroundColor: '#FFFFFF', color: '#000000' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="black" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Open Group Chat
+            </motion.button>
+            <button
+              onClick={handleJoin}
+              disabled={loading}
+              className="w-full text-center py-2 text-sm disabled:opacity-30 transition-opacity"
+              style={{ color: 'rgba(255,255,255,0.22)' }}
+            >
+              Leave hangout
+            </button>
+          </>
         ) : (
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={handleJoin}
             disabled={loading}
             className="w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-            style={{
-              backgroundColor: isJoined ? 'rgba(255,255,255,0.06)' : cfg.color,
-              color: isJoined ? 'rgba(255,255,255,0.4)' : '#000',
-              border: isJoined ? '0.5px solid rgba(255,255,255,0.1)' : 'none',
-            }}
+            style={{ backgroundColor: '#FFFFFF', color: '#000000' }}
           >
-            {isJoined ? 'Leave hangout' : (
-              <><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg> I'm In</>
-            )}
+            Join Hangout
           </motion.button>
         )}
       </div>
