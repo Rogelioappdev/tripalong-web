@@ -747,6 +747,25 @@ export async function getHangalongs(): Promise<HangalongWithDetails[]> {
     })) as HangalongWithDetails[]
 }
 
+export async function getMyHangalongs(): Promise<HangalongWithDetails[]> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return []
+
+  const { data, error } = await supabase
+    .from('hangalongs')
+    .select(HANG_SELECT)
+    .eq('creator_id', uid)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  if (error || !data) return []
+
+  return (data as any[]).map(h => ({
+    ...h,
+    member_count: (h.members?.length ?? 0) + 1,
+  })) as HangalongWithDetails[]
+}
+
 export async function createHangalong(payload: {
   title: string
   description?: string
