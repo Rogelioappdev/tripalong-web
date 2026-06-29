@@ -59,56 +59,52 @@ export function HangSwipeStack({
     dismiss(id)
   }
 
-  if (visible.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
-        <span style={{ fontSize: 48 }}>🌄</span>
-        <p className="text-white font-bold text-xl">You're all caught up</p>
-        <p className="text-white/40 text-sm">No more hangalongs right now. Check back soon or post your own.</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="relative w-full h-full">
-      {/* Behind card */}
-      {second && (
-        <HangCard
-          key={second.id}
-          hang={second}
-          isTop={false}
-          isJoined={joinedIds.has(second.id)}
-          onSwipeLeft={() => handleSwipeLeft(second.id)}
-          onSwipeRight={() => handleSwipeRight(second)}
-          onTap={() => {}}
-          sharedX={sharedX}
-        />
-      )}
-
-      {/* Top card */}
-      <AnimatePresence>
-        {top && (
-          <HangCard
-            key={top.id}
-            ref={cardRef}
-            hang={top}
-            isTop
-            isJoined={joinedIds.has(top.id)}
-            onSwipeLeft={() => handleSwipeLeft(top.id)}
-            onSwipeRight={() => handleSwipeRight(top)}
-            onTap={() => onHangTap(top)}
-            sharedX={sharedX}
-          />
+    <div className="flex flex-col w-full h-full">
+      {/* Card stack */}
+      <div className="relative flex-1 min-h-0">
+        {visible.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
+            <span style={{ fontSize: 48 }}>🌄</span>
+            <p className="text-white font-bold text-xl">You're all caught up</p>
+            <p className="text-white/40 text-sm">No more hangalongs right now. Check back soon or post your own.</p>
+          </div>
+        ) : (
+          <>
+            {second && (
+              <HangCard
+                key={second.id}
+                hang={second}
+                isTop={false}
+                isJoined={joinedIds.has(second.id)}
+                onSwipeLeft={() => handleSwipeLeft(second.id)}
+                onSwipeRight={() => handleSwipeRight(second)}
+                onTap={() => {}}
+                sharedX={sharedX}
+              />
+            )}
+            <AnimatePresence>
+              {top && (
+                <HangCard
+                  key={top.id}
+                  ref={cardRef}
+                  hang={top}
+                  isTop
+                  isJoined={joinedIds.has(top.id)}
+                  onSwipeLeft={() => handleSwipeLeft(top.id)}
+                  onSwipeRight={() => handleSwipeRight(top)}
+                  onTap={() => onHangTap(top)}
+                  sharedX={sharedX}
+                />
+              )}
+            </AnimatePresence>
+          </>
         )}
-      </AnimatePresence>
+      </div>
 
-      {/* Bottom action buttons */}
+      {/* Action buttons — in normal flow, always visible above tab bar */}
       {top && (
-        <div
-          className="absolute left-0 right-0 flex items-center justify-center gap-6 z-20"
-          style={{ bottom: -64 }}
-        >
-          {/* Skip */}
+        <div className="flex items-center justify-center gap-6 shrink-0 py-5">
           <motion.button
             whileTap={{ scale: 0.88 }}
             transition={{ type: 'spring', stiffness: 400, damping: 15 }}
@@ -121,7 +117,6 @@ export function HangSwipeStack({
             </svg>
           </motion.button>
 
-          {/* I'm In */}
           <motion.button
             whileTap={{ scale: 0.88 }}
             transition={{ type: 'spring', stiffness: 400, damping: 15 }}

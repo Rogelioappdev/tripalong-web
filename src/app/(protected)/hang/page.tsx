@@ -17,8 +17,6 @@ const HangDetailModal = dynamicImport(() => import('@/components/HangDetailModal
 const AuthGate = dynamicImport(() => import('@/components/AuthGate').then(m => ({ default: m.AuthGate })), { ssr: false })
 
 const TAB_BAR_CLEARANCE = 82
-const HEADER_HEIGHT = 70
-const ACTION_BUTTONS_HEIGHT = 80
 
 function getDynamicHeader(): string {
   const hour = new Date().getHours()
@@ -90,8 +88,8 @@ export default function HangPage() {
       <main className="bg-black flex flex-col" style={{ height: '100dvh', overflow: 'hidden' }}>
         {/* Header */}
         <div
-          className="flex items-end justify-between px-5 shrink-0"
-          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10, height: HEADER_HEIGHT + 'px' }}
+          className="flex items-center justify-between px-5 shrink-0"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}
         >
           <div>
             <p className="text-white/35 text-xs font-semibold tracking-wide uppercase mb-0.5">HangAlong</p>
@@ -112,7 +110,7 @@ export default function HangPage() {
         {/* Card area */}
         <div
           className="flex-1 min-h-0 flex items-stretch justify-center px-3"
-          style={{ paddingBottom: TAB_BAR_CLEARANCE + ACTION_BUTTONS_HEIGHT }}
+          style={{ paddingBottom: TAB_BAR_CLEARANCE }}
         >
           {isLoading ? (
             <div className="flex flex-col items-center justify-center gap-3 w-full">
@@ -127,7 +125,7 @@ export default function HangPage() {
               </button>
             </div>
           ) : (
-            <div className="w-full max-w-sm">
+            <div className="w-full max-w-sm h-full">
               <HangSwipeStack
                 hangalongs={hangalongs ?? []}
                 userId={userId}
