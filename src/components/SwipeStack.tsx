@@ -12,7 +12,7 @@ import { PublicProfileModal } from './PublicProfileModal'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
-import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, joinHangalong } from '@/lib/queries'
+import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, joinHangalong, markTripSeen, markHangalongSeen } from '@/lib/queries'
 import { JoinCelebration } from './JoinCelebration'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { hasPlus, getTrialStatus } from '@/lib/trial'
@@ -545,6 +545,13 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   }
 
   const advance = (skipDailyCount = false) => {
+    // Persist seen state so this card never reappears for this user
+    if (!isGuest && userId) {
+      const item = currentItemRef.current
+      if (item?.type === 'trip') markTripSeen(item.trip.id).catch(() => {})
+      else if (item?.type === 'hangout') markHangalongSeen(item.hang.id).catch(() => {})
+    }
+
     if (!skipDailyCount && !isGuest && userId && !hasPlus(localProfile ?? userProfile)) {
       const count = incrementDailySwipes(userId)
       if (count >= DAILY_LIMIT) {
@@ -560,6 +567,10 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     topCardX.set(0)
     if (hintVisible) dismissHint()
   }
+
+  // Ref always points to the current top item — used in advance() to mark seen
+  const currentItemRef = useRef<typeof currentItem>(currentItem)
+  currentItemRef.current = currentItem
 
   // Stable ref so native can call advance() without capturing a stale closure
   const advanceRef = useRef<(skip?: boolean) => void>(() => {})

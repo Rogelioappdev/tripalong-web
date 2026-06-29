@@ -1,53 +1,83 @@
 import { supabase } from './supabase'
 import type { TripWithDetails, TripMessage, UserProfile, ChatMemberReadPosition, HangalongWithDetails, ActivityType, WhenLabel } from './types'
+import { sortTrips, sortHangalongs } from './feedScoring'
+
+// ─── Seen tracking ───────────────────────────────────────────────────────────
+
+export async function markTripSeen(tripId: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase.from('user_seen_trips')
+    .upsert({ user_id: uid, trip_id: tripId }, { onConflict: 'user_id,trip_id' })
+}
+
+export async function markHangalongSeen(hangalongId: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase.from('user_seen_hangalongs')
+    .upsert({ user_id: uid, hangalong_id: hangalongId }, { onConflict: 'user_id,hangalong_id' })
+}
+
+// ─── Trip feed ────────────────────────────────────────────────────────────────
 
 export async function getTrips(): Promise<TripWithDetails[]> {
   const { data: { session } } = await supabase.auth.getSession()
   const userId = session?.user?.id
 
-  // Fetch main trips with members (no saves — saved_trips may not exist)
-  const { data, error } = await supabase
-    .from('trips')
-    .select(`
-      *,
-      creator:users!creator_id(id, name, profile_photo),
-      members:trip_members(
-        user_id,
-        user:users(id, name, profile_photo, travel_styles, travel_pace, social_energy, planning_style, experience_level)
-      )
-    `)
-    .eq('status', 'planning')
-    .order('created_at', { ascending: false })
-    .limit(50)
+  // Fetch trips, seen IDs, save counts, blocked IDs, and user profile all in parallel
+  const [tripsResult, seenResult, savesResult, blockedIds, profile] = await Promise.all([
+    supabase
+      .from('trips')
+      .select(`
+        *,
+        creator:users!creator_id(id, name, profile_photo),
+        members:trip_members(
+          user_id,
+          user:users(id, name, profile_photo, travel_styles, travel_pace, social_energy, planning_style, experience_level)
+        )
+      `)
+      .eq('status', 'planning')
+      .order('created_at', { ascending: false })
+      .limit(100),
 
-  if (error) {
-    console.error('getTrips error:', error)
-    throw error
-  }
+    userId
+      ? supabase.from('user_seen_trips').select('trip_id').eq('user_id', userId)
+      : Promise.resolve({ data: [] }),
 
-  // Fetch save counts + blocked IDs in parallel, silently skip failures
-  let saveCounts: Record<string, number> = {}
-  let blockedIds: string[] = []
-  await Promise.all([
-    (async () => {
-      try {
-        const { data: saves } = await supabase.from('saved_trips').select('trip_id').limit(500)
-        if (saves) saves.forEach((s: any) => { saveCounts[s.trip_id] = (saveCounts[s.trip_id] ?? 0) + 1 })
-      } catch {}
-    })(),
-    (async () => {
-      if (userId) blockedIds = await getBlockedUserIds()
-    })(),
+    supabase.from('saved_trips').select('trip_id').limit(500).catch(() => ({ data: [] })),
+
+    userId ? getBlockedUserIds() : Promise.resolve([]),
+
+    userId
+      ? supabase.from('users').select('age, country, gender, travel_styles, travel_with').eq('id', userId).maybeSingle().then(r => r.data as UserProfile | null)
+      : Promise.resolve(null),
   ])
 
+  if (tripsResult.error) {
+    console.error('getTrips error:', tripsResult.error)
+    throw tripsResult.error
+  }
+
+  const seenSet = new Set<string>((seenResult.data ?? []).map((r: any) => r.trip_id))
   const blockedSet = new Set(blockedIds)
-  return (data ?? [])
-    .filter((trip: any) => !blockedSet.has(trip.creator_id))
+  const saveCounts: Record<string, number> = {}
+  ;(savesResult.data ?? []).forEach((s: any) => { saveCounts[s.trip_id] = (saveCounts[s.trip_id] ?? 0) + 1 })
+
+  const trips = (tripsResult.data ?? [])
+    .filter((trip: any) => {
+      if (blockedSet.has(trip.creator_id)) return false
+      if (seenSet.has(trip.id)) return false
+      // Exclude trips the user already joined
+      if (userId && trip.members?.some((m: any) => m.user_id === userId)) return false
+      return true
+    })
     .map((trip: any) => ({
       ...trip,
       member_count: (trip.members?.length ?? 0) + (trip.members?.some((m: any) => m.user_id === trip.creator_id) ? 0 : 1),
       save_count: saveCounts[trip.id] ?? 0,
     })) as TripWithDetails[]
+
+  return sortTrips(trips, profile)
 }
 
 export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
@@ -763,20 +793,44 @@ export async function getHangalongs(): Promise<HangalongWithDetails[]> {
   const { data: { session } } = await supabase.auth.getSession()
   const userId = session?.user?.id
 
-  const { data, error } = await supabase
-    .from('hangalongs')
-    .select(HANG_SELECT)
-    .order('created_at', { ascending: false })
-    .limit(50)
+  const now = new Date()
 
-  if (error || !data) return []
+  const [hangsResult, seenResult, profile] = await Promise.all([
+    supabase
+      .from('hangalongs')
+      .select(HANG_SELECT)
+      .order('created_at', { ascending: false })
+      .limit(100),
 
-  return (data as any[])
-    .filter(h => h.creator_id !== userId)
-    .map(h => ({
-      ...h,
-      member_count: (h.members?.length ?? 0) + 1,
-    })) as HangalongWithDetails[]
+    userId
+      ? supabase.from('user_seen_hangalongs').select('hangalong_id').eq('user_id', userId)
+      : Promise.resolve({ data: [] }),
+
+    userId
+      ? supabase.from('users').select('age, country, gender, travel_styles, travel_with').eq('id', userId).maybeSingle().then(r => r.data as UserProfile | null)
+      : Promise.resolve(null),
+  ])
+
+  if (!hangsResult.data) return []
+
+  const seenSet = new Set<string>((seenResult.data ?? []).map((r: any) => r.hangalong_id))
+
+  const hangalongs = (hangsResult.data as any[])
+    .filter(h => {
+      if (h.creator_id === userId) return false
+      if (seenSet.has(h.id)) return false
+      // Already a member
+      if (userId && h.members?.some((m: any) => m.user_id === userId)) return false
+      // Full
+      const memberCount = (h.members?.length ?? 0) + 1
+      if (memberCount >= h.max_people) return false
+      // Expired scheduled hangout
+      if (h.scheduled_for && new Date(h.scheduled_for) < now) return false
+      return true
+    })
+    .map(h => ({ ...h, member_count: (h.members?.length ?? 0) + 1 })) as HangalongWithDetails[]
+
+  return sortHangalongs(hangalongs, profile)
 }
 
 export async function getMyHangalongs(): Promise<HangalongWithDetails[]> {

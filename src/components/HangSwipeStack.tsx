@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
-import { joinHangalong, getUserJoinedHangalongIds } from '@/lib/queries'
+import { joinHangalong, getUserJoinedHangalongIds, markHangalongSeen } from '@/lib/queries'
 import { HangCard, type HangCardHandle } from './HangCard'
 import type { HangalongWithDetails } from '@/lib/types'
 
@@ -37,6 +37,8 @@ export function HangSwipeStack({
   function dismiss(id: string) {
     setDismissed(prev => new Set([...prev, id]))
     sharedX.set(0)
+    // Persist so card never reappears across sessions
+    markHangalongSeen(id).catch(() => {})
   }
 
   async function handleSwipeRight(hang: HangalongWithDetails) {
