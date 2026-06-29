@@ -15,6 +15,7 @@ interface HangCardProps {
   onSwipeRight: () => void
   onTap: () => void
   isTop: boolean
+  isMine?: boolean
   isJoined?: boolean
   sharedX?: ReturnType<typeof useMotionValue<number>>
 }
@@ -37,7 +38,7 @@ const WHEN_DISPLAY: Record<WhenLabel, string> = {
 }
 
 export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangCard(
-  { hang, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, sharedX },
+  { hang, onSwipeLeft, onSwipeRight, onTap, isTop, isMine, isJoined, sharedX },
   ref
 ) {
   const internalX = useMotionValue(0)
@@ -148,15 +149,20 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
             <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
           </div>
 
-          {/* Joined badge */}
-          {isJoined && (
+          {/* Mine / joined badge */}
+          {isMine ? (
+            <div className="flex items-center gap-1.5 rounded-full px-3 py-1"
+              style={{ backgroundColor: 'rgba(255,255,255,0.12)', border: '0.5px solid rgba(255,255,255,0.3)' }}>
+              <span style={{ color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>YOURS</span>
+            </div>
+          ) : isJoined ? (
             <div className="flex items-center gap-1.5 rounded-full px-3 py-1 bg-green-500/90">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
                 <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               <span className="text-white text-xs font-semibold">You're In</span>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Bottom content */}

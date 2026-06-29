@@ -445,73 +445,24 @@ export default function FeedPage() {
             </div>
           ) : trips && trips.length > 0 ? (
             <div className="w-full max-w-sm flex flex-col">
-              {/* Hangouts row — shown when any hangouts exist (own or others') */}
-              {((myHangalongs as HangalongWithDetails[]).length > 0 || (hangalongs as HangalongWithDetails[]).length > 0) && (() => {
-                const activityEmoji: Record<string, string> = { hike: '🥾', road_trip: '🚗', beach: '🏖️', climbing: '🧗', urban: '🌆', day_trip: '🚌' }
-                const whenLabel: Record<string, string> = { today: 'TODAY', tonight: 'TONIGHT', this_weekend: 'WEEKEND', this_week: 'THIS WEEK' }
-
-                const renderCard = (h: HangalongWithDetails, isMine: boolean) => {
-                  const emoji = activityEmoji[h.activity_type] ?? '🎯'
-                  const when = whenLabel[h.when_label] ?? h.when_label.toUpperCase()
-                  const joined = joinedHangIds.includes(h.id)
-                  return (
-                    <button
-                      key={h.id}
-                      onClick={() => { haptic(10); setSelectedHang(h) }}
-                      className="shrink-0 rounded-2xl overflow-hidden active:scale-95 transition-transform text-left"
-                      style={{ width: 140, height: 100, position: 'relative', backgroundColor: '#111', border: isMine ? '1px solid rgba(255,255,255,0.25)' : '0.5px solid rgba(255,255,255,0.1)' }}
-                    >
-                      {h.photo_url ? (
-                        <img src={h.photo_url} alt={h.title} className="absolute inset-0 w-full h-full object-cover" />
-                      ) : null}
-                      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.75) 100%)' }} />
-                      <div style={{ position: 'absolute', inset: 0, padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                        <div className="flex items-center justify-between">
-                          <span style={{ fontSize: 18 }}>{emoji}</span>
-                          {isMine ? (
-                            <span style={{ fontSize: 8, fontWeight: 700, color: '#fff', letterSpacing: '0.06em', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4, padding: '2px 5px' }}>YOURS</span>
-                          ) : (
-                            <span style={{ fontSize: 8, fontWeight: 700, color: '#30D158', letterSpacing: '0.06em', backgroundColor: 'rgba(48,209,88,0.15)', borderRadius: 4, padding: '2px 5px' }}>{when}</span>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-white font-semibold text-xs leading-tight line-clamp-2">{h.title}</p>
-                          <p className="text-white/40 text-[10px] mt-0.5 truncate">{h.location_name}</p>
-                        </div>
-                      </div>
-                      {!isMine && joined && (
-                        <div style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: '50%', backgroundColor: '#30D158' }} />
-                      )}
-                      {isMine && (
-                        <div style={{ position: 'absolute', top: 6, left: 6, width: 6, height: 6, borderRadius: '50%', backgroundColor: '#30D158' }} />
-                      )}
-                    </button>
-                  )
-                }
-
-                return (
-                  <div className="shrink-0 mb-3">
-                    <div className="flex items-center justify-between px-1 mb-2">
-                      <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Hangouts</p>
-                      <p className="text-white/20 text-[10px]">{(hangalongs as HangalongWithDetails[]).length + (myHangalongs as HangalongWithDetails[]).length} active</p>
-                    </div>
-                    <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                      {(myHangalongs as HangalongWithDetails[]).map(h => renderCard(h, true))}
-                      {(hangalongs as HangalongWithDetails[]).map(h => renderCard(h, false))}
-                    </div>
-                  </div>
-                )
-              })()}
               <SwipeStack
-              trips={trips}
-              userId={userId}
-              isGuest={isGuest}
-              initialProfile={feedProfile}
-              onAuthRequired={triggerAuthGate}
-              onTripTap={setSelectedTrip}
-              onSave={handleTripSaved}
-              onProfileClaimed={setFeedProfile}
-            />
+                trips={trips}
+                hangalongs={[
+                  ...(myHangalongs as HangalongWithDetails[]),
+                  ...(hangalongs as HangalongWithDetails[]),
+                ]}
+                myHangalongIds={(myHangalongs as HangalongWithDetails[]).map(h => h.id)}
+                joinedHangIds={joinedHangIds}
+                onHangTap={setSelectedHang}
+                onHangJoined={(hangId) => setJoinedHangIds(ids => [...ids, hangId])}
+                userId={userId}
+                isGuest={isGuest}
+                initialProfile={feedProfile}
+                onAuthRequired={triggerAuthGate}
+                onTripTap={setSelectedTrip}
+                onSave={handleTripSaved}
+                onProfileClaimed={setFeedProfile}
+              />
             </div>
           ) : (
             <div className="flex items-center justify-center w-full">

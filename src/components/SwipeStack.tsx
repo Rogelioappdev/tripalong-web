@@ -6,15 +6,16 @@ import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/haptics'
 import { useQueryClient } from '@tanstack/react-query'
 import { SwipeCard, type SwipeCardHandle } from './SwipeCard'
+import { HangCard, type HangCardHandle } from './HangCard'
 import { AdCard } from './AdCard'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
-import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile } from '@/lib/queries'
+import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, joinHangalong } from '@/lib/queries'
 import { JoinCelebration } from './JoinCelebration'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { hasPlus, getTrialStatus } from '@/lib/trial'
-import type { TripWithDetails, UserProfile } from '@/lib/types'
+import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 
 const DAILY_LIMIT = 15
 const AD_FREQUENCY = 6 // show ad every N swipes
@@ -51,6 +52,11 @@ const incrementDailySwipes = (uid: string) => {
 
 interface SwipeStackProps {
   trips: TripWithDetails[]
+  hangalongs?: HangalongWithDetails[]
+  myHangalongIds?: string[]
+  joinedHangIds?: string[]
+  onHangTap?: (hang: HangalongWithDetails) => void
+  onHangJoined?: (hangId: string) => void
   userId: string | null
   isGuest?: boolean
   initialProfile?: UserProfile | null
@@ -431,7 +437,7 @@ function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
+export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joinedHangIds = [], onHangTap, onHangJoined, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window === 'undefined') return 0
@@ -453,7 +459,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
   const [showProfileNudge, setShowProfileNudge] = useState(false)
   const profileNudgeTriggered = useRef(false)
   const topCardX = useMotionValue(0)
-  const topCardRef = useRef<SwipeCardHandle>(null)
+  const topCardRef = useRef<SwipeCardHandle | HangCardHandle>(null)
   const cardAreaRef = useRef<HTMLDivElement>(null)
   const qc = useQueryClient()
   const hintWasSeenBeforeMount = useRef(false)
@@ -561,28 +567,36 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     return () => { delete (window as any).__tripalongAdvanceFeed }
   }, [])
 
-  // Interleave ad slots into the feed: one ad card after every AD_FREQUENCY trips
-  type FeedItem = { type: 'trip'; trip: TripWithDetails } | { type: 'ad'; id: string }
+  // Interleave ad slots into the feed: one ad card after every AD_FREQUENCY content items
+  type FeedItem = { type: 'trip'; trip: TripWithDetails } | { type: 'hangout'; hang: HangalongWithDetails } | { type: 'ad'; id: string }
   // hasPlus() returns true for everyone during beta (Plus is paused/free).
   // Decoupled from showAds so beta free-tier doesn't accidentally block ads.
   // show_ad_content fires only in the native app via its own isNativeApp() guard.
   const showAds = true
   const feedItems = useMemo<FeedItem[]>(() => {
+    type ContentItem = { type: 'trip'; trip: TripWithDetails; ts: string } | { type: 'hangout'; hang: HangalongWithDetails; ts: string }
+    const combined: ContentItem[] = [
+      ...trips.map(t => ({ type: 'trip' as const, trip: t, ts: t.created_at })),
+      ...hangalongs.map(h => ({ type: 'hangout' as const, hang: h, ts: h.created_at })),
+    ].sort((a, b) => b.ts.localeCompare(a.ts))
+
     const items: FeedItem[] = []
     let adIdx = 0
-    trips.forEach((trip, i) => {
-      items.push({ type: 'trip', trip })
+    combined.forEach((item, i) => {
+      items.push(item.type === 'trip' ? { type: 'trip', trip: item.trip } : { type: 'hangout', hang: item.hang })
       if (showAds && (i + 1) % AD_FREQUENCY === 0) items.push({ type: 'ad', id: `ad-${adIdx++}` })
     })
     return items
-  }, [trips, showAds])
+  }, [trips, hangalongs, showAds])
 
   const visibleItems = feedItems.slice(currentIndex, currentIndex + 2)
   const currentItem = visibleItems[0]
   const nextItem = visibleItems[1]
   const isCurrentAd = currentItem?.type === 'ad'
   const currentTrip = currentItem?.type === 'trip' ? currentItem.trip : null
+  const currentHang = currentItem?.type === 'hangout' ? currentItem.hang : null
   const nextTrip = nextItem?.type === 'trip' ? nextItem.trip : null
+  const nextHang = nextItem?.type === 'hangout' ? nextItem.hang : null
   const hasMore = currentIndex < feedItems.length
 
   // When an ad slot becomes the top card, tell native to show AdMob content inside the frame.
@@ -621,16 +635,36 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     }
   }
 
+  const handleHangSwipeRight = async (hang: HangalongWithDetails) => {
+    if (isGuest) { onAuthRequired?.(); return }
+    advance()
+    if (userId) {
+      try {
+        await joinHangalong(hang.id, userId)
+        onHangJoined?.(hang.id)
+        qc.invalidateQueries({ queryKey: ['hangalongs'] })
+        qc.invalidateQueries({ queryKey: ['my-hangalongs'] })
+      } catch {}
+    }
+  }
+
   const handleSwipeLeft = (isAd = false) => { advance(isAd) }
 
   const handlePass = async () => {
-    if (!currentTrip && !isCurrentAd) return
+    if (!currentTrip && !currentHang && !isCurrentAd) return
     haptic([6, 20, 6])
     await topCardRef.current?.swipeLeft()
   }
 
   const handleJoin = async () => {
     if (isCurrentAd) { await topCardRef.current?.swipeRight(); return }
+    if (currentHang) {
+      if (isGuest) { onAuthRequired?.(); return }
+      if (!userId) return
+      haptic([15, 30, 15, 30, 60])
+      await topCardRef.current?.swipeRight()
+      return
+    }
     if (!currentTrip) return
     if (isGuest) {
       localStorage.setItem('ta_pending_save', currentTrip.id)
@@ -657,6 +691,7 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
 
   const handleSave = async () => {
     if (isCurrentAd) { await topCardRef.current?.swipeRight(); return }
+    if (currentHang) { onHangTap?.(currentHang); return }
     if (!currentTrip) return
     if (isGuest) {
       localStorage.setItem('ta_pending_save', currentTrip.id)
@@ -904,7 +939,11 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
     )
   }
 
-  const isCurrentJoined = currentTrip ? joinedIds.has(currentTrip.id) : false
+  const isCurrentJoined = currentTrip
+    ? joinedIds.has(currentTrip.id)
+    : currentHang
+      ? joinedHangIds.includes(currentHang.id)
+      : false
   const effectiveProfileForMatch = localProfile ?? userProfile
   const isPlus = hasPlus(effectiveProfileForMatch)
   const matchPct = currentTrip ? calculateTripMatch(effectiveProfileForMatch, currentTrip) : undefined
@@ -959,6 +998,17 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
               onSwipeLeft={() => handleSwipeLeft(true)}
               onSwipeRight={() => advance(true)}
             />
+          ) : nextItem.type === 'hangout' ? (
+            <HangCard
+              key={nextItem.hang.id}
+              hang={nextItem.hang}
+              isTop={false}
+              sharedX={topCardX}
+              isJoined={joinedHangIds.includes(nextItem.hang.id)}
+              onSwipeLeft={() => handleSwipeLeft()}
+              onSwipeRight={() => handleHangSwipeRight(nextItem.hang)}
+              onTap={() => {}}
+            />
           ) : (
             <SwipeCard
               key={nextItem.trip.id}
@@ -978,16 +1028,29 @@ export function SwipeStack({ trips, userId, isGuest, initialProfile, onAuthRequi
           currentItem.type === 'ad' ? (
             <AdCard
               key={currentItem.id}
-              ref={topCardRef}
+              ref={topCardRef as any}
               isTop={true}
               sharedX={topCardX}
               onSwipeLeft={() => handleSwipeLeft(true)}
               onSwipeRight={() => advance(true)}
             />
+          ) : currentItem.type === 'hangout' ? (
+            <HangCard
+              key={currentItem.hang.id}
+              ref={topCardRef as any}
+              hang={currentItem.hang}
+              isTop={true}
+              sharedX={topCardX}
+              isMine={myHangalongIds.includes(currentItem.hang.id)}
+              isJoined={isCurrentJoined}
+              onSwipeLeft={() => handleSwipeLeft()}
+              onSwipeRight={() => handleHangSwipeRight(currentItem.hang)}
+              onTap={() => onHangTap?.(currentItem.hang)}
+            />
           ) : (
             <SwipeCard
               key={currentItem.trip.id}
-              ref={topCardRef}
+              ref={topCardRef as any}
               trip={currentItem.trip}
               isTop={true}
               sharedX={topCardX}
