@@ -747,6 +747,7 @@ export async function createHangalong(payload: {
   location_name: string
   when_label: WhenLabel
   max_people: number
+  photo_url?: string
 }): Promise<string | null> {
   const uid = (await supabase.auth.getUser()).data.user?.id
   if (!uid) return null
