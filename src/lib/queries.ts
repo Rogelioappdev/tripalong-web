@@ -749,6 +749,16 @@ const HANG_SELECT = `
   members:hangalong_members(user_id, user:users(id, name, profile_photo))
 `
 
+export async function getHangalong(id: string): Promise<HangalongWithDetails | null> {
+  const { data, error } = await supabase
+    .from('hangalongs')
+    .select(HANG_SELECT)
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !data) return null
+  return { ...(data as any), member_count: ((data as any).members?.length ?? 0) + 1 } as HangalongWithDetails
+}
+
 export async function getHangalongs(): Promise<HangalongWithDetails[]> {
   const { data: { session } } = await supabase.auth.getSession()
   const userId = session?.user?.id
