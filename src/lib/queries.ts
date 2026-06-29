@@ -574,9 +574,31 @@ export async function getTripInfoByChatId(chatId: string): Promise<TripWithDetai
       console.error('[getTripInfoByChatId] trip_chats lookup failed:', error?.message)
       return null
     }
+    if (!(data as any).trip_id) return null
     return await getTrip((data as any).trip_id)
   } catch (e: any) {
     console.error('[getTripInfoByChatId] error:', e?.message ?? e)
+    return null
+  }
+}
+
+export async function getHangInfoByChatId(chatId: string): Promise<HangalongWithDetails | null> {
+  try {
+    const { data, error } = await supabase
+      .from('trip_chats')
+      .select('hangalong_id')
+      .eq('id', chatId)
+      .single()
+    if (error || !data || !(data as any).hangalong_id) return null
+    const { data: hang, error: hangErr } = await supabase
+      .from('hangalongs')
+      .select(HANG_SELECT)
+      .eq('id', (data as any).hangalong_id)
+      .single()
+    if (hangErr || !hang) return null
+    return { ...(hang as any), member_count: (hang as any).members?.length ?? 0 } as HangalongWithDetails
+  } catch (e: any) {
+    console.error('[getHangInfoByChatId] error:', e?.message ?? e)
     return null
   }
 }
@@ -817,6 +839,13 @@ export async function joinHangalong(hangalongId: string, userId: string): Promis
 
 export async function leaveHangalong(hangalongId: string, userId: string): Promise<void> {
   await supabase.from('hangalong_members').delete().eq('hangalong_id', hangalongId).eq('user_id', userId)
+}
+
+export async function leaveHangalongFromChat(hangalongId: string, chatId: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase.from('hangalong_members').delete().eq('hangalong_id', hangalongId).eq('user_id', uid)
+  await supabase.from('trip_chat_members').delete().eq('trip_chat_id', chatId).eq('user_id', uid)
 }
 
 export async function getUserJoinedHangalongIds(userId: string): Promise<string[]> {

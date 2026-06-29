@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
+import { HangGroupInfoSheet } from '@/components/HangGroupInfoSheet'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
 import { ReportMessageSheet } from '@/components/ReportMessageSheet'
 import { JoinCelebration } from '@/components/JoinCelebration'
@@ -23,13 +24,19 @@ import {
   toggleReaction,
   markTripChatRead,
   getTripInfoByChatId,
+  getHangInfoByChatId,
   getTripMembership,
   joinTrip,
   getChatMemberReadPositions,
   searchChatMessages,
 } from '@/lib/queries'
-import type { TripMessage, TripWithDetails } from '@/lib/types'
+import type { TripMessage, TripWithDetails, HangalongWithDetails } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
+
+const HANG_ACTIVITY_EMOJI: Record<string, string> = {
+  hike: '🥾', road_trip: '🚗', beach: '🏖️', climbing: '🧗',
+  urban: '🌆', day_trip: '🚌', other: '✨',
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function highlightText(text: string, query: string) {
@@ -111,6 +118,7 @@ export default function ChatPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [userName, setUserName] = useState<string>('')
   const [tripInfo, setTripInfo] = useState<TripWithDetails | null>(null)
+  const [hangInfo, setHangInfo] = useState<HangalongWithDetails | null>(null)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
 
   // Messages + pagination
@@ -172,9 +180,18 @@ export default function ChatPage() {
     })
   }, [])
 
-  // ── Trip info ─────────────────────────────────────────────────────────────
+  // ── Trip / hang info ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (chatId && userId) getTripInfoByChatId(chatId).then(setTripInfo)
+    if (!chatId || !userId) return
+    getTripInfoByChatId(chatId).then(trip => {
+      if (trip) {
+        setTripInfo(trip)
+      } else {
+        getHangInfoByChatId(chatId).then(hang => {
+          if (hang) setHangInfo(hang)
+        })
+      }
+    })
   }, [chatId, userId])
 
   // ── Membership status ─────────────────────────────────────────────────────
@@ -551,6 +568,27 @@ export default function ChatPage() {
                   <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               </button>
+            ) : hangInfo ? (
+              <button type="button" onClick={() => setShowGroupInfo(true)} className="flex-1 flex items-center gap-3 min-w-0">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+                >
+                  {hangInfo.photo_url
+                    ? <img src={hangInfo.photo_url} alt="" className="w-full h-full object-cover" />
+                    : <span style={{ fontSize: 18 }}>{HANG_ACTIVITY_EMOJI[hangInfo.activity_type] ?? '✨'}</span>}
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-white font-semibold text-sm truncate">{hangInfo.title}</p>
+                  <p className="text-white/40 text-xs">
+                    {hangInfo.member_count} member{hangInfo.member_count !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-white/30">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8"/>
+                  <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
             ) : (
               <div className="flex-1 h-8 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} />
             )}
@@ -621,6 +659,29 @@ export default function ChatPage() {
                 </button>
               )
             })()}
+
+            {/* Hangout info banner */}
+            {!searchOpen && hangInfo && (
+              <button
+                type="button"
+                onClick={() => setShowGroupInfo(true)}
+                className="w-full rounded-2xl overflow-hidden mb-3 text-left relative shrink-0"
+                style={{ height: 110, backgroundColor: '#111' }}
+              >
+                {hangInfo.photo_url
+                  ? <img src={hangInfo.photo_url} alt="" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center" style={{ fontSize: 60, opacity: 0.1 }}>
+                      {HANG_ACTIVITY_EMOJI[hangInfo.activity_type] ?? '✨'}
+                    </div>}
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.88) 100%)' }} />
+                <div className="absolute bottom-0 left-0 px-4 pb-3">
+                  <p className="text-white font-bold text-sm leading-tight">{hangInfo.title}</p>
+                  <p className="text-white/45 text-xs mt-0.5">
+                    {hangInfo.location_name} · {hangInfo.member_count} member{hangInfo.member_count !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </button>
+            )}
 
             {/* Load more */}
             {!searchOpen && hasMore && (
@@ -914,6 +975,16 @@ export default function ChatPage() {
             userId={userId}
             isFullMember={isFullMember}
             onJoinTrip={() => { setShowGroupInfo(false); joinMutation.mutate() }}
+            onClose={() => setShowGroupInfo(false)}
+            onLeft={() => router.replace('/messages')}
+          />
+        )}
+        {showGroupInfo && hangInfo && userId && (
+          <HangGroupInfoSheet
+            key="hang-group-info"
+            chatId={chatId}
+            hangInfo={hangInfo}
+            userId={userId}
             onClose={() => setShowGroupInfo(false)}
             onLeft={() => router.replace('/messages')}
           />
