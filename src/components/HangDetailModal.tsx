@@ -74,9 +74,8 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
   <>
     <motion.div
       initial={{ opacity: 0, y: '100%' }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: '100%' }}
-      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+      animate={{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 380, damping: 32 } }}
+      exit={{ opacity: 0, y: '100%', transition: { type: 'tween', duration: 0.32, ease: [0.32, 0, 0.67, 0] } }}
       className="fixed inset-0 z-[60] flex flex-col"
       style={{ backgroundColor: '#0a0a0a' }}
     >

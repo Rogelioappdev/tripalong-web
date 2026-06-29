@@ -181,7 +181,7 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
           {/* Title */}
           <h2
             className="text-white font-extrabold leading-tight mb-2 tracking-tight"
-            style={{ fontSize: 'clamp(24px, 7vw, 36px)' }}
+            style={{ fontSize: 'clamp(22px, 6vw, 32px)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
           >
             {hang.title}
           </h2>
@@ -197,27 +197,14 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
           {/* Creator row + spots */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {/* Creator avatar — tappable to view profile.
-                  Uses onPointerDown + nativeEvent.stopImmediatePropagation so the
-                  event fires before Framer Motion's setPointerCapture redirects it. */}
-              <button
-                type="button"
-                onPointerDown={e => {
-                  e.nativeEvent.stopImmediatePropagation()
-                  if (hang.creator?.id) onCreatorTap?.(hang.creator.id)
-                }}
-                onClick={e => e.stopPropagation()}
-                style={{ touchAction: 'manipulation' }}
-                className="shrink-0"
-              >
-                {hang.creator?.profile_photo ? (
-                  <img src={hang.creator.profile_photo} alt={hang.creator.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/20" />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center text-xs font-bold text-white">
-                    {hang.creator?.name?.[0]?.toUpperCase() ?? '?'}
-                  </div>
-                )}
-              </button>
+              {/* Creator avatar — display only, tap to profile available inside detail modal */}
+              {hang.creator?.profile_photo ? (
+                <img src={hang.creator.profile_photo} alt={hang.creator.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/20 shrink-0" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                  {hang.creator?.name?.[0]?.toUpperCase() ?? '?'}
+                </div>
+              )}
               {/* Other member avatars */}
               {otherMembers.slice(0, 2).map((m, i) => (
                 m.user?.profile_photo ? (
