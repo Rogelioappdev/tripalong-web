@@ -7,7 +7,10 @@ export async function GET(req: NextRequest) {
   if (!q) return NextResponse.json({ photos: [] })
 
   const key = process.env.PEXELS_API_KEY
-  if (!key) return NextResponse.json({ photos: [] }, { status: 500 })
+  if (!key) {
+    console.error('[photos] PEXELS_API_KEY not set')
+    return NextResponse.json({ photos: [], error: 'no_key' }, { status: 500 })
+  }
 
   const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(q + ' travel')}&per_page=12&orientation=landscape`
 
