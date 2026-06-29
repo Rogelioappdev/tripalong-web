@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { joinHangalong, leaveHangalong } from '@/lib/queries'
+import { PublicProfileModal } from './PublicProfileModal'
 import type { HangalongWithDetails, ActivityType, WhenLabel } from '@/lib/types'
 
 interface Props {
@@ -37,6 +38,7 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [joinedChatId, setJoinedChatId] = useState<string | null>(null)
+  const [profileUserId, setProfileUserId] = useState<string | null>(null)
   const cfg = ACTIVITY_CONFIG[hang.activity_type] ?? ACTIVITY_CONFIG.other
   const spotsLeft = hang.max_people - hang.member_count
   const otherMembers = (hang.members ?? []).filter(m => m.user_id !== hang.creator_id)
@@ -64,6 +66,7 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
   }
 
   return (
+  <>
     <motion.div
       initial={{ opacity: 0, y: '100%' }}
       animate={{ opacity: 1, y: 0 }}
@@ -150,7 +153,11 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
           <p className="text-white/40 text-xs font-semibold tracking-wide uppercase mb-3">Who's Going</p>
           <div className="flex flex-col gap-3">
             {/* Creator */}
-            <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="flex items-center gap-3 w-full text-left active:opacity-70 transition-opacity"
+              onPointerDown={(e) => { e.stopPropagation(); haptic(8); if (hang.creator_id) setProfileUserId(hang.creator_id) }}
+            >
               {hang.creator?.profile_photo ? (
                 <img src={hang.creator.profile_photo} alt={hang.creator.name} className="w-10 h-10 rounded-full object-cover" />
               ) : (
@@ -158,14 +165,22 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
                   {hang.creator?.name?.[0]?.toUpperCase() ?? '?'}
                 </div>
               )}
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-white font-semibold text-sm">{hang.creator?.name}</p>
                 <p className="text-white/35 text-xs">Organizer</p>
               </div>
-            </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                <path d="M9 18l6-6-6-6" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
 
             {otherMembers.map(m => (
-              <div key={m.user_id} className="flex items-center gap-3">
+              <button
+                key={m.user_id}
+                type="button"
+                className="flex items-center gap-3 w-full text-left active:opacity-70 transition-opacity"
+                onPointerDown={(e) => { e.stopPropagation(); haptic(8); if (m.user_id !== userId) setProfileUserId(m.user_id) }}
+              >
                 {m.user?.profile_photo ? (
                   <img src={m.user.profile_photo} alt={m.user.name} className="w-10 h-10 rounded-full object-cover" />
                 ) : (
@@ -173,8 +188,13 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
                     {m.user?.name?.[0]?.toUpperCase() ?? '?'}
                   </div>
                 )}
-                <p className="text-white font-semibold text-sm">{m.user?.name ?? 'Traveler'}</p>
-              </div>
+                <p className="text-white font-semibold text-sm flex-1 min-w-0 truncate">{m.user?.name ?? 'Traveler'}</p>
+                {m.user_id !== userId && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                    <path d="M9 18l6-6-6-6" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </button>
             ))}
           </div>
         </div>
@@ -222,5 +242,10 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
         )}
       </div>
     </motion.div>
+
+    {profileUserId && (
+      <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+    )}
+  </>
   )
 }
