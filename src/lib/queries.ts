@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { TripWithDetails, TripMessage, UserProfile, ChatMemberReadPosition } from './types'
+import type { TripWithDetails, TripMessage, UserProfile, ChatMemberReadPosition, HangalongWithDetails, ActivityType, WhenLabel } from './types'
 
 export async function getTrips(): Promise<TripWithDetails[]> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -698,6 +698,74 @@ export async function getProfileViewers(limit = 50): Promise<{ id: string; name:
     country: row.country ?? null,
     viewed_at: row.viewed_at,
   }))
+}
+
+// ── HangAlong ─────────────────────────────────────────────────────────────
+
+const HANG_SELECT = `
+  *,
+  creator:users!hangalongs_creator_id_fkey(id, name, profile_photo),
+  members:hangalong_members(user_id, user:users(id, name, profile_photo))
+`
+
+export async function getHangalongs(): Promise<HangalongWithDetails[]> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+
+  const { data, error } = await supabase
+    .from('hangalongs')
+    .select(HANG_SELECT)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error || !data) return []
+
+  return (data as any[])
+    .filter(h => h.creator_id !== userId)
+    .map(h => ({
+      ...h,
+      member_count: (h.members?.length ?? 0) + 1,
+    })) as HangalongWithDetails[]
+}
+
+export async function createHangalong(payload: {
+  title: string
+  description?: string
+  activity_type: ActivityType
+  location_name: string
+  when_label: WhenLabel
+  max_people: number
+}): Promise<string | null> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return null
+  const { data, error } = await supabase
+    .from('hangalongs')
+    .insert({ ...payload, creator_id: uid })
+    .select('id')
+    .single()
+  if (error) return null
+  return (data as any).id
+}
+
+export async function joinHangalong(hangalongId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('hangalong_members')
+    .insert({ hangalong_id: hangalongId, user_id: userId })
+  return !error
+}
+
+export async function leaveHangalong(hangalongId: string, userId: string): Promise<void> {
+  await supabase.from('hangalong_members').delete().eq('hangalong_id', hangalongId).eq('user_id', userId)
+}
+
+export async function getUserJoinedHangalongIds(userId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase
+      .from('hangalong_members')
+      .select('hangalong_id')
+      .eq('user_id', userId)
+    return (data ?? []).map((d: any) => d.hangalong_id)
+  } catch { return [] }
 }
 
 export async function createProfile(userId: string, email: string, name: string, age: number) {

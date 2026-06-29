@@ -133,3 +133,26 @@ export type ChatMemberReadPosition = {
   last_read_at: string | null
   user: Pick<UserProfile, 'name' | 'profile_photo'>
 }
+
+export type ActivityType = 'hike' | 'road_trip' | 'beach' | 'climbing' | 'urban' | 'day_trip' | 'other'
+export type WhenLabel = 'today' | 'tonight' | 'this_weekend' | 'this_week'
+
+export type Hangalong = {
+  id: string
+  creator_id: string
+  title: string
+  description: string | null
+  activity_type: ActivityType
+  location_name: string
+  when_label: WhenLabel
+  scheduled_for: string | null
+  max_people: number
+  photo_url: string | null
+  created_at: string
+}
+
+export type HangalongWithDetails = Hangalong & {
+  creator: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
+  members: Array<{ user_id: string; user: Pick<UserProfile, 'id' | 'name' | 'profile_photo'> }>
+  member_count: number
+}
