@@ -61,7 +61,7 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: '100%' }}
       transition={{ type: 'spring', stiffness: 320, damping: 36 }}
-      className="fixed inset-0 z-50 flex flex-col"
+      className="fixed inset-0 z-[60] flex flex-col"
       style={{ backgroundColor: '#0a0a0a' }}
     >
       {/* Header */}

@@ -71,11 +71,11 @@ export function CreateHangModal({ onClose, onCreated }: Props) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex flex-col"
-      style={{ backgroundColor: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(20px)' }}
+      className="fixed inset-0 z-[60] flex flex-col"
+      style={{ backgroundColor: '#000' }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-safe pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
+      <div className="flex items-center justify-between px-5 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
         <button
           onClick={() => { haptic(6); step > 0 ? setStep(s => s - 1) : onClose() }}
           className="w-9 h-9 rounded-full flex items-center justify-center"
@@ -211,7 +211,7 @@ export function CreateHangModal({ onClose, onCreated }: Props) {
       </div>
 
       {/* CTA */}
-      <div className="px-5 pb-safe" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}>
+      <div className="px-5" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}>
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={() => {
