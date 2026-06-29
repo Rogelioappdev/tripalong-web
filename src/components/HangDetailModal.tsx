@@ -103,16 +103,16 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
         <div className="absolute bottom-4 left-4 flex items-center gap-2">
           <div
             className="flex items-center gap-1.5 rounded-full px-3 py-1"
-            style={{ backgroundColor: 'rgba(0,0,0,0.6)', border: `1px solid ${cfg.color}44`, backdropFilter: 'blur(12px)' }}
+            style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.22)', backdropFilter: 'blur(12px)' }}
           >
             <span style={{ fontSize: 13 }}>{cfg.emoji}</span>
-            <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+            <span className="text-xs font-semibold" style={{ color: '#F0EBE3' }}>{cfg.label}</span>
           </div>
           <div
             className="flex items-center rounded-full px-3 py-1"
-            style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(12px)' }}
+            style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.12)', backdropFilter: 'blur(12px)' }}
           >
-            <span className="text-xs font-black tracking-wider" style={{ color: cfg.color }}>{WHEN_DISPLAY[hang.when_label]}</span>
+            <span className="text-xs font-black tracking-wider" style={{ color: 'rgba(240,235,227,0.55)' }}>{WHEN_DISPLAY[hang.when_label]}</span>
           </div>
         </div>
       </div>
