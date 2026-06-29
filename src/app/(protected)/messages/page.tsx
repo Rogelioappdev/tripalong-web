@@ -217,7 +217,7 @@ export default function MessagesPage() {
           {/* Trip Chats */}
           <section>
             <h2 className="px-5 py-3 text-white/40 text-xs font-semibold uppercase tracking-widest border-b border-white/6">
-              Trip Chats
+              Group Chats
             </h2>
             {chatsError ? (
               <div className="px-5 py-6 flex flex-col items-center gap-3">
@@ -226,13 +226,25 @@ export default function MessagesPage() {
               </div>
             ) : tripChats.length === 0 ? (
               <div className="px-5 py-8 text-white/20 text-sm text-center">
-                Join a trip to start chatting
+                Join a trip or hangout to start chatting
               </div>
             ) : (
               tripChats.map((item: any) => {
                 const chat = item.trip_chat
-                const trip = chat?.trip
-                if (!chat || !trip) return null
+                if (!chat) return null
+                const trip = chat.trip
+                const hang = chat.hangalong
+                if (!trip && !hang) return null
+
+                const isHang = !!hang
+                const activityEmoji: Record<string, string> = { hike: '🥾', road_trip: '🚗', beach: '🏖️', climbing: '🧗', urban: '🌆', day_trip: '🚌' }
+                const hangEmoji = isHang ? (activityEmoji[hang.activity_type] ?? '🎯') : null
+
+                const avatarPhoto = isHang ? hang.photo_url : trip?.cover_image
+                const avatarFallback = isHang ? hangEmoji : '🌍'
+                const chatName = isHang ? hang.title : `${trip?.destination}${trip?.country ? `, ${trip.country}` : ''}`
+                const chatSub = isHang ? hang.location_name : null
+
                 const hasUnread = item.unread_count > 0 && !item.is_muted
                 const iMySentLast = item.last_message_sender_id === userId
                 return (
@@ -242,22 +254,27 @@ export default function MessagesPage() {
                     className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6"
                   >
                     <div className="w-12 h-12 rounded-2xl bg-white/8 overflow-hidden shrink-0">
-                      {trip.cover_image ? (
-                        <img src={trip.cover_image} alt="" className="w-full h-full object-cover" />
+                      {avatarPhoto ? (
+                        <img src={avatarPhoto} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xl">🌍</div>
+                        <div className="w-full h-full flex items-center justify-center text-xl">{avatarFallback}</div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0 text-left">
                       <p className={`text-sm truncate ${hasUnread ? 'text-white font-semibold' : 'text-white/70 font-medium'}`}>
-                        {trip.destination}{trip.country ? `, ${trip.country}` : ''}
+                        {chatName}
                       </p>
-                      <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
-                        {iMySentLast && <CheckTick seen={item.others_read} />}
-                        <p className="text-xs truncate">
-                          {item.last_message?.startsWith('https://') ? '📷 Photo' : (item.last_message ?? 'Group chat')}
-                        </p>
-                      </div>
+                      {chatSub && !item.last_message && (
+                        <p className="text-white/25 text-xs truncate mt-0.5">{chatSub}</p>
+                      )}
+                      {(item.last_message || !chatSub) && (
+                        <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
+                          {iMySentLast && <CheckTick seen={item.others_read} />}
+                          <p className="text-xs truncate">
+                            {item.last_message?.startsWith('https://') ? '📷 Photo' : (item.last_message ?? 'Group chat')}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       {item.last_message_at && (

@@ -11,11 +11,11 @@ import { haptic } from '@/lib/haptics'
 import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
 import { AuthGate } from '@/components/AuthGate'
-import { getTrips, getUserSavedTripIds, saveTrip, getProfile } from '@/lib/queries'
+import { getTrips, getUserSavedTripIds, saveTrip, getProfile, getHangalongs, getUserJoinedHangalongIds } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import { getTripMatchBreakdown } from '@/lib/matching'
-import type { TripWithDetails, UserProfile } from '@/lib/types'
+import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 import { MemberJoinToast } from '@/components/MemberJoinToast'
 
 // Heavy modals — only loaded when actually shown (code-split from initial bundle)
@@ -28,6 +28,7 @@ const FoundingMemberPaywall = dynamicImport(() => import('@/components/FoundingM
 const TrialExpiredPaywall = dynamicImport(() => import('@/components/TrialExpiredPaywall').then(m => ({ default: m.TrialExpiredPaywall })), { ssr: false })
 const FeedTutorial = dynamicImport(() => import('@/components/FeedTutorial').then(m => ({ default: m.FeedTutorial })), { ssr: false })
 const FoundingMemberScreen = dynamicImport(() => import('@/components/FoundingMemberScreen').then(m => ({ default: m.FoundingMemberScreen })), { ssr: false })
+const HangDetailModal = dynamicImport(() => import('@/components/HangDetailModal').then(m => ({ default: m.HangDetailModal })), { ssr: false })
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
@@ -55,6 +56,8 @@ export default function FeedPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
   const [showCreateHang, setShowCreateHang] = useState(false)
+  const [selectedHang, setSelectedHang] = useState<HangalongWithDetails | null>(null)
+  const [joinedHangIds, setJoinedHangIds] = useState<string[]>([])
   const [showSaved, setShowSaved] = useState(false)
   const [savedToast, setSavedToast] = useState<TripWithDetails | null>(null)
   const [savedCount, setSavedCount] = useState(0)
@@ -221,6 +224,18 @@ export default function FeedPage() {
     enabled: !!userId || isGuest,
     refetchInterval: 5 * 60 * 1000, // quietly refresh member counts every 5 min
   })
+
+  const { data: hangalongs = [] } = useQuery({
+    queryKey: ['hangalongs'],
+    queryFn: getHangalongs,
+    enabled: !!userId,
+    staleTime: 60_000,
+  })
+
+  useEffect(() => {
+    if (!userId) return
+    getUserJoinedHangalongIds(userId).then(setJoinedHangIds)
+  }, [userId])
 
   // Signal native shell when trips are ready so it can fade out the splash overlay
   useEffect(() => {
@@ -423,6 +438,50 @@ export default function FeedPage() {
             </div>
           ) : trips && trips.length > 0 ? (
             <div className="w-full max-w-sm flex flex-col">
+              {/* Hangouts row — shown when active hangouts exist */}
+              {(hangalongs as HangalongWithDetails[]).length > 0 && (
+                <div className="shrink-0 mb-3">
+                  <div className="flex items-center justify-between px-1 mb-2">
+                    <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Hangouts</p>
+                    <p className="text-white/20 text-[10px]">{(hangalongs as HangalongWithDetails[]).length} near you</p>
+                  </div>
+                  <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                    {(hangalongs as HangalongWithDetails[]).map((h: HangalongWithDetails) => {
+                      const activityEmoji: Record<string, string> = { hike: '🥾', road_trip: '🚗', beach: '🏖️', climbing: '🧗', urban: '🌆', day_trip: '🚌' }
+                      const emoji = activityEmoji[h.activity_type] ?? '🎯'
+                      const whenLabel: Record<string, string> = { today: 'TODAY', tonight: 'TONIGHT', this_weekend: 'WEEKEND', this_week: 'THIS WEEK' }
+                      const when = whenLabel[h.when_label] ?? h.when_label.toUpperCase()
+                      const joined = joinedHangIds.includes(h.id)
+                      return (
+                        <button
+                          key={h.id}
+                          onClick={() => { haptic(10); setSelectedHang(h) }}
+                          className="shrink-0 rounded-2xl overflow-hidden active:scale-95 transition-transform text-left"
+                          style={{ width: 140, height: 100, position: 'relative', backgroundColor: '#111', border: '0.5px solid rgba(255,255,255,0.1)' }}
+                        >
+                          {h.photo_url ? (
+                            <img src={h.photo_url} alt={h.title} className="absolute inset-0 w-full h-full object-cover" />
+                          ) : null}
+                          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.75) 100%)' }} />
+                          <div style={{ position: 'absolute', inset: 0, padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                            <div className="flex items-center justify-between">
+                              <span style={{ fontSize: 18 }}>{emoji}</span>
+                              <span style={{ fontSize: 8, fontWeight: 700, color: '#30D158', letterSpacing: '0.06em', backgroundColor: 'rgba(48,209,88,0.15)', borderRadius: 4, padding: '2px 5px' }}>{when}</span>
+                            </div>
+                            <div>
+                              <p className="text-white font-semibold text-xs leading-tight line-clamp-2">{h.title}</p>
+                              <p className="text-white/40 text-[10px] mt-0.5 truncate">{h.location_name}</p>
+                            </div>
+                          </div>
+                          {joined && (
+                            <div style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: '50%', backgroundColor: '#30D158' }} />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               <SwipeStack
               trips={trips}
               userId={userId}
@@ -479,9 +538,30 @@ export default function FeedPage() {
       {showCreateHang && (
         <CreateHangModal
           onClose={() => setShowCreateHang(false)}
-          onCreated={() => setShowCreateHang(false)}
+          onCreated={() => {
+            setShowCreateHang(false)
+            // Refresh both hangalongs feed and chat list
+            queryClient.invalidateQueries({ queryKey: ['hangalongs'] })
+            queryClient.invalidateQueries({ queryKey: ['tripChats'] })
+          }}
         />
       )}
+
+      <AnimatePresence>
+        {selectedHang && (
+          <HangDetailModal
+            hang={selectedHang}
+            userId={userId}
+            isJoined={joinedHangIds.includes(selectedHang.id)}
+            onClose={() => setSelectedHang(null)}
+            onJoinChange={(joined) => {
+              if (joined) setJoinedHangIds(ids => [...ids, selectedHang.id])
+              else setJoinedHangIds(ids => ids.filter(id => id !== selectedHang.id))
+            }}
+            onAuthRequired={triggerAuthGate}
+          />
+        )}
+      </AnimatePresence>
 
       {showSaved && userId && (
         <SavedTripsModal

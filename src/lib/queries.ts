@@ -260,12 +260,19 @@ export async function getUserTripChats(_userId: string) {
     trip_chat_id: row.trip_chat_id,
     trip_chat: {
       id: row.trip_chat_id,
-      trip: {
+      trip: row.trip_id ? {
         id: row.trip_id,
         destination: row.destination,
         country: row.country,
         cover_image: row.cover_image,
-      },
+      } : null,
+      hangalong: row.hangalong_id ? {
+        id: row.hangalong_id,
+        title: row.hangalong_title,
+        location_name: row.hangalong_location,
+        photo_url: row.hangalong_photo,
+        activity_type: row.hangalong_activity,
+      } : null,
     },
     last_message: row.last_message ?? null,
     last_message_at: row.last_message_at ?? null,
@@ -748,23 +755,52 @@ export async function createHangalong(payload: {
   when_label: WhenLabel
   max_people: number
   photo_url?: string
-}): Promise<string | null> {
+}): Promise<{ hangalongId: string; chatId: string } | null> {
   const uid = (await supabase.auth.getUser()).data.user?.id
   if (!uid) return null
-  const { data, error } = await supabase
+
+  // Create the hangalong
+  const { data: hangData, error: hangError } = await supabase
     .from('hangalongs')
     .insert({ ...payload, creator_id: uid })
     .select('id')
     .single()
-  if (error) return null
-  return (data as any).id
+  if (hangError || !hangData) return null
+  const hangalongId = (hangData as any).id
+
+  // Create a group chat for the hangalong
+  const { data: chatData, error: chatError } = await supabase
+    .from('trip_chats')
+    .insert({ hangalong_id: hangalongId, name: payload.title })
+    .select('id')
+    .single()
+  if (chatError || !chatData) return { hangalongId, chatId: '' }
+  const chatId = (chatData as any).id
+
+  // Add creator as first chat member
+  await supabase.from('trip_chat_members').insert({ trip_chat_id: chatId, user_id: uid })
+
+  return { hangalongId, chatId }
 }
 
-export async function joinHangalong(hangalongId: string, userId: string): Promise<boolean> {
+export async function joinHangalong(hangalongId: string, userId: string): Promise<{ ok: boolean; chatId?: string }> {
   const { error } = await supabase
     .from('hangalong_members')
     .insert({ hangalong_id: hangalongId, user_id: userId })
-  return !error
+  if (error) return { ok: false }
+
+  // Add joiner to the hangalong's group chat
+  const { data: chatData } = await supabase
+    .from('trip_chats')
+    .select('id')
+    .eq('hangalong_id', hangalongId)
+    .maybeSingle()
+  if (chatData) {
+    const chatId = (chatData as any).id
+    await supabase.from('trip_chat_members').upsert({ trip_chat_id: chatId, user_id: userId }, { onConflict: 'trip_chat_id,user_id' })
+    return { ok: true, chatId }
+  }
+  return { ok: true }
 }
 
 export async function leaveHangalong(hangalongId: string, userId: string): Promise<void> {

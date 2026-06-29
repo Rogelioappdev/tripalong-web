@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createHangalong, getDestinationPhotos } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
@@ -22,14 +23,33 @@ const ACTIVITIES: { type: ActivityType; emoji: string; label: string }[] = [
 ]
 
 const WHEN_OPTIONS: { value: WhenLabel; label: string; sub: string }[] = [
-  { value: 'today',        label: 'Today',       sub: 'Happening today' },
-  { value: 'tonight',      label: 'Tonight',     sub: 'Evening plans' },
+  { value: 'today',        label: 'Today',        sub: 'Happening today' },
+  { value: 'tonight',      label: 'Tonight',      sub: 'Evening plans' },
   { value: 'this_weekend', label: 'This Weekend', sub: 'Sat or Sun' },
-  { value: 'this_week',    label: 'This Week',   sub: 'Next 7 days' },
+  { value: 'this_week',    label: 'This Week',    sub: 'Next 7 days' },
+]
+
+const SLIDES = [
+  {
+    icon: '📍',
+    title: "You're live on the feed",
+    body: "Your hangout is showing to people near you right now. Anyone can tap in and join.",
+  },
+  {
+    icon: '💬',
+    title: 'Group chat is ready',
+    body: "Everyone who joins lands in your hangout chat. Coordinate details, share your location, and get the vibe going.",
+  },
+  {
+    icon: '🔔',
+    title: "You'll know when they join",
+    body: "You'll get notified the moment someone joins. Check your group chat in Messages.",
+  },
 ]
 
 export function CreateHangModal({ onClose, onCreated }: Props) {
   const queryClient = useQueryClient()
+  const router = useRouter()
   const [title, setTitle] = useState('')
   const [location, setLocation] = useState('')
   const [activity, setActivity] = useState<ActivityType | null>(null)
@@ -41,7 +61,9 @@ export function CreateHangModal({ onClose, onCreated }: Props) {
   const [photosLoading, setPhotosLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [phase, setPhase] = useState<'form' | 'created'>('form')
+  const [phase, setPhase] = useState<'form' | 'created' | 'slides'>('form')
+  const [slideIdx, setSlideIdx] = useState(0)
+  const [chatId, setChatId] = useState<string | null>(null)
   const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -50,7 +72,6 @@ export function CreateHangModal({ onClose, onCreated }: Props) {
     return () => { document.body.style.overflow = prev }
   }, [])
 
-  // Auto-fetch photos when location or activity changes
   useEffect(() => {
     if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
     const query = [location.trim(), activity ? ACTIVITIES.find(a => a.type === activity)?.label : ''].filter(Boolean).join(' ')
@@ -77,7 +98,7 @@ export function CreateHangModal({ onClose, onCreated }: Props) {
     setLoading(true)
     setError('')
     try {
-      await createHangalong({
+      const result = await createHangalong({
         title: title.trim(),
         description: description.trim() || undefined,
         activity_type: activity!,
@@ -87,7 +108,9 @@ export function CreateHangModal({ onClose, onCreated }: Props) {
         photo_url: coverImage || undefined,
       })
       queryClient.invalidateQueries({ queryKey: ['hangalongs'] })
+      queryClient.invalidateQueries({ queryKey: ['tripChats'] })
       haptic(18)
+      if (result?.chatId) setChatId(result.chatId)
       setPhase('created')
     } catch {
       setError('Something went wrong. Try again.')
@@ -96,11 +119,20 @@ export function CreateHangModal({ onClose, onCreated }: Props) {
     }
   }
 
-  const handleDone = useCallback(() => {
+  const nextSlide = useCallback(() => {
     haptic(8)
-    onCreated()
-    onClose()
-  }, [onCreated, onClose])
+    if (slideIdx < SLIDES.length - 1) {
+      setSlideIdx(i => i + 1)
+    } else {
+      onCreated()
+      if (chatId) {
+        onClose()
+        router.push(`/chat/${chatId}`)
+      } else {
+        onClose()
+      }
+    }
+  }, [slideIdx, chatId, onClose, onCreated, router])
 
   const label = 'text-white/50 text-[11px] font-bold uppercase tracking-widest'
 
@@ -108,115 +140,169 @@ export function CreateHangModal({ onClose, onCreated }: Props) {
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={phase === 'form' ? onClose : undefined} />
 
-      {/* Post-creation celebration */}
+      {/* ── Post-creation overlay ── */}
       <AnimatePresence>
-        {phase === 'created' && (
+        {phase !== 'form' && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.28 }}
-            className="absolute inset-0 z-[90] cursor-pointer"
+            className="absolute inset-0 z-[90]"
             style={{ backgroundColor: '#050505' }}
-            onClick={handleDone}
           >
-            {coverImage ? (
-              <motion.div
-                initial={{ scale: 1.08 }}
-                animate={{ scale: 1.0 }}
-                transition={{ duration: 5.5, ease: 'easeOut' }}
-                style={{
-                  position: 'absolute', inset: 0,
-                  backgroundImage: `url(${coverImage})`,
-                  backgroundSize: 'cover', backgroundPosition: 'center',
-                }}
-              />
-            ) : (
-              <div style={{ position: 'absolute', inset: 0, backgroundColor: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 120, opacity: 0.12 }}>
-                {activityEmoji}
-              </div>
-            )}
+            {/* ── Celebration screen ── */}
+            <AnimatePresence>
+              {phase === 'created' && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="absolute inset-0 z-10 overflow-hidden cursor-pointer"
+                  onClick={() => { haptic(8); setPhase('slides') }}
+                >
+                  {coverImage ? (
+                    <motion.div
+                      initial={{ scale: 1.08 }}
+                      animate={{ scale: 1.0 }}
+                      transition={{ duration: 5.5, ease: 'easeOut' }}
+                      style={{
+                        position: 'absolute', inset: 0,
+                        backgroundImage: `url(${coverImage})`,
+                        backgroundSize: 'cover', backgroundPosition: 'center',
+                      }}
+                    />
+                  ) : (
+                    <div style={{ position: 'absolute', inset: 0, backgroundColor: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 120, opacity: 0.1 }}>
+                      {activityEmoji}
+                    </div>
+                  )}
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.82) 80%, rgba(0,0,0,0.96) 100%)' }} />
 
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.82) 80%, rgba(0,0,0,0.96) 100%)',
-            }} />
+                  {/* Live badge */}
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5, duration: 0.55, ease: 'easeOut' }}
+                    style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 20px)', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, backgroundColor: 'rgba(0,0,0,0.45)', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '7px 16px', backdropFilter: 'blur(12px)' }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#30D158', display: 'inline-block', flexShrink: 0 }} />
+                      <span style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>Hangout is live</span>
+                    </div>
+                  </motion.div>
 
-            {/* Live badge */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.55, ease: 'easeOut' }}
-              style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 20px)', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}
-            >
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                backgroundColor: 'rgba(0,0,0,0.45)',
-                border: '0.5px solid rgba(255,255,255,0.2)',
-                borderRadius: 999, padding: '7px 16px',
-                backdropFilter: 'blur(12px)',
-              }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#30D158', display: 'inline-block', flexShrink: 0 }} />
-                <span style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>Hangout is live</span>
-              </div>
-            </motion.div>
+                  {/* Title + location */}
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 28px calc(env(safe-area-inset-bottom) + 36px)' }}>
+                    <motion.p
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 1.0, duration: 0.55, ease: 'easeOut' }}
+                      style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, fontWeight: 500, marginBottom: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}
+                    >
+                      {location}
+                    </motion.p>
+                    <motion.h1
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.8, duration: 0.7, type: 'spring', stiffness: 160, damping: 22 }}
+                      style={{ color: '#fff', fontSize: 52, fontWeight: 900, letterSpacing: '-2px', lineHeight: 0.95, marginBottom: 20 }}
+                    >
+                      {title}
+                    </motion.h1>
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 1.5, duration: 0.6, ease: 'easeOut' }}
+                      style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16 }}
+                    >
+                      Your hangout is live. {activityEmoji}
+                    </motion.p>
+                  </div>
 
-            {/* Title + location */}
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 28px calc(env(safe-area-inset-bottom) + 80px)' }}>
-              <motion.p
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.0, duration: 0.55, ease: 'easeOut' }}
-                style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, fontWeight: 500, marginBottom: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}
-              >
-                {location}
-              </motion.p>
-              <motion.h1
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8, duration: 0.7, type: 'spring', stiffness: 160, damping: 22 }}
-                style={{ color: '#fff', fontSize: 52, fontWeight: 900, letterSpacing: '-2px', lineHeight: 0.95, marginBottom: 20 }}
-              >
-                {title}
-              </motion.h1>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.5, duration: 0.6, ease: 'easeOut' }}
-                style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16 }}
-              >
-                Your hangout is live. {activityEmoji}
-              </motion.p>
-            </div>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 2.2, duration: 0.6 }}
+                    style={{ position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 32px)', left: 0, right: 0, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13, fontWeight: 500, pointerEvents: 'none' }}
+                  >
+                    Tap anywhere to continue
+                  </motion.p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {/* Done button */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 2.0, duration: 0.5, ease: 'easeOut' }}
-              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 24px calc(env(safe-area-inset-bottom) + 24px)' }}
-            >
-              <button
-                onClick={handleDone}
-                className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
-                style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
-              >
-                Let's go →
-              </button>
-            </motion.div>
+            {/* ── How it works slides ── */}
+            <AnimatePresence>
+              {phase === 'slides' && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.4 }}
+                  className="absolute inset-0 flex flex-col z-10"
+                >
+                  {coverImage && (
+                    <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(22px) brightness(0.45) saturate(1.1)', transform: 'scale(1.08)' }} />
+                  )}
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.75) 60%, rgba(0,0,0,0.95) 100%)' }} />
 
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 2.4, duration: 0.6 }}
-              style={{ position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 90px)', left: 0, right: 0, textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 13, pointerEvents: 'none' }}
-            >
-              Tap anywhere to continue
-            </motion.p>
+                  <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1, paddingTop: 'calc(env(safe-area-inset-top) + 52px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)', paddingLeft: 28, paddingRight: 28 }}>
+                    {/* Progress dots */}
+                    <div className="flex gap-1.5 justify-center mb-10">
+                      {SLIDES.map((_, i) => (
+                        <div key={i} className="rounded-full transition-all duration-300"
+                          style={{ width: i === slideIdx ? 20 : 6, height: 6, backgroundColor: i === slideIdx ? '#fff' : 'rgba(255,255,255,0.2)' }} />
+                      ))}
+                    </div>
+
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={slideIdx}
+                        initial={{ opacity: 0, x: 30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -30 }}
+                        transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+                        className="flex flex-col flex-1"
+                      >
+                        <div className="flex-1 flex flex-col justify-center">
+                          <p style={{ fontSize: 52, marginBottom: 24 }}>{SLIDES[slideIdx].icon}</p>
+                          <h2 style={{ color: '#fff', fontSize: 28, fontWeight: 900, letterSpacing: '-0.7px', lineHeight: 1.15, marginBottom: 14 }}>
+                            {SLIDES[slideIdx].title}
+                          </h2>
+                          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 16, lineHeight: 1.6 }}>
+                            {SLIDES[slideIdx].body}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={nextSlide}
+                          className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
+                          style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
+                        >
+                          {slideIdx < SLIDES.length - 1 ? 'Next →' : chatId ? 'Open Group Chat →' : "Let's go →"}
+                        </button>
+                        {slideIdx < SLIDES.length - 1 && (
+                          <button
+                            type="button"
+                            onClick={() => { haptic(4); onCreated(); onClose() }}
+                            className="py-3 text-center active:opacity-60 transition-opacity"
+                            style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13 }}
+                          >
+                            Skip
+                          </button>
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Form sheet */}
+      {/* ── Form sheet ── */}
       <motion.div
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
