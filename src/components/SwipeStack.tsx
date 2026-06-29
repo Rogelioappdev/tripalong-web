@@ -568,10 +568,6 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     if (hintVisible) dismissHint()
   }
 
-  // Ref always points to the current top item — used in advance() to mark seen
-  const currentItemRef = useRef<typeof currentItem>(currentItem)
-  currentItemRef.current = currentItem
-
   // Stable ref so native can call advance() without capturing a stale closure
   const advanceRef = useRef<(skip?: boolean) => void>(() => {})
   advanceRef.current = advance
@@ -604,6 +600,10 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
 
   const visibleItems = feedItems.slice(currentIndex, currentIndex + 2)
   const currentItem = visibleItems[0]
+
+  // Ref always points to the current top item — used in advance() to mark seen
+  const currentItemRef = useRef<typeof currentItem>(currentItem)
+  currentItemRef.current = currentItem
   const nextItem = visibleItems[1]
   const isCurrentAd = currentItem?.type === 'ad'
   const currentTrip = currentItem?.type === 'trip' ? currentItem.trip : null

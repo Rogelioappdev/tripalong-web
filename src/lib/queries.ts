@@ -44,7 +44,7 @@ export async function getTrips(): Promise<TripWithDetails[]> {
       ? supabase.from('user_seen_trips').select('trip_id').eq('user_id', userId)
       : Promise.resolve({ data: [] }),
 
-    supabase.from('saved_trips').select('trip_id').limit(500).catch(() => ({ data: [] })),
+    (async () => { try { return await supabase.from('saved_trips').select('trip_id').limit(500) } catch { return { data: [] } } })(),
 
     userId ? getBlockedUserIds() : Promise.resolve([]),
 
