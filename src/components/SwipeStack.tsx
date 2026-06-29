@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { SwipeCard, type SwipeCardHandle } from './SwipeCard'
 import { HangCard, type HangCardHandle } from './HangCard'
 import { AdCard } from './AdCard'
+import { PublicProfileModal } from './PublicProfileModal'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
@@ -454,6 +455,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   const [showPaywall, setShowPaywall] = useState(false)
   const [paywallContext, setPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
   const [showFoundingScreen, setShowFoundingScreen] = useState(false)
+  const [profileUserId, setProfileUserId] = useState<string | null>(null)
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
   const [celebrationTrip, setCelebrationTrip] = useState<TripWithDetails | null>(null)
   const [showProfileNudge, setShowProfileNudge] = useState(false)
@@ -1008,6 +1010,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
               onSwipeLeft={() => handleSwipeLeft()}
               onSwipeRight={() => handleHangSwipeRight(nextItem.hang)}
               onTap={() => {}}
+              onCreatorTap={setProfileUserId}
             />
           ) : (
             <SwipeCard
@@ -1021,6 +1024,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
               onSwipeLeft={() => handleSwipeLeft()}
               onSwipeRight={() => handleSwipeRight(nextItem.trip)}
               onTap={() => {}}
+              onCreatorTap={setProfileUserId}
             />
           )
         )}
@@ -1046,6 +1050,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
               onSwipeLeft={() => handleSwipeLeft()}
               onSwipeRight={() => handleHangSwipeRight(currentItem.hang)}
               onTap={() => onHangTap?.(currentItem.hang)}
+              onCreatorTap={setProfileUserId}
             />
           ) : (
             <SwipeCard
@@ -1071,6 +1076,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
               onSwipeLeft={() => handleSwipeLeft()}
               onSwipeRight={() => handleSwipeRight(currentItem.trip)}
               onTap={() => onTripTap(currentItem.trip)}
+              onCreatorTap={setProfileUserId}
             />
           )
         )}
@@ -1172,6 +1178,11 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
           }}
           onDismiss={() => setShowFoundingScreen(false)}
         />
+      )}
+
+      {/* Public profile modal — opened by tapping creator avatar on any card */}
+      {profileUserId && (
+        <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
       )}
     </div>
   )

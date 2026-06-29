@@ -21,6 +21,7 @@ interface SwipeCardProps {
   matchingVibes?: string[]
   isPlus?: boolean
   onCompatibilityTap?: () => void
+  onCreatorTap?: (userId: string) => void
   sharedX?: ReturnType<typeof useMotionValue<number>>
 }
 
@@ -28,10 +29,8 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function SwipeCard(
-  { trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, matchPct, matchingVibes, isPlus, onCompatibilityTap, sharedX },
-  ref
-) {
+export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function SwipeCard(props, ref) {
+  const { trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, matchPct, matchingVibes, isPlus, onCompatibilityTap, onCreatorTap, sharedX } = props
   const internalX = useMotionValue(0)
   const x = sharedX ?? internalX
   const controls = useAnimation()
@@ -119,12 +118,12 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
           </motion.div>
         </>
       )}
-      <CardContent trip={trip} dateLabel={dateLabel} isJoined={isTop ? isJoined : false} matchPct={matchPct} matchingVibes={matchingVibes} isPlus={isPlus} onCompatibilityTap={isTop ? onCompatibilityTap : undefined} />
+      <CardContent trip={trip} dateLabel={dateLabel} isJoined={isTop ? isJoined : false} matchPct={matchPct} matchingVibes={matchingVibes} isPlus={isPlus} onCompatibilityTap={isTop ? onCompatibilityTap : undefined} onCreatorTap={isTop ? onCreatorTap : undefined} />
     </motion.div>
   )
 })
 
-function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlus, onCompatibilityTap }: {
+function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlus, onCompatibilityTap, onCreatorTap }: {
   trip: TripWithDetails
   dateLabel: string
   isJoined?: boolean
@@ -132,6 +131,7 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
   matchingVibes?: string[]
   isPlus?: boolean
   onCompatibilityTap?: () => void
+  onCreatorTap?: (userId: string) => void
 }) {
   // Creator is also in trip_members — exclude them to avoid double-counting
   const otherMembers = (trip.members ?? []).filter(m => m.user_id !== (trip as any).creator_id)
@@ -221,8 +221,13 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
           <div className="flex items-center gap-2">
             {/* Stacked member avatars */}
             <div className="flex -space-x-2">
-              {/* Creator always first */}
-              <div className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0 z-10">
+              {/* Creator always first — tappable to view profile */}
+              <button
+                type="button"
+                onPointerDown={e => e.stopPropagation()}
+                onClick={e => { e.stopPropagation(); if (trip.creator?.id) onCreatorTap?.(trip.creator.id) }}
+                className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0 z-10 active:scale-90 transition-transform"
+              >
                 {trip.creator.profile_photo ? (
                   <img src={trip.creator.profile_photo} alt="" className="w-full h-full object-cover" draggable={false} />
                 ) : (
@@ -230,7 +235,7 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
                     {trip.creator.name?.[0]?.toUpperCase() ?? '?'}
                   </div>
                 )}
-              </div>
+              </button>
               {/* Up to 2 other members (creator already shown above) */}
               {otherMembers.slice(0, 2).map((m, i) => (
                 <div key={m.user_id} className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0" style={{ zIndex: 9 - i }}>

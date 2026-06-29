@@ -17,6 +17,7 @@ interface HangCardProps {
   isTop: boolean
   isMine?: boolean
   isJoined?: boolean
+  onCreatorTap?: (userId: string) => void
   sharedX?: ReturnType<typeof useMotionValue<number>>
 }
 
@@ -38,7 +39,7 @@ const WHEN_DISPLAY: Record<WhenLabel, string> = {
 }
 
 export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangCard(
-  { hang, onSwipeLeft, onSwipeRight, onTap, isTop, isMine, isJoined, sharedX },
+  { hang, onSwipeLeft, onSwipeRight, onTap, isTop, isMine, isJoined, onCreatorTap, sharedX },
   ref
 ) {
   const internalX = useMotionValue(0)
@@ -196,14 +197,21 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
           {/* Creator row + spots */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {/* Creator avatar */}
-              {hang.creator?.profile_photo ? (
-                <img src={hang.creator.profile_photo} alt={hang.creator.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/20" />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center text-xs font-bold text-white">
-                  {hang.creator?.name?.[0]?.toUpperCase() ?? '?'}
-                </div>
-              )}
+              {/* Creator avatar — tappable to view profile */}
+              <button
+                type="button"
+                onPointerDown={e => e.stopPropagation()}
+                onClick={e => { e.stopPropagation(); if (hang.creator?.id) onCreatorTap?.(hang.creator.id) }}
+                className="shrink-0 active:scale-90 transition-transform"
+              >
+                {hang.creator?.profile_photo ? (
+                  <img src={hang.creator.profile_photo} alt={hang.creator.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/20" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center text-xs font-bold text-white">
+                    {hang.creator?.name?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                )}
+              </button>
               {/* Other member avatars */}
               {otherMembers.slice(0, 2).map((m, i) => (
                 m.user?.profile_photo ? (
