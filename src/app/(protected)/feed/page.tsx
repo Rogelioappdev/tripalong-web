@@ -443,10 +443,10 @@ export default function FeedPage() {
                 Try again
               </button>
             </div>
-          ) : trips && trips.length > 0 ? (
+          ) : ((trips && trips.length > 0) || (myHangalongs as HangalongWithDetails[]).length > 0 || (hangalongs as HangalongWithDetails[]).length > 0) ? (
             <div className="w-full max-w-sm flex flex-col">
               <SwipeStack
-                trips={trips}
+                trips={trips ?? []}
                 hangalongs={[
                   ...(myHangalongs as HangalongWithDetails[]),
                   ...(hangalongs as HangalongWithDetails[]),

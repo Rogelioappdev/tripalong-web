@@ -108,6 +108,7 @@ export function CreateHangModal({ onClose, onCreated }: Props) {
         photo_url: coverImage || undefined,
       })
       queryClient.invalidateQueries({ queryKey: ['hangalongs'] })
+      queryClient.invalidateQueries({ queryKey: ['my-hangalongs'] })
       queryClient.invalidateQueries({ queryKey: ['tripChats'] })
       haptic(18)
       if (result?.chatId) setChatId(result.chatId)

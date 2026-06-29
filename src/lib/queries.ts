@@ -787,17 +787,10 @@ export async function createHangalong(payload: {
   if (hangError || !hangData) return null
   const hangalongId = (hangData as any).id
 
-  // Create a group chat for the hangalong
-  const { data: chatData, error: chatError } = await supabase
-    .from('trip_chats')
-    .insert({ hangalong_id: hangalongId, name: payload.title })
-    .select('id')
-    .single()
-  if (chatError || !chatData) return { hangalongId, chatId: '' }
-  const chatId = (chatData as any).id
-
-  // Add creator as first chat member
-  await supabase.from('trip_chat_members').insert({ trip_chat_id: chatId, user_id: uid })
+  // Create chat + add creator as member in one SECURITY DEFINER call
+  // (direct insert + select fails RLS: can't read back chat until you're a member)
+  const { data: chatId, error: chatError } = await supabase.rpc('create_hangalong_chat', { p_hangalong_id: hangalongId })
+  if (chatError || !chatId) return { hangalongId, chatId: '' }
 
   return { hangalongId, chatId }
 }
