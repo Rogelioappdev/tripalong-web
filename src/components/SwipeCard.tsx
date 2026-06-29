@@ -221,12 +221,18 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
           <div className="flex items-center gap-2">
             {/* Stacked member avatars */}
             <div className="flex -space-x-2">
-              {/* Creator always first — tappable to view profile */}
+              {/* Creator always first — tappable to view profile.
+                  Uses onPointerDown + nativeEvent.stopImmediatePropagation so the
+                  event fires before Framer Motion's setPointerCapture redirects it. */}
               <button
                 type="button"
-                onPointerDown={e => e.stopPropagation()}
-                onClick={e => { e.stopPropagation(); if (trip.creator?.id) onCreatorTap?.(trip.creator.id) }}
-                className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0 z-10 active:scale-90 transition-transform"
+                onPointerDown={e => {
+                  e.nativeEvent.stopImmediatePropagation()
+                  if (trip.creator?.id) onCreatorTap?.(trip.creator.id)
+                }}
+                onClick={e => e.stopPropagation()}
+                style={{ touchAction: 'manipulation' }}
+                className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0 z-10"
               >
                 {trip.creator.profile_photo ? (
                   <img src={trip.creator.profile_photo} alt="" className="w-full h-full object-cover" draggable={false} />

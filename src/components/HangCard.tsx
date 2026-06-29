@@ -197,12 +197,18 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
           {/* Creator row + spots */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {/* Creator avatar — tappable to view profile */}
+              {/* Creator avatar — tappable to view profile.
+                  Uses onPointerDown + nativeEvent.stopImmediatePropagation so the
+                  event fires before Framer Motion's setPointerCapture redirects it. */}
               <button
                 type="button"
-                onPointerDown={e => e.stopPropagation()}
-                onClick={e => { e.stopPropagation(); if (hang.creator?.id) onCreatorTap?.(hang.creator.id) }}
-                className="shrink-0 active:scale-90 transition-transform"
+                onPointerDown={e => {
+                  e.nativeEvent.stopImmediatePropagation()
+                  if (hang.creator?.id) onCreatorTap?.(hang.creator.id)
+                }}
+                onClick={e => e.stopPropagation()}
+                style={{ touchAction: 'manipulation' }}
+                className="shrink-0"
               >
                 {hang.creator?.profile_photo ? (
                   <img src={hang.creator.profile_photo} alt={hang.creator.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/20" />
