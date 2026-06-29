@@ -624,15 +624,27 @@ export async function getDestinationPhotos(destination: string): Promise<string[
         .list(`${cat}/${normalized}`, { limit: 10, sortBy: { column: 'name', order: 'asc' } })
       if (!data?.length) return []
       return data
-        .filter(f => f.id) // f.id is null for sub-folders, present for actual files
+        .filter(f => f.id)
         .slice(0, 8)
         .map(f => `${STORAGE_BASE}/${cat}/${normalized}/${f.name}`)
     })
   )
 
-  return results
+  const storagePhotos = results
     .filter((r): r is PromiseFulfilledResult<string[]> => r.status === 'fulfilled')
     .flatMap(r => r.value)
+
+  if (storagePhotos.length > 0) return storagePhotos
+
+  // Fallback: Pexels API for any destination not in our storage
+  try {
+    const res = await fetch(`/api/photos?q=${encodeURIComponent(destination)}`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.photos ?? []
+  } catch {
+    return []
+  }
 }
 
 export async function getSampleProfiles(count = 4): Promise<{ id: string; name: string; profile_photo: string | null }[]> {
