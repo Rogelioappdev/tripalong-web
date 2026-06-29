@@ -21,6 +21,8 @@ import { MemberJoinToast } from '@/components/MemberJoinToast'
 // Heavy modals — only loaded when actually shown (code-split from initial bundle)
 const TripDetailModal = dynamicImport(() => import('@/components/TripDetailModal').then(m => ({ default: m.TripDetailModal })), { ssr: false })
 const CreateTripModal = dynamicImport(() => import('@/components/CreateTripModal').then(m => ({ default: m.CreateTripModal })), { ssr: false })
+const CreateHangModal = dynamicImport(() => import('@/components/CreateHangModal').then(m => ({ default: m.CreateHangModal })), { ssr: false })
+const CreatePicker = dynamicImport(() => import('@/components/CreatePicker').then(m => ({ default: m.CreatePicker })), { ssr: false })
 const SavedTripsModal = dynamicImport(() => import('@/components/SavedTripsModal').then(m => ({ default: m.SavedTripsModal })), { ssr: false })
 const FoundingMemberPaywall = dynamicImport(() => import('@/components/FoundingMemberPaywall').then(m => ({ default: m.FoundingMemberPaywall })), { ssr: false })
 const TrialExpiredPaywall = dynamicImport(() => import('@/components/TrialExpiredPaywall').then(m => ({ default: m.TrialExpiredPaywall })), { ssr: false })
@@ -51,6 +53,8 @@ export default function FeedPage() {
   const [authGateRequired, setAuthGateRequired] = useState(false)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
+  const [showCreateHang, setShowCreateHang] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const [savedToast, setSavedToast] = useState<TripWithDetails | null>(null)
   const [savedCount, setSavedCount] = useState(0)
@@ -367,14 +371,14 @@ export default function FeedPage() {
             <motion.button
               whileTap={{ scale: 0.88 }}
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-              onClick={() => { haptic(8); isGuest ? triggerAuthGate() : setShowCreate(true) }}
+              onClick={() => { haptic(8); isGuest ? triggerAuthGate() : setShowPicker(true) }}
               className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
               style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.12)' }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                 <path d="M12 5v14M5 12h14" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
               </svg>
-              <span className="text-white text-xs font-semibold">Create Trip</span>
+              <span className="text-white text-xs font-semibold">Create</span>
             </motion.button>
           </div>
         </div>
@@ -460,8 +464,23 @@ export default function FeedPage() {
         )}
       </AnimatePresence>
 
+      {showPicker && (
+        <CreatePicker
+          onClose={() => setShowPicker(false)}
+          onTrip={() => { setShowPicker(false); setShowCreate(true) }}
+          onHangout={() => { setShowPicker(false); setShowCreateHang(true) }}
+        />
+      )}
+
       {showCreate && (
         <CreateTripModal onClose={() => setShowCreate(false)} userId={userId} />
+      )}
+
+      {showCreateHang && (
+        <CreateHangModal
+          onClose={() => setShowCreateHang(false)}
+          onCreated={() => setShowCreateHang(false)}
+        />
       )}
 
       {showSaved && userId && (
