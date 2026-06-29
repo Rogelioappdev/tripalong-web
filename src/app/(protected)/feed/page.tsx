@@ -229,7 +229,6 @@ export default function FeedPage() {
     queryKey: ['hangalongs'],
     queryFn: getHangalongs,
     enabled: !!userId,
-    staleTime: 60_000,
   })
 
   const { data: myHangalongs = [] } = useQuery({
@@ -447,10 +446,7 @@ export default function FeedPage() {
             <div className="w-full max-w-sm flex flex-col">
               <SwipeStack
                 trips={trips ?? []}
-                hangalongs={[
-                  ...(myHangalongs as HangalongWithDetails[]),
-                  ...(hangalongs as HangalongWithDetails[]),
-                ]}
+                hangalongs={hangalongs as HangalongWithDetails[]}
                 myHangalongIds={(myHangalongs as HangalongWithDetails[]).map(h => h.id)}
                 joinedHangIds={joinedHangIds}
                 onHangTap={setSelectedHang}
