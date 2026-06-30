@@ -256,8 +256,12 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
           <>
             <motion.button
               whileTap={{ scale: 0.97 }}
-              onClick={() => { if (chatId) { haptic(10); onClose(); router.push(`/chat/${chatId}`) } }}
-              disabled={!chatId || loading}
+              onClick={async () => {
+                haptic(10)
+                const id = chatId ?? await getHangalongChatId(hang.id)
+                if (id) { setChatId(id); onClose(); router.push(`/chat/${id}`) }
+              }}
+              disabled={loading}
               className="w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 transition-all disabled:opacity-40"
               style={{ backgroundColor: '#FFFFFF', color: '#000000' }}
             >
