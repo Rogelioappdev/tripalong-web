@@ -232,6 +232,26 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
           <div className="w-full h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)' }}>
             <span className="text-white/30 font-semibold text-sm">This hangout is full</span>
           </div>
+        ) : justJoined ? (
+          <motion.div
+            key="success"
+            initial={{ scale: 0.92, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+            className="w-full h-14 rounded-2xl flex items-center justify-center gap-2.5"
+            style={{ backgroundColor: 'rgba(48,209,88,0.12)', border: '1px solid rgba(48,209,88,0.35)' }}
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 18, delay: 0.08 }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </motion.div>
+            <span className="font-bold text-base" style={{ color: '#30D158' }}>You're in!</span>
+          </motion.div>
         ) : isJoined ? (
           <>
             <motion.button
@@ -255,26 +275,6 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
               Leave hangout
             </button>
           </>
-        ) : justJoined ? (
-          <motion.div
-            key="success"
-            initial={{ scale: 0.92, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 22 }}
-            className="w-full h-14 rounded-2xl flex items-center justify-center gap-2.5"
-            style={{ backgroundColor: 'rgba(48,209,88,0.12)', border: '1px solid rgba(48,209,88,0.35)' }}
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 18, delay: 0.08 }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path d="M20 6L9 17l-5-5" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </motion.div>
-            <span className="font-bold text-base" style={{ color: '#30D158' }}>You're in!</span>
-          </motion.div>
         ) : (
           <motion.button
             key="join"
