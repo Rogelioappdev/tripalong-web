@@ -1,8 +1,14 @@
 'use client'
 
-import { forwardRef, useImperativeHandle } from 'react'
+import { forwardRef, useImperativeHandle, useEffect } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation, type PanInfo } from 'framer-motion'
 import type { SwipeCardHandle } from './SwipeCard'
+
+const ADSTERRA_SCRIPT = 'https://pl30144485.effectivecpmnetwork.com/104736ea9fc6c68ca96f38da197279ea/invoke.js'
+const ADSTERRA_CONTAINER = 'container-104736ea9fc6c68ca96f38da197279ea'
+
+const isNativeApp = () =>
+  typeof window !== 'undefined' && navigator.userAgent.includes('TripAlong/1.0')
 
 interface AdCardProps {
   onSwipeLeft: () => void
@@ -18,6 +24,22 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
   const internalX = useMotionValue(0)
   const x = sharedX ?? internalX
   const controls = useAnimation()
+
+  // Inject Adsterra script when this card becomes the top card on web
+  useEffect(() => {
+    if (!isTop || isNativeApp()) return
+
+    // Remove any stale script from a previous ad slot
+    document.querySelector(`script[src="${ADSTERRA_SCRIPT}"]`)?.remove()
+
+    const script = document.createElement('script')
+    script.src = ADSTERRA_SCRIPT
+    script.async = true
+    script.setAttribute('data-cfasync', 'false')
+    document.body.appendChild(script)
+
+    return () => { script.remove() }
+  }, [isTop])
 
   useImperativeHandle(ref, () => ({
     swipeLeft: async () => {
@@ -52,6 +74,8 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
     }
   }
 
+  const showWebAd = !isNativeApp()
+
   return (
     <motion.div
       drag={isTop ? 'x' : false}
@@ -72,7 +96,7 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
       className={`rounded-[22px] overflow-hidden${isTop ? ' cursor-grab active:cursor-grabbing' : ''}`}
       onDragEnd={isTop ? handleDragEnd : undefined}
     >
-      {/* Color wash overlays — same as SwipeCard */}
+      {/* Swipe overlays */}
       {isTop && (
         <>
           <motion.div className="absolute inset-0 z-[5] pointer-events-none" style={{ backgroundColor: '#F0EBE3', opacity: greenOverlay }} />
@@ -92,58 +116,64 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
         </>
       )}
 
-      {/* Loading skeleton — matches SwipeCard's #111 frame so the rounded corners read as
-          an intentional card while the native AdMob overlay positions on top of it. */}
       <div
         className="absolute inset-0 rounded-[22px] overflow-hidden select-none"
-        style={{
-          backgroundColor: '#111',
-          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06)',
-        }}
+        style={{ backgroundColor: '#111', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06)' }}
       >
-        {/* Base tone — a touch lighter than #111 so the surface has depth like a cover image */}
         <div className="absolute inset-0" style={{ backgroundColor: '#161616' }} />
 
-        {/* Moving shimmer sweep — signals "loading", not "broken" */}
-        <motion.div
-          className="absolute inset-y-0 pointer-events-none"
-          style={{
-            width: '60%',
-            background:
-              'linear-gradient(105deg, transparent 0%, rgba(240,235,227,0.06) 45%, rgba(240,235,227,0.10) 50%, rgba(240,235,227,0.06) 55%, transparent 100%)',
-          }}
-          initial={{ left: '-60%' }}
-          animate={{ left: '110%' }}
-          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut', repeatDelay: 0.2 }}
-        />
+        {showWebAd && isTop ? (
+          /* Adsterra native banner — rendered in place of the AdMob overlay on web */
+          <div className="absolute inset-0 flex flex-col">
+            {/* Sponsored label */}
+            <div className="flex items-center gap-1.5 px-5 pt-5 pb-2 shrink-0">
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(240,235,227,0.45)' }} />
+              <span className="text-xs font-medium tracking-wide" style={{ color: 'rgba(240,235,227,0.45)' }}>
+                Sponsored
+              </span>
+            </div>
 
-        {/* Bottom gradient — same falloff as a trip card so text stays legible */}
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, transparent 55%, rgba(0,0,0,0.6) 100%)' }}
-        />
-
-        {/* Skeleton content blocks — mirror the trip card layout (title + meta line) */}
-        <div className="absolute bottom-0 left-0 right-0 p-5 flex flex-col gap-3">
-          {/* Title block */}
-          <div
-            className="rounded-lg"
-            style={{ width: '62%', height: 30, backgroundColor: 'rgba(255,255,255,0.07)' }}
-          />
-          {/* Meta line */}
-          <div
-            className="rounded-md"
-            style={{ width: '40%', height: 14, backgroundColor: 'rgba(255,255,255,0.05)' }}
-          />
-
-          {/* Sponsored label — same dot + text treatment as the trip card location pin */}
-          <div className="flex items-center gap-1.5 mt-1">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(240,235,227,0.45)' }} />
-            <span className="text-xs font-medium tracking-wide" style={{ color: 'rgba(240,235,227,0.45)' }}>
-              Sponsored
-            </span>
+            {/* Adsterra container — fills remaining space */}
+            <div
+              className="flex-1 min-h-0 overflow-hidden"
+              style={{ padding: '0 12px 12px' }}
+            >
+              <div
+                id={ADSTERRA_CONTAINER}
+                style={{ width: '100%', height: '100%' }}
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Skeleton — shown on native (AdMob overlay comes from the shell) or on the back card */
+          <>
+            <motion.div
+              className="absolute inset-y-0 pointer-events-none"
+              style={{
+                width: '60%',
+                background:
+                  'linear-gradient(105deg, transparent 0%, rgba(240,235,227,0.06) 45%, rgba(240,235,227,0.10) 50%, rgba(240,235,227,0.06) 55%, transparent 100%)',
+              }}
+              initial={{ left: '-60%' }}
+              animate={{ left: '110%' }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut', repeatDelay: 0.2 }}
+            />
+            <div
+              className="absolute inset-0"
+              style={{ background: 'linear-gradient(to bottom, transparent 55%, rgba(0,0,0,0.6) 100%)' }}
+            />
+            <div className="absolute bottom-0 left-0 right-0 p-5 flex flex-col gap-3">
+              <div className="rounded-lg" style={{ width: '62%', height: 30, backgroundColor: 'rgba(255,255,255,0.07)' }} />
+              <div className="rounded-md" style={{ width: '40%', height: 14, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(240,235,227,0.45)' }} />
+                <span className="text-xs font-medium tracking-wide" style={{ color: 'rgba(240,235,227,0.45)' }}>
+                  Sponsored
+                </span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </motion.div>
   )
