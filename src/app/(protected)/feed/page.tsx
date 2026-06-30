@@ -243,14 +243,16 @@ export default function FeedPage() {
     getUserJoinedHangalongIds(userId).then(setJoinedHangIds)
   }, [userId])
 
-  // Signal native shell when trips are ready so it can fade out the splash overlay
+  // Signal native shell when page has data (fallback for empty feeds where SwipeStack never mounts)
   useEffect(() => {
-    if (isLoading || trips === undefined) return
+    if (isLoading) return
     const w = window as any
-    if (w.ReactNativeWebView) {
+    if (!w.ReactNativeWebView) return
+    // Delay two frames so the resolved UI (trips or empty state) is actually painted
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       w.ReactNativeWebView.postMessage(JSON.stringify({ type: 'app_ready' }))
-    }
-  }, [isLoading, trips])
+    }))
+  }, [isLoading])
 
   // After login: auto-save the trip the guest tried to save, then show it
   useEffect(() => {

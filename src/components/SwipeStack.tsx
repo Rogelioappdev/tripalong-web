@@ -474,7 +474,10 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   }, [])
 
   useEffect(() => {
-    ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'app_ready' }))
+    // Fire after browser paints so trips are actually visible before splash fades
+    requestAnimationFrame(() => {
+      ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'app_ready' }))
+    })
   }, [])
 
 
