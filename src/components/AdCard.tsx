@@ -140,7 +140,7 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
             >
               <div
                 id={ADSTERRA_CONTAINER}
-                style={{ width: '100%', height: '100%' }}
+                style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
               />
             </div>
           </div>
