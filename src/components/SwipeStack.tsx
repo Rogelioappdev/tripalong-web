@@ -673,38 +673,10 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     if (isCurrentAd) { await topCardRef.current?.swipeRight(); return }
     if (currentHang) {
       if (isGuest) { onAuthRequired?.(); return }
-      if (!userId) return
-      haptic([15, 30, 15, 30, 60])
-      await topCardRef.current?.swipeRight()
+      haptic(8)
+      onHangTap?.(currentHang)
       return
     }
-    if (!currentTrip) return
-    if (isGuest) {
-      localStorage.setItem('ta_pending_save', currentTrip.id)
-      onAuthRequired?.(currentTrip.destination)
-      return
-    }
-    if (!userId) return
-    haptic([15, 30, 15, 30, 60])
-    const trip = currentTrip
-    advance()
-    // Join + save in background
-    try {
-      await joinTrip(trip.id, userId)
-      setJoinedIds(s => new Set([...s, trip.id]))
-      qc.invalidateQueries({ queryKey: ['trips'] })
-    } catch {}
-    if (!savedIds.has(trip.id)) {
-      setSavedIds(s => new Set([...s, trip.id]))
-      saveTrip(trip.id, userId).catch(() => {})
-      qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
-    }
-    setCelebrationTrip(trip)
-  }
-
-  const handleSave = async () => {
-    if (isCurrentAd) { await topCardRef.current?.swipeRight(); return }
-    if (currentHang) { onHangTap?.(currentHang); return }
     if (!currentTrip) return
     if (isGuest) {
       localStorage.setItem('ta_pending_save', currentTrip.id)
@@ -712,7 +684,20 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
       return
     }
     haptic(8)
-    await topCardRef.current?.swipeRight()
+    onTripTap(currentTrip)
+  }
+
+  const handleSave = async () => {
+    if (isCurrentAd) { await topCardRef.current?.swipeRight(); return }
+    if (currentHang) { haptic(8); onHangTap?.(currentHang); return }
+    if (!currentTrip) return
+    if (isGuest) {
+      localStorage.setItem('ta_pending_save', currentTrip.id)
+      onAuthRequired?.(currentTrip.destination)
+      return
+    }
+    haptic(8)
+    onTripTap(currentTrip)
   }
 
 
