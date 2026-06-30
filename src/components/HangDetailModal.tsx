@@ -75,17 +75,28 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
 
   return (
   <>
-    <motion.div
-      initial={{ opacity: 0, y: '100%' }}
-      animate={{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 500, damping: 40, mass: 0.8 } }}
-      exit={{ opacity: 0, y: '100%', transition: { type: 'tween', duration: 0.26, ease: [0.32, 0, 0.67, 0] } }}
-      className="fixed inset-0 z-[60] flex flex-col"
-      style={{ backgroundColor: '#0a0a0a' }}
-    >
-      {/* Hero — full bleed with gradient bleed into content */}
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+      {/* Backdrop — same as TripDetailModal */}
+      <motion.div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.18 }}
+        onClick={() => { haptic(6); onClose() }}
+      />
+
+      {/* Sheet — clip-path zoom, identical spring to TripDetailModal */}
+      <motion.div
+        initial={{ clipPath: 'inset(6% 3% 32% 3% round 22px)', opacity: 0.92 }}
+        animate={{ clipPath: 'inset(0% 0% 0% 0% round 28px 28px 0 0)', opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 28, mass: 1.0 }}
+        className="relative w-full sm:max-w-lg flex flex-col"
+        style={{ backgroundColor: '#0a0a0a', borderRadius: '28px 28px 0 0', height: '92dvh' }}
+      >
+      {/* Hero — overflow-hidden scoped here for rounded corner image clip */}
       <div
         className="relative shrink-0 overflow-hidden"
-        style={{ height: 280, paddingTop: 'env(safe-area-inset-top)' }}
+        style={{ height: 260, borderRadius: '28px 28px 0 0' }}
       >
         {hang.photo_url ? (
           <img src={hang.photo_url} alt={hang.title} className="absolute inset-0 w-full h-full object-cover" />
@@ -95,20 +106,20 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
           </div>
         )}
 
-        {/* Scrim — lighter so photo breathes */}
+        {/* Scrim */}
         <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.28)' }} />
 
-        {/* Bottom gradient bleeds into background — no hard line */}
+        {/* Bottom gradient bleeds into sheet background */}
         <div className="absolute bottom-0 left-0 right-0 h-28" style={{ background: 'linear-gradient(to bottom, transparent, #0a0a0a)' }} />
 
-        {/* Back button */}
+        {/* Close button */}
         <button
           onClick={() => { haptic(6); onClose() }}
-          className="absolute top-4 left-4 w-9 h-9 rounded-full flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(16px)', marginTop: 'env(safe-area-inset-top)' }}
+          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(16px)' }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M19 12H5M12 19l-7-7 7-7" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6l12 12" stroke="white" strokeWidth="2" strokeLinecap="round"/>
           </svg>
         </button>
 
@@ -292,7 +303,8 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
           </motion.button>
         )}
       </div>
-    </motion.div>
+      </motion.div>
+    </div>
 
     {profileUserId && (
       <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
