@@ -136,11 +136,17 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
             {/* Adsterra container — fills remaining space */}
             <div
               className="flex-1 min-h-0 overflow-hidden"
-              style={{ padding: '0 12px 12px' }}
+              style={{ padding: '0 12px 12px', position: 'relative' }}
             >
               <div
                 id={ADSTERRA_CONTAINER}
-                style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
+                style={{ width: '100%', height: '100%' }}
+              />
+              {/* Transparent overlay — swallows clicks so the ad displays but never redirects */}
+              <div
+                style={{ position: 'absolute', inset: 0, zIndex: 10 }}
+                onClick={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
               />
             </div>
           </div>
