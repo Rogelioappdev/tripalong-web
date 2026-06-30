@@ -1,7 +1,8 @@
 'use client'
 
 import { forwardRef, useImperativeHandle } from 'react'
-import { motion, useMotionValue, useTransform, useAnimation, type PanInfo } from 'framer-motion'
+import { motion, useMotionValue, useTransform, useAnimation, type PanInfo, type TapInfo } from 'framer-motion'
+import { haptic } from '@/lib/haptics'
 import type { HangalongWithDetails, ActivityType, WhenLabel } from '@/lib/types'
 
 export interface HangCardHandle {
@@ -102,7 +103,7 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
       }}
       className={`rounded-[22px] overflow-hidden${isTop ? ' cursor-grab active:cursor-grabbing' : ''}`}
       onDragEnd={isTop ? handleDragEnd : undefined}
-      onClick={isTop ? onTap : undefined}
+      onTap={isTop ? (_e: MouseEvent | TouchEvent | PointerEvent, _info: TapInfo) => { haptic(8); onTap() } : undefined}
     >
       {isTop && (
         <>

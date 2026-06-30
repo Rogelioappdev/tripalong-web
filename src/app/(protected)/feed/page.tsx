@@ -514,21 +514,19 @@ export default function FeedPage() {
         />
       )}
 
-      <AnimatePresence>
-        {selectedHang && (
-          <HangDetailModal
-            hang={selectedHang}
-            userId={userId}
-            isJoined={joinedHangIds.includes(selectedHang.id)}
-            onClose={() => setSelectedHang(null)}
-            onJoinChange={(joined) => {
-              if (joined) setJoinedHangIds(ids => [...ids, selectedHang.id])
-              else setJoinedHangIds(ids => ids.filter(id => id !== selectedHang.id))
-            }}
-            onAuthRequired={triggerAuthGate}
-          />
-        )}
-      </AnimatePresence>
+      {selectedHang && (
+        <HangDetailModal
+          hang={selectedHang}
+          userId={userId}
+          isJoined={joinedHangIds.includes(selectedHang.id)}
+          onClose={() => setSelectedHang(null)}
+          onJoinChange={(joined) => {
+            if (joined) setJoinedHangIds(ids => [...ids, selectedHang.id])
+            else setJoinedHangIds(ids => ids.filter(id => id !== selectedHang.id))
+          }}
+          onAuthRequired={triggerAuthGate}
+        />
+      )}
 
       {showSaved && userId && (
         <SavedTripsModal
