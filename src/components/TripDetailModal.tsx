@@ -475,9 +475,9 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                       <button
                         key={m.id}
                         type="button"
-                        onPointerDown={(e) => { e.stopPropagation(); haptic(8); setProfileUserId(m.id) }}
+                        onClick={(e) => { e.stopPropagation(); haptic(8); setProfileUserId(m.id) }}
                         className="flex flex-col items-center shrink-0 active:opacity-75 transition-opacity"
-                        style={{ touchAction: 'manipulation', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', gap: 4 } as React.CSSProperties}
+                        style={{ touchAction: 'pan-x pan-y', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', gap: 4 } as React.CSSProperties}
                       >
                         <div
                           className="overflow-hidden"
