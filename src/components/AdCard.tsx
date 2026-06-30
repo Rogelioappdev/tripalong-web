@@ -1,11 +1,14 @@
 'use client'
 
-import { forwardRef, useImperativeHandle, useEffect } from 'react'
+import { forwardRef, useImperativeHandle } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation, type PanInfo } from 'framer-motion'
 import type { SwipeCardHandle } from './SwipeCard'
 
 const ADSTERRA_SCRIPT = 'https://pl30144485.effectivecpmnetwork.com/104736ea9fc6c68ca96f38da197279ea/invoke.js'
 const ADSTERRA_CONTAINER = 'container-104736ea9fc6c68ca96f38da197279ea'
+
+// Each ad slot gets its own iframe so the script re-executes fresh every time
+const ADSTERRA_SRCDOC = `<!DOCTYPE html><html><head><style>body{margin:0;padding:0;overflow:hidden;background:transparent}</style></head><body><script async data-cfasync="false" src="${ADSTERRA_SCRIPT}"><\/script><div id="${ADSTERRA_CONTAINER}"></div></body></html>`
 
 const isNativeApp = () =>
   typeof window !== 'undefined' && navigator.userAgent.includes('TripAlong/1.0')
@@ -24,22 +27,6 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
   const internalX = useMotionValue(0)
   const x = sharedX ?? internalX
   const controls = useAnimation()
-
-  // Inject Adsterra script when this card becomes the top card on web
-  useEffect(() => {
-    if (!isTop || isNativeApp()) return
-
-    // Remove any stale script from a previous ad slot
-    document.querySelector(`script[src="${ADSTERRA_SCRIPT}"]`)?.remove()
-
-    const script = document.createElement('script')
-    script.src = ADSTERRA_SCRIPT
-    script.async = true
-    script.setAttribute('data-cfasync', 'false')
-    document.body.appendChild(script)
-
-    return () => { script.remove() }
-  }, [isTop])
 
   useImperativeHandle(ref, () => ({
     swipeLeft: async () => {
@@ -123,7 +110,6 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
         <div className="absolute inset-0" style={{ backgroundColor: '#161616' }} />
 
         {showWebAd && isTop ? (
-          /* Adsterra native banner — rendered in place of the AdMob overlay on web */
           <div className="absolute inset-0 flex flex-col">
             {/* Sponsored label */}
             <div className="flex items-center gap-1.5 px-5 pt-5 pb-2 shrink-0">
@@ -133,25 +119,17 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
               </span>
             </div>
 
-            {/* Adsterra container — fills remaining space */}
-            <div
-              className="flex-1 min-h-0 overflow-hidden"
-              style={{ padding: '0 12px 12px', position: 'relative' }}
-            >
-              <div
-                id={ADSTERRA_CONTAINER}
-                style={{ width: '100%', height: '100%' }}
-              />
-              {/* Transparent overlay — swallows clicks so the ad displays but never redirects */}
-              <div
-                style={{ position: 'absolute', inset: 0, zIndex: 10 }}
-                onClick={e => e.stopPropagation()}
-                onPointerDown={e => e.stopPropagation()}
+            {/* Iframe — fresh context per slot, pointer-events none blocks all redirects */}
+            <div className="flex-1 min-h-0" style={{ padding: '0 12px 12px' }}>
+              <iframe
+                srcDoc={ADSTERRA_SRCDOC}
+                style={{ width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }}
+                sandbox="allow-scripts"
               />
             </div>
           </div>
         ) : (
-          /* Skeleton — shown on native (AdMob overlay comes from the shell) or on the back card */
+          /* Skeleton — native app (AdMob overlay) or back card */
           <>
             <motion.div
               className="absolute inset-y-0 pointer-events-none"
