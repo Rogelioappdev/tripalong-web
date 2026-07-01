@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { createProfile, updateProfile } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
+import { NotificationPrompt } from '@/components/NotificationPrompt'
 
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
@@ -27,6 +28,8 @@ export default function OnboardingPage() {
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [userId, setUserId] = useState<string | null>(null)
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -75,7 +78,8 @@ export default function OnboardingPage() {
       if (!skipPhoto && photoUrl) {
         await updateProfile(user.id, { profile_photo: photoUrl })
       }
-      router.replace('/feed')
+      setUserId(user.id)
+      setShowNotificationPrompt(true)
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -253,6 +257,10 @@ export default function OnboardingPage() {
           </AnimatePresence>
         </div>
       </div>
+
+      {showNotificationPrompt && userId && (
+        <NotificationPrompt userId={userId} onDone={() => router.replace('/feed')} />
+      )}
     </main>
   )
 }
