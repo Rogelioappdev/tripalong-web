@@ -11,7 +11,7 @@ interface Props {
   onDone: () => void
 }
 
-type State = 'prompt' | 'loading' | 'denied' | 'unsupported' | 'success'
+type State = 'prompt' | 'loading' | 'denied' | 'success'
 
 export function NotificationPrompt({ userId, onDone }: Props) {
   const [state, setState] = useState<State>('prompt')
@@ -19,13 +19,15 @@ export function NotificationPrompt({ userId, onDone }: Props) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-      setState('unsupported')
+      // Nothing actionable here (iOS Safari tab, or the native app's WebView) — skip silently
+      onDone()
       return
     }
     // Already denied from a previous session — show instructions instead
     if (Notification.permission === 'denied') {
       setState('denied')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (typeof window === 'undefined') return null
@@ -123,18 +125,6 @@ export function NotificationPrompt({ userId, onDone }: Props) {
           </>
         )}
 
-        {/* UNSUPPORTED */}
-        {state === 'unsupported' && (
-          <>
-            <h1 style={{ color: '#fff', fontWeight: 800, fontSize: 28, lineHeight: 1.1, letterSpacing: '-0.5px', marginBottom: 14 }}>
-              Add to Home Screen first.
-            </h1>
-            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15, lineHeight: 1.65 }}>
-              On iPhone, notifications work when TripAlong is installed. Tap the Share button → "Add to Home Screen", then open from there.
-            </p>
-          </>
-        )}
-
         {/* SUCCESS */}
         {state === 'success' && (
           <>
@@ -185,12 +175,6 @@ export function NotificationPrompt({ userId, onDone }: Props) {
         style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 32 }}
       >
         {state === 'denied' && (
-          <button type="button" onClick={handleSkip}
-            style={{ width: '100%', padding: '16px 0', borderRadius: 18, fontWeight: 700, fontSize: 16, backgroundColor: '#F0EBE3', color: '#000', border: 'none', cursor: 'pointer' }}>
-            Got it
-          </button>
-        )}
-        {state === 'unsupported' && (
           <button type="button" onClick={handleSkip}
             style={{ width: '100%', padding: '16px 0', borderRadius: 18, fontWeight: 700, fontSize: 16, backgroundColor: '#F0EBE3', color: '#000', border: 'none', cursor: 'pointer' }}>
             Got it
