@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Playfair_Display } from 'next/font/google'
 import { supabase } from '@/lib/supabase'
 import { haptic } from '@/lib/haptics'
+import { GuidelinesSlide } from '@/components/GuidelinesSlide'
 
 // ── Pre-launch gate ────────────────────────────────────────────────────────────
 const LAUNCH = new Date('2026-07-01T00:00:00')
@@ -464,14 +465,6 @@ function CardFace({ trip, stamp }: { trip: SplashTrip; stamp: 'save' | 'pass' | 
   )
 }
 
-const GUIDELINES = [
-  { icon: '🤝', text: 'Be respectful — treat every traveler the way you\'d want to be treated' },
-  { icon: '🚫', text: 'No harassment, hate speech, or inappropriate messages' },
-  { icon: '📍', text: 'Meet in public places for your first meet-up with a new travel companion' },
-  { icon: '🎭', text: 'Be yourself — fake profiles or impersonation will get you banned' },
-  { icon: '🚨', text: 'Report anything that feels off — we review every report' },
-]
-
 function SplashSkeleton() {
   return (
     <main style={{ position: 'relative', background: '#000', height: '100dvh', overflow: 'hidden' }}>
@@ -775,74 +768,11 @@ export default function SplashPage() {
 
         {/* ── Slide 2: Community guidelines ── */}
         {step === 'guidelines' && (
-          <motion.div
+          <GuidelinesSlide
             key="guidelines"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-            style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0, top: 0,
-              zIndex: 10,
-              backgroundColor: '#000',
-              display: 'flex', flexDirection: 'column', justifyContent: 'center',
-              padding: '0 26px',
-              paddingTop: 'calc(env(safe-area-inset-top) + 16px)',
-              paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)',
-            }}
-          >
-            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-              Community Guidelines
-            </p>
-            <h2 className={playfair.className} style={{
-              fontSize: 'clamp(24px, 6.5vw, 34px)',
-              fontWeight: 900, lineHeight: 1.12,
-              color: '#fff', marginBottom: 20,
-            }}>
-              A few rules to<br />
-              <span style={{ color: '#F0EBE3' }}>keep everyone safe.</span>
-            </h2>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 28 }}>
-              {GUIDELINES.map((g, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + i * 0.07, duration: 0.28 }}
-                  style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}
-                >
-                  <span style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>{g.icon}</span>
-                  <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 13.5, lineHeight: 1.5, margin: 0 }}>
-                    {g.text}
-                  </p>
-                </motion.div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => { haptic(12); sessionStorage.setItem('ta_require_auth', '1'); router.push('/feed') }}
-              style={{
-                width: '100%', padding: '15px 0', borderRadius: 18,
-                fontWeight: 700, fontSize: 15.5,
-                backgroundColor: '#F0EBE3', color: '#000',
-                border: 'none', cursor: 'pointer', letterSpacing: '-0.1px',
-                marginBottom: 10,
-              }}
-            >
-              I agree — let's go ✓
-            </button>
-            <button
-              onClick={() => { haptic(4); setStep('splash') }}
-              style={{
-                width: '100%', padding: '10px 0',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'rgba(255,255,255,0.2)', fontSize: 13, fontWeight: 500,
-              }}
-            >
-              ← Back
-            </button>
-          </motion.div>
+            onAgree={() => { sessionStorage.setItem('ta_require_auth', '1'); router.push('/feed') }}
+            onBack={() => setStep('splash')}
+          />
         )}
       </AnimatePresence>
 

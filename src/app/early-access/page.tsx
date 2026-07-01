@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { GuidelinesSlide } from '@/components/GuidelinesSlide'
 
 export default function EarlyAccessPage() {
   const router = useRouter()
   const [code, setCode] = useState('')
   const [state, setState] = useState<'idle' | 'error' | 'success' | 'loading'>('idle')
   const [errorMsg, setErrorMsg] = useState('Invalid code — try again.')
+  const [showGuidelines, setShowGuidelines] = useState(false)
 
   const submit = async () => {
     const trimmed = code.trim().toUpperCase()
@@ -41,7 +43,23 @@ export default function EarlyAccessPage() {
     // Grant access via cookie (same cookie the protected layout checks)
     document.cookie = 'ta_access=true; path=/; max-age=31536000; SameSite=Lax'
     setState('success')
-    setTimeout(() => router.replace('/feed'), 900)
+    setTimeout(() => setShowGuidelines(true), 900)
+  }
+
+  const handleAgree = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { router.replace('/login'); return }
+    // New sign-ups need a profile first — same age check auth/callback uses
+    const { data: profile } = await supabase
+      .from('users')
+      .select('age')
+      .eq('id', user.id)
+      .single()
+    router.replace(!profile || profile.age === null ? '/onboarding' : '/feed')
+  }
+
+  if (showGuidelines) {
+    return <GuidelinesSlide onAgree={handleAgree} />
   }
 
   return (
