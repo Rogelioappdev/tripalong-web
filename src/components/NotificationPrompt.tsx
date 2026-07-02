@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { supabase } from '@/lib/supabase'
+import { isNativeApp } from '@/lib/native-app'
 
 interface Props {
   userId: string
@@ -18,8 +19,16 @@ export function NotificationPrompt({ userId, onDone }: Props) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (isNativeApp) {
+      // Web Notification/serviceWorker APIs don't work inside the native WebView —
+      // hand off to native, which shows its own prompt and registers a real
+      // device push token. Wait for native's response before continuing.
+      ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'request_notifications' }))
+      ;(window as any).__tripalongNotificationsDone = () => onDone()
+      return () => { delete (window as any).__tripalongNotificationsDone }
+    }
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-      // Nothing actionable here (iOS Safari tab, or the native app's WebView) — skip silently
+      // Nothing actionable here (iOS Safari tab) — skip silently
       onDone()
       return
     }
@@ -30,7 +39,7 @@ export function NotificationPrompt({ userId, onDone }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (typeof window === 'undefined') return null
+  if (typeof window === 'undefined' || isNativeApp) return null
 
   const handleAllow = async () => {
     haptic([10, 30, 10])
