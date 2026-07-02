@@ -625,13 +625,19 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     // where the ref isn't measured yet on the first synchronous effect run.
     const t = setTimeout(() => {
       const r = cardAreaRef.current?.getBoundingClientRect()
-      console.log('show_ad_content fired, isCurrentAd=', isCurrentAd, 'rect=', JSON.stringify(r))
       ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({
         type: 'show_ad_content',
         cardRect: r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null,
       }))
     }, 50)
-    return () => clearTimeout(t)
+    // Safety net: native normally advances the feed itself once the ad is
+    // shown/dismissed/fails (AdOverlay's own ~3-10s timers call back into
+    // advanceFeed). If that bridge message is ever lost, or native never
+    // mounts the ad overlay at all, nothing would otherwise move the feed
+    // forward and the "waiting for ad" card would block the user
+    // indefinitely. This watchdog guarantees it always advances eventually.
+    const watchdog = setTimeout(() => advanceRef.current(true), 12000)
+    return () => { clearTimeout(t); clearTimeout(watchdog) }
   }, [isCurrentAd])
 
   const handleSwipeRight = async (trip: TripWithDetails) => {
@@ -1080,22 +1086,6 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
           )
         )}
 
-        {/* DEBUG (temporary): confirms the web side inserted an ad slot and is asking
-            native to show the AdMob overlay. Native-app only. Remove after verifying. */}
-        {isCurrentAd && isNativeApp() && (
-          <div
-            style={{
-              position: 'absolute', top: 10, left: 10, zIndex: 50,
-              pointerEvents: 'none',
-              backgroundColor: 'rgba(0,0,0,0.6)',
-              border: '0.5px solid rgba(240,235,227,0.3)',
-              borderRadius: 8, padding: '4px 8px',
-              color: '#F0EBE3', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-            }}
-          >
-            AD SLOT · waiting for native overlay
-          </div>
-        )}
 
         {/* DNA nudge card — overlays the current trip card */}
         <AnimatePresence>

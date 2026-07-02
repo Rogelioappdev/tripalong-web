@@ -3,7 +3,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation, type PanInfo } from 'framer-motion'
 import type { SwipeCardHandle } from './SwipeCard'
-import { isNativeApp } from '@/lib/native-app'
+
+// Checked live (not the frozen `isNativeApp` module constant from '@/lib/native-app') —
+// this component's chunk can be evaluated before react-native-webview finishes
+// injecting the bridge object, which would freeze the constant at `false` forever.
+const isNativeApp = () => typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
 
 const AD_CLIENT = 'ca-pub-8644781373903568'
 const AD_SLOT = '4676302670' // "Feed Card Web" responsive display unit
@@ -123,7 +127,7 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
       >
         <div className="absolute inset-0" style={{ backgroundColor: '#161616' }} />
 
-        {isNativeApp ? (
+        {isNativeApp() ? (
           <>
             <motion.div
               className="absolute inset-y-0 pointer-events-none"
