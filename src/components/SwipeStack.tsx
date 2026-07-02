@@ -620,16 +620,35 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   // avoids the stale-feedItems closure that [currentIndex] alone would cause.
   useEffect(() => {
     if (!isCurrentAd || !isNativeApp()) return
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
     // Defer one paint so cardAreaRef is laid out before we measure it.
     // Covers the mount-with-currentIndex===adSlot case (restored from sessionStorage),
     // where the ref isn't measured yet on the first synchronous effect run.
-    const t = setTimeout(() => {
+    //
+    // `isNativeApp()` here checks the userAgent string, which is set synchronously
+    // by the WebView before any page script runs — but `window.ReactNativeWebView`
+    // (the actual object `.postMessage` lives on) is injected separately and can
+    // briefly not exist yet even when the userAgent check already passes. The old
+    // code called `?.postMessage(...)` once and silently gave up forever if the
+    // bridge wasn't there yet — the message would just vanish with no error and
+    // no retry, leaving native never told to show an ad. Retry until it's ready.
+    const trySend = () => {
+      if (cancelled) return
+      const bridge = (window as any).ReactNativeWebView
+      if (!bridge) {
+        retryTimer = setTimeout(trySend, 100)
+        return
+      }
       const r = cardAreaRef.current?.getBoundingClientRect()
-      ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({
+      bridge.postMessage(JSON.stringify({
         type: 'show_ad_content',
         cardRect: r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null,
       }))
-    }, 50)
+    }
+    const t = setTimeout(trySend, 50)
+
     // Safety net: native normally advances the feed itself once the ad is
     // shown/dismissed/fails (AdOverlay's own ~3-10s timers call back into
     // advanceFeed). If that bridge message is ever lost, or native never
@@ -637,7 +656,12 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     // forward and the "waiting for ad" card would block the user
     // indefinitely. This watchdog guarantees it always advances eventually.
     const watchdog = setTimeout(() => advanceRef.current(true), 12000)
-    return () => { clearTimeout(t); clearTimeout(watchdog) }
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+      if (retryTimer) clearTimeout(retryTimer)
+      clearTimeout(watchdog)
+    }
   }, [isCurrentAd])
 
   const handleSwipeRight = async (trip: TripWithDetails) => {
