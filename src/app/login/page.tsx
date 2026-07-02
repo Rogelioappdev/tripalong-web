@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { haptic } from '@/lib/haptics'
-import { isNativeApp } from '@/lib/native-app'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,7 +15,11 @@ export default function LoginPage() {
 
   const signInWithGoogle = () => {
     haptic(8)
-    if (isNativeApp) {
+    // Check live rather than importing the frozen `isNativeApp` module constant —
+    // this page is often the very first one loaded in a fresh WebView session, and
+    // that constant can get stuck at `false` if it evaluates before
+    // react-native-webview finishes injecting window.ReactNativeWebView.
+    if ((window as any).ReactNativeWebView) {
       // Google blocks/degrades OAuth inside embedded WebViews — hand off to
       // native so it can open a real system browser instead.
       ;(window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'google_signin' }))
