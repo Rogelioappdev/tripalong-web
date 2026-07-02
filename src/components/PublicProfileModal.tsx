@@ -371,7 +371,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                 <button
                   onClick={() => { haptic(8); onClose() }}
                   className="absolute flex items-center justify-center active:scale-90 transition-transform"
-                  style={{ top: 16, left: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.5)', border: '0.5px solid rgba(255,255,255,0.15)', zIndex: 10 }}
+                  style={{ top: 'calc(env(safe-area-inset-top) + 16px)', left: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.5)', border: '0.5px solid rgba(255,255,255,0.15)', zIndex: 10 }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path d="M6 9l6 6 6-6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -380,7 +380,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
 
                 {/* Verified badge */}
                 {profile.is_verified && (
-                  <div className="absolute flex items-center gap-1 rounded-full px-3 py-1.5" style={{ top: 56, right: 16, backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.35)', zIndex: 10 }}>
+                  <div className="absolute flex items-center gap-1 rounded-full px-3 py-1.5" style={{ top: 'calc(env(safe-area-inset-top) + 56px)', right: 16, backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.35)', zIndex: 10 }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     <span className="text-white text-xs font-semibold">Verified</span>
                   </div>

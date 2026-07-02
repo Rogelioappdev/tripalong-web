@@ -98,7 +98,7 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
       }}
       className={`rounded-[22px] overflow-hidden${isTop ? ' cursor-grab active:cursor-grabbing' : ''}`}
       onDragEnd={isTop ? handleDragEnd : undefined}
-      onClick={isTop ? onTap : undefined}
+      onTap={isTop ? onTap : undefined}
     >
       {isTop && (
         <>

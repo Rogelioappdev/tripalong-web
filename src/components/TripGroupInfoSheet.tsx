@@ -619,8 +619,8 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
           <button
             type="button"
             onClick={() => setViewingImage(null)}
-            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full"
-            style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff' }}
+            className="absolute right-4 w-9 h-9 flex items-center justify-center rounded-full"
+            style={{ top: 'calc(env(safe-area-inset-top) + 16px)', backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>

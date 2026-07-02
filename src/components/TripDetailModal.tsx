@@ -221,7 +221,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
             onClick={() => { haptic(8); onClose() }}
             className="absolute flex items-center justify-center active:scale-90 transition-transform"
             style={{
-              top: 16, left: 16,
+              top: 'calc(env(safe-area-inset-top) + 16px)', left: 16,
               width: 36, height: 36, borderRadius: 18,
               backgroundColor: 'rgba(0,0,0,0.5)',
               border: '0.5px solid rgba(255,255,255,0.15)',
@@ -237,7 +237,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
             onClick={handleShare}
             className="absolute flex items-center justify-center active:scale-90 transition-transform"
             style={{
-              top: 16, right: 16,
+              top: 'calc(env(safe-area-inset-top) + 16px)', right: 16,
               width: 36, height: 36, borderRadius: 18,
               backgroundColor: 'rgba(0,0,0,0.5)',
               border: '0.5px solid rgba(255,255,255,0.15)',

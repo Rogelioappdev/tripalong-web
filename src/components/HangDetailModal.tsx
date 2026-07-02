@@ -115,8 +115,8 @@ export function HangDetailModal({ hang, userId, isJoined, onClose, onJoinChange,
         {/* Close button */}
         <button
           onClick={() => { haptic(6); onClose() }}
-          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(16px)' }}
+          className="absolute right-4 w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ top: 'calc(env(safe-area-inset-top) + 16px)', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(16px)' }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
             <path d="M18 6L6 18M6 6l12 12" stroke="white" strokeWidth="2" strokeLinecap="round"/>
