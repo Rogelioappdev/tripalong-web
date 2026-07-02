@@ -346,8 +346,12 @@ export default function FeedPage() {
         {isGuest && (
           <button
             onClick={() => triggerAuthGate()}
-            className="mx-4 mt-2 mb-1 flex items-center justify-between px-4 py-3 rounded-2xl shrink-0 active:scale-[0.98] transition-transform"
-            style={{ backgroundColor: 'rgba(240,235,227,0.07)', border: '0.5px solid rgba(240,235,227,0.15)' }}
+            className="mx-4 mb-1 flex items-center justify-between px-4 py-3 rounded-2xl shrink-0 active:scale-[0.98] transition-transform"
+            style={{
+              backgroundColor: 'rgba(240,235,227,0.07)',
+              border: '0.5px solid rgba(240,235,227,0.15)',
+              marginTop: 'calc(env(safe-area-inset-top) + 8px)',
+            }}
           >
             <div className="flex items-center gap-2">
               <span className="text-base">✈️</span>
