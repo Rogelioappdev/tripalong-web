@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useImperativeHandle } from 'react'
+import { forwardRef, useImperativeHandle, useRef } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation, type PanInfo, type TapInfo } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import type { HangalongWithDetails, ActivityType, WhenLabel } from '@/lib/types'
@@ -46,6 +46,10 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
   const internalX = useMotionValue(0)
   const x = sharedX ?? internalX
   const controls = useAnimation()
+  // Framer's onTap can still fire after a real drag, since the card follows the
+  // finger and the pointer is technically still "over" it at release. Track
+  // actual drag distance ourselves and swallow the tap when it wasn't a tap.
+  const draggedRef = useRef(false)
 
   useImperativeHandle(ref, () => ({
     swipeLeft: async () => {
@@ -67,6 +71,7 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
   const redOverlay = useTransform(x, [0, -50, -200], [0, 0.06, 0.18])
 
   async function handleDragEnd(_: unknown, info: PanInfo) {
+    draggedRef.current = Math.abs(info.offset.x) > 5
     const shouldRight = info.offset.x > 120 || info.velocity.x > 500
     const shouldLeft = info.offset.x < -120 || info.velocity.x < -500
     if (shouldRight) {
@@ -103,7 +108,10 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
       }}
       className={`rounded-[22px] overflow-hidden${isTop ? ' cursor-grab active:cursor-grabbing' : ''}`}
       onDragEnd={isTop ? handleDragEnd : undefined}
-      onTap={isTop ? (_e: MouseEvent | TouchEvent | PointerEvent, _info: TapInfo) => { haptic(8); onTap() } : undefined}
+      onTap={isTop ? (_e: MouseEvent | TouchEvent | PointerEvent, _info: TapInfo) => {
+        if (draggedRef.current) { draggedRef.current = false; return }
+        haptic(8); onTap()
+      } : undefined}
     >
       {isTop && (
         <>
