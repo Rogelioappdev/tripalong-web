@@ -62,8 +62,8 @@ export default function TermsPage() {
     <div style={{ background: '#080808', minHeight: '100vh' }}>
 
       {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b flex items-center justify-between px-5 py-3"
-        style={{ background: 'rgba(8,8,8,0.92)', backdropFilter: 'blur(12px)', borderColor: 'rgba(255,255,255,0.07)' }}>
+      <header className="sticky top-0 z-20 border-b flex items-center justify-between px-5 pb-3"
+        style={{ background: 'rgba(8,8,8,0.92)', backdropFilter: 'blur(12px)', borderColor: 'rgba(255,255,255,0.07)', paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
         <button type="button" onClick={() => router.back()}
           className="flex items-center gap-1.5 text-sm font-medium"
           style={{ color: 'rgba(255,255,255,0.5)' }}>

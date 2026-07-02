@@ -87,7 +87,7 @@ function ProfileSkeleton() {
   return (
     <>
       <NavBar />
-      <main className="pt-14 min-h-screen bg-black pb-20">
+      <main className="pt-[calc(env(safe-area-inset-top)+12px)] md:pt-14 min-h-screen bg-black pb-20">
         <div className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-6">
           <Bone className="w-full aspect-[3/2] rounded-3xl" />
           <div className="border-t border-white/6 pt-6 flex flex-col gap-3">
@@ -310,7 +310,7 @@ export default function ProfilePage() {
   return (
     <>
       <NavBar />
-      <main className="pt-14 min-h-screen bg-black pb-20 md:pb-8">
+      <main className="pt-[calc(env(safe-area-inset-top)+12px)] md:pt-14 min-h-screen bg-black pb-20 md:pb-8">
         <div className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-6">
 
           {/* Page header */}

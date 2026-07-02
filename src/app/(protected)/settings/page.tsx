@@ -157,7 +157,7 @@ export default function SettingsPage() {
   return (
     <>
       <NavBar />
-      <main className="pt-14 min-h-screen bg-black pb-28 md:pb-10">
+      <main className="pt-[calc(env(safe-area-inset-top)+12px)] md:pt-14 min-h-screen bg-black pb-28 md:pb-10">
         {/* Page header */}
         <div className="max-w-lg mx-auto px-5 pt-4 pb-2 flex items-center gap-3">
           <button type="button" onClick={() => { haptic(8); router.back() }}
