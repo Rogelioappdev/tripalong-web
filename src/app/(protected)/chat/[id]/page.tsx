@@ -518,7 +518,10 @@ export default function ChatPage() {
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
 
           {/* Chat header */}
-          <div className="py-2.5 border-b border-white/8 flex items-center gap-3 shrink-0">
+          <div
+            className="pb-2.5 border-b border-white/8 flex items-center gap-3 shrink-0"
+            style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}
+          >
             <button
               onClick={searchOpen ? handleCloseSearch : () => router.back()}
               className="text-white/40 hover:text-white transition-colors shrink-0"

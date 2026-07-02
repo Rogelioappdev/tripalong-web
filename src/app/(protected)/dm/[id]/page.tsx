@@ -443,7 +443,10 @@ export default function DMPage() {
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
 
           {/* Header */}
-          <div className="py-3 border-b border-white/8 flex items-center gap-3 shrink-0">
+          <div
+            className="pb-3 border-b border-white/8 flex items-center gap-3 shrink-0"
+            style={{ paddingTop: 'calc(env(safe-area-inset-top) + 11px)' }}
+          >
             <button
               onClick={() => router.back()}
               className="text-white/40 hover:text-white transition-colors shrink-0"

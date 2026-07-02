@@ -166,7 +166,7 @@ export default function MessagesPage() {
       <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>
         <div className="max-w-2xl mx-auto">
           {/* Mobile header */}
-          <div className="md:hidden flex items-center justify-between px-5 pt-6 pb-4">
+          <div className="md:hidden flex items-center justify-between px-5 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
             <h1 className="text-white font-extrabold text-2xl">Messages</h1>
             <button
               onClick={() => { haptic(8); setShowViews(true) }}
