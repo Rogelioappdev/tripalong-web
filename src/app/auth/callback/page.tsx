@@ -16,7 +16,7 @@ export default function AuthCallbackPage() {
     const redirect = async (session: Session) => {
       if (resolved) return
       resolved = true
-      const hasBeta = document.cookie.includes('ta_access=true')
+      const hasBeta = document.cookie.includes('ta_access=true') || process.env.NEXT_PUBLIC_SKIP_ACCESS_GATE === 'true'
       if (!hasBeta) {
         router.replace('/early-access')
         return
