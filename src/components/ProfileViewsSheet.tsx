@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getProfileViewers } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
-import { startCheckout } from '@/lib/subscription'
+import { purchasePlus } from '@/lib/purchase'
 import { PublicProfileModal } from './PublicProfileModal'
 
 interface Viewer {
@@ -78,12 +78,15 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
     setLoading(true)
     setError(null)
     try {
-      await startCheckout(selected === 'annual' ? 'plus_annual' : 'plus_monthly')
+      await purchasePlus(selected)
+      setLoading(false)
+      onClose()
     } catch (err: any) {
       setLoading(false)
+      if (err?.message === 'cancelled') return
       setError(err?.message ?? 'Something went wrong. Try again.')
     }
-  }, [selected])
+  }, [selected, onClose])
 
   const previewViewers = viewers.slice(0, 5)
 
@@ -201,16 +204,16 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
           >
             <span className="absolute -top-2.5 left-4 px-2 py-0.5 rounded-full font-bold text-white"
               style={{ backgroundColor: '#30D158', fontSize: 10, letterSpacing: '0.04em' }}>
-              SAVE 38%
+              SAVE 52%
             </span>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-white font-bold" style={{ fontSize: 15 }}>Annual</p>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>$59.99/year · cancel anytime</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>$39.99/year · cancel anytime</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$5</p>
+                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$3.33</p>
                   <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/month</p>
                 </div>
                 <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
@@ -241,7 +244,7 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$7.99</p>
+                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$6.99</p>
                   <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/month</p>
                 </div>
                 <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
@@ -266,7 +269,7 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
           {[
             { label: 'Unlimited swipes', sub: 'Never hit a wall mid-session' },
             { label: 'See who viewed your profile', sub: 'Know who\'s already interested' },
-            { label: 'Rewind last swipe', sub: 'Take back a pass in an instant' },
+            { label: 'No ads', sub: 'Browse the feed without interruptions' },
           ].map(f => (
             <div key={f.label} className="flex items-center gap-3 text-left">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
@@ -291,7 +294,7 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
         >
           {loading
             ? 'Opening checkout…'
-            : `Continue with ${selected === 'annual' ? 'Annual · $59.99/yr' : 'Monthly · $7.99/mo'}`}
+            : `Continue with ${selected === 'annual' ? 'Annual · $39.99/yr' : 'Monthly · $6.99/mo'}`}
         </button>
         <button
           onClick={() => { haptic(6); onClose() }}
