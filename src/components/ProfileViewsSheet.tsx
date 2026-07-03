@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getProfileViewers } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
-import { purchasePlus, restorePurchases, isNativeApp } from '@/lib/purchase'
+import { purchasePlus, restorePurchases, isNativeApp, getNativePlusPricing, type PlusPricing } from '@/lib/purchase'
 import { PublicProfileModal } from './PublicProfileModal'
 
 interface Viewer {
@@ -74,6 +74,11 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
   const [error, setError] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(false)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
+  const [nativePricing, setNativePricing] = useState<PlusPricing | null>(null)
+
+  useEffect(() => {
+    getNativePlusPricing().then(setNativePricing)
+  }, [])
 
   const checkout = useCallback(async () => {
     haptic(12)
@@ -222,17 +227,21 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
           >
             <span className="absolute -top-2.5 left-4 px-2 py-0.5 rounded-full font-bold text-white"
               style={{ backgroundColor: '#30D158', fontSize: 10, letterSpacing: '0.04em' }}>
-              SAVE 52%
+              {nativePricing ? 'BEST VALUE' : 'SAVE 52%'}
             </span>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-white font-bold" style={{ fontSize: 15 }}>Annual</p>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>$39.99/year · cancel anytime</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>
+                  {nativePricing ? `${nativePricing.annual}/year · cancel anytime` : '$39.99/year · cancel anytime'}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$3.33</p>
-                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/month</p>
+                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>
+                    {nativePricing ? nativePricing.annual : '$3.33'}
+                  </p>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{nativePricing ? '/year' : '/month'}</p>
                 </div>
                 <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
                   style={{ border: selected === 'annual' ? 'none' : '1.5px solid rgba(255,255,255,0.2)', backgroundColor: selected === 'annual' ? '#F0EBE3' : 'transparent' }}>
@@ -249,21 +258,35 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
           {/* Monthly */}
           <button
             onClick={() => { haptic(4); setSelected('monthly') }}
-            className="w-full text-left rounded-2xl px-4 py-4 transition-all active:scale-[0.98]"
+            className="w-full text-left rounded-2xl px-4 py-4 relative transition-all active:scale-[0.98]"
             style={{
               backgroundColor: selected === 'monthly' ? 'rgba(240,235,227,0.1)' : 'rgba(255,255,255,0.04)',
               border: selected === 'monthly' ? '1.5px solid rgba(240,235,227,0.6)' : '1px solid rgba(255,255,255,0.08)',
             }}
           >
+            {nativePricing?.monthlyIntroPrice && (
+              <span className="absolute -top-2.5 left-4 px-2 py-0.5 rounded-full font-bold text-white"
+                style={{ backgroundColor: '#FF9F0A', fontSize: 10, letterSpacing: '0.04em' }}>
+                50% OFF FIRST MONTH
+              </span>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-white font-bold" style={{ fontSize: 15 }}>Monthly</p>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>Billed monthly · cancel anytime</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>
+                  {nativePricing?.monthlyIntroPrice
+                    ? `Then ${nativePricing.monthly}/mo · cancel anytime`
+                    : 'Billed monthly · cancel anytime'}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>$6.99</p>
-                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/month</p>
+                  <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px' }}>
+                    {nativePricing?.monthlyIntroPrice ?? nativePricing?.monthly ?? '$6.99'}
+                  </p>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                    {nativePricing?.monthlyIntroPrice ? 'first month' : '/month'}
+                  </p>
                 </div>
                 <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
                   style={{ border: selected === 'monthly' ? 'none' : '1.5px solid rgba(255,255,255,0.2)', backgroundColor: selected === 'monthly' ? '#F0EBE3' : 'transparent' }}>
@@ -315,7 +338,11 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
         >
           {loading
             ? 'Opening checkout…'
-            : `Continue with ${selected === 'annual' ? 'Annual · $39.99/yr' : 'Monthly · $6.99/mo'}`}
+            : selected === 'monthly' && nativePricing?.monthlyIntroPrice
+              ? `Continue · ${nativePricing.monthlyIntroPrice} first month`
+              : `Continue with ${selected === 'annual'
+                  ? `Annual · ${nativePricing?.annual ?? '$39.99'}/yr`
+                  : `Monthly · ${nativePricing?.monthly ?? '$6.99'}/mo`}`}
         </button>
         <button
           onClick={() => { haptic(6); onClose() }}
