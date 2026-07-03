@@ -352,8 +352,12 @@ export default function FeedPage() {
               transition={{ duration: 0.28, ease: 'easeOut' }}
               type="button"
               onClick={() => { haptic(8); setShowTrialExpiredPaywall(true) }}
-              className="mx-4 mt-2 mb-1 flex items-center justify-between px-4 py-2.5 rounded-2xl shrink-0 active:scale-[0.98] transition-transform"
-              style={{ backgroundColor: 'rgba(240,235,227,0.07)', border: '0.5px solid rgba(240,235,227,0.18)' }}
+              className="mx-4 mb-1 flex items-center justify-between px-4 py-2.5 rounded-2xl shrink-0 active:scale-[0.98] transition-transform"
+              style={{
+                backgroundColor: 'rgba(240,235,227,0.07)',
+                border: '0.5px solid rgba(240,235,227,0.18)',
+                marginTop: 'calc(env(safe-area-inset-top) + 8px)',
+              }}
             >
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
@@ -374,8 +378,12 @@ export default function FeedPage() {
               transition={{ duration: 0.28, ease: 'easeOut' }}
               type="button"
               onClick={() => { haptic(8); setNotifNudge(false); setShowNotifPrompt(true) }}
-              className="mx-4 mt-2 mb-1 flex items-center justify-between px-4 py-2.5 rounded-2xl shrink-0 active:scale-[0.98] transition-transform"
-              style={{ backgroundColor: 'rgba(240,235,227,0.07)', border: '0.5px solid rgba(240,235,227,0.18)' }}
+              className="mx-4 mb-1 flex items-center justify-between px-4 py-2.5 rounded-2xl shrink-0 active:scale-[0.98] transition-transform"
+              style={{
+                backgroundColor: 'rgba(240,235,227,0.07)',
+                border: '0.5px solid rgba(240,235,227,0.18)',
+                marginTop: 'calc(env(safe-area-inset-top) + 8px)',
+              }}
             >
               <div className="flex items-center gap-2">
                 <span className="text-base">🔔</span>
