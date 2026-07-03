@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { startCheckout } from '@/lib/subscription'
+import { purchasePlus } from '@/lib/purchase'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
 interface Props {
-  trigger: 'swipes' | 'rewind' | 'who-viewed'
+  trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility'
   context?: string
+  matchPct?: number
   trips?: TripWithDetails[]
   onClose: () => void
 }
@@ -21,14 +22,14 @@ const FEATURES = [
     sub: 'Swipe through every trip in the feed — no daily walls, no waiting until tomorrow.',
   },
   {
-    icon: '👁',
-    label: 'See who viewed your profile',
-    sub: 'Real travelers are already checking you out. Plus shows you exactly who they are.',
+    icon: '✦',
+    label: 'See your compatibility %',
+    sub: 'Know exactly how well you match a trip and its travelers before you commit.',
   },
   {
-    icon: '↩',
-    label: 'Rewind last swipe',
-    sub: 'Passed on a trip by mistake? One tap brings it back.',
+    icon: '🚫',
+    label: 'No ads',
+    sub: 'Browse the feed without interruptions.',
   },
 ]
 
@@ -45,7 +46,7 @@ function tripDates(start: string | null, end: string | null) {
   return 'Flexible dates'
 }
 
-export function PaywallModal({ trigger, context, trips, onClose }: Props) {
+export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Props) {
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,19 +60,31 @@ export function PaywallModal({ trigger, context, trips, onClose }: Props) {
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
 
   const headline =
+    trigger === 'compatibility' ? "See exactly how well you match" :
     trigger === 'swipes' && context ? `${context} is waiting` :
     trigger === 'swipes' ? 'More trips are waiting' :
     trigger === 'rewind' ? 'Want that trip back?' :
     'See who checked you out'
+
+  const subcopy =
+    trigger === 'compatibility'
+      ? matchPct !== undefined && matchPct >= 60
+        ? `You're a ${matchPct >= 80 ? 'strong' : 'good'} match — unlock to see the exact number.`
+        : 'Unlock to see exactly how much you match.' :
+    trigger === 'rewind' ? 'Unlock rewind and never lose a great trip again.' :
+    "You've hit today's limit. Upgrade for unlimited."
 
   const handleUpgrade = async () => {
     haptic(12)
     setLoading(true)
     setError(null)
     try {
-      await startCheckout(billing === 'annual' ? 'plus_annual' : 'plus_monthly')
+      await purchasePlus(billing)
+      setLoading(false)
+      onClose()
     } catch (err: any) {
       setLoading(false)
+      if (err?.message === 'cancelled') return
       setError(err?.message ?? 'Something went wrong. Try again.')
     }
   }
@@ -130,7 +143,7 @@ export function PaywallModal({ trigger, context, trips, onClose }: Props) {
               )}
               <h2 className="text-white font-bold mb-1" style={{ fontSize: 22, letterSpacing: '-0.3px' }}>{headline}</h2>
               <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                {trigger === 'rewind' ? 'Unlock rewind and never lose a great trip again.' : "You've hit today's limit. Upgrade for unlimited."}
+                {subcopy}
               </p>
             </div>
 
@@ -152,7 +165,7 @@ export function PaywallModal({ trigger, context, trips, onClose }: Props) {
                   {interval === 'annual' && (
                     <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-white font-bold"
                       style={{ backgroundColor: '#30D158', fontSize: 9, whiteSpace: 'nowrap' }}>
-                      SAVE 38%
+                      SAVE 52%
                     </span>
                   )}
                 </button>
@@ -162,12 +175,12 @@ export function PaywallModal({ trigger, context, trips, onClose }: Props) {
             {/* Price */}
             <div className="flex items-baseline justify-center gap-1 mb-1">
               <span className="text-white font-extrabold" style={{ fontSize: 48, letterSpacing: '-2px', lineHeight: 1 }}>
-                {billing === 'annual' ? '$5' : '$7.99'}
+                {billing === 'annual' ? '$3.33' : '$6.99'}
               </span>
               <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>/mo</span>
             </div>
             <p className="text-center mb-6" style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>
-              {billing === 'annual' ? 'Billed $59.99/year — cancel anytime' : 'Billed monthly — cancel anytime'}
+              {billing === 'annual' ? 'Billed $39.99/year — cancel anytime' : 'Billed monthly — cancel anytime'}
             </p>
 
             {/* Features — expanded */}
@@ -251,7 +264,7 @@ export function PaywallModal({ trigger, context, trips, onClose }: Props) {
             className="w-full py-4 rounded-2xl font-bold disabled:opacity-60 active:scale-[0.98] transition-transform"
             style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000', fontSize: 15 }}
           >
-            {loading ? 'Opening checkout…' : `Unlock Plus · ${billing === 'annual' ? '$59.99/yr' : '$7.99/mo'}`}
+            {loading ? 'Opening checkout…' : `Unlock Plus · ${billing === 'annual' ? '$39.99/yr' : '$6.99/mo'}`}
           </button>
           <button
             type="button"

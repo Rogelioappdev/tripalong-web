@@ -938,10 +938,11 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
             return (
               <PaywallModal
                 key="paywall"
-                trigger="swipes"
+                trigger={paywallContext ? 'compatibility' : 'swipes'}
                 context={currentTrip?.destination}
+                matchPct={paywallContext?.matchPct}
                 trips={trips.slice(currentIndex + 1, currentIndex + 4)}
-                onClose={() => setShowPaywall(false)}
+                onClose={() => { setShowPaywall(false); setPaywallContext(undefined) }}
               />
             )
           })()}
