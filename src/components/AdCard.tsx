@@ -45,11 +45,13 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
   const x = sharedX ?? internalX
   const controls = useAnimation()
 
+  const handleSkip = async () => {
+    await controls.start({ x: -700, opacity: 0, rotate: -20, transition: { duration: 0.3, ease: 'easeOut' } })
+    onSwipeLeft()
+  }
+
   useImperativeHandle(ref, () => ({
-    swipeLeft: async () => {
-      await controls.start({ x: -700, opacity: 0, rotate: -20, transition: { duration: 0.3, ease: 'easeOut' } })
-      onSwipeLeft()
-    },
+    swipeLeft: handleSkip,
     swipeRight: async () => {
       await controls.start({ x: 700, opacity: 0, rotate: 20, transition: { duration: 0.3, ease: 'easeOut' } })
       onSwipeRight()
@@ -150,6 +152,22 @@ export const AdCard = forwardRef<SwipeCardHandle, AdCardProps>(function AdCard(
                 </span>
               </div>
             </div>
+            {/* Always-visible skip — safety net independent of whether the
+                native ad overlay ever mounts on top of this placeholder. */}
+            {isTop && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); handleSkip() }}
+                className="absolute top-4 right-4 rounded-full active:scale-95 transition-transform"
+                style={{
+                  backgroundColor: 'rgba(0,0,0,0.55)',
+                  border: '1px solid rgba(255,255,255,0.4)',
+                  padding: '8px 14px',
+                }}
+              >
+                <span className="text-white font-bold" style={{ fontSize: 14 }}>Skip  ›</span>
+              </button>
+            )}
           </>
         ) : (
           <div className="absolute inset-0 flex flex-col">
