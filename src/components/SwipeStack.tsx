@@ -12,13 +12,13 @@ import { PublicProfileModal } from './PublicProfileModal'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
-import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, joinHangalong, markTripSeen, markHangalongSeen } from '@/lib/queries'
+import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen } from '@/lib/queries'
 import { JoinCelebration } from './JoinCelebration'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { hasPlus, getTrialStatus } from '@/lib/trial'
+import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 
-const DAILY_LIMIT = 15
 const AD_FREQUENCY = 6 // show ad every N swipes
 const todayKey = (uid: string) => `ta_swipes_${uid}_${new Date().toISOString().slice(0, 10)}`
 
@@ -494,6 +494,22 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     if (initialProfile) setUserProfile(initialProfile)
   }, [initialProfile])
 
+  // Launch A/B test: 50/50 split on capped-15/day vs unlimited swipes.
+  // Prefer the persisted variant so it never flips once assigned; fall back
+  // to a deterministic hash of the user ID before the profile round-trip
+  // resolves, so the very first swipe of the session already has an answer.
+  const swipeVariant = userProfile?.swipe_variant === 'capped' || userProfile?.swipe_variant === 'unlimited'
+    ? userProfile.swipe_variant
+    : userId ? computeSwipeVariant(userId) : 'capped'
+  const dailyLimit = getDailySwipeLimit(swipeVariant)
+
+  // Persist the assignment the first time we see this user, so conversion
+  // and retention can be segmented by variant directly in Supabase.
+  useEffect(() => {
+    if (!userId || !userProfile || userProfile.swipe_variant) return
+    updateProfile(userId, { swipe_variant: swipeVariant }).catch(() => {})
+  }, [userId, userProfile, swipeVariant])
+
   // Check limit once userId + profile are known — user-specific key prevents cross-account bleed
   useEffect(() => {
     if (isGuest) { setLimitChecked(true); return }
@@ -501,10 +517,10 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     if (hasPlus(userProfile)) {
       setSwipeLimitReached(false)
     } else {
-      setSwipeLimitReached(getDailySwipes(userId) >= DAILY_LIMIT)
+      setSwipeLimitReached(getDailySwipes(userId) >= dailyLimit)
     }
     setLimitChecked(true)
-  }, [userId, userProfile, isGuest])
+  }, [userId, userProfile, isGuest, dailyLimit])
 
   // Show DNA nudge at card 3 — only on return visits (hint already dismissed before)
   useEffect(() => {
@@ -557,7 +573,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
 
     if (!skipDailyCount && !isGuest && userId && !hasPlus(localProfile ?? userProfile)) {
       const count = incrementDailySwipes(userId)
-      if (count >= DAILY_LIMIT) {
+      if (count >= dailyLimit) {
         setSwipeLimitReached(true)
         return
       }
@@ -758,7 +774,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
                   {isExpired ? 'Your Plus trial ended' : (currentTrip ? `${currentTrip.destination} is waiting` : 'More trips are waiting')}
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 5 }}>
-                  {isExpired ? `You're back to ${DAILY_LIMIT} daily swipes` : `You've reached your ${DAILY_LIMIT} daily swipes`}
+                  {isExpired ? `You're back to ${dailyLimit} daily swipes` : `You've reached your ${dailyLimit} daily swipes`}
                 </p>
               </div>
             </motion.div>

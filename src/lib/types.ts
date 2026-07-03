@@ -24,6 +24,7 @@ export type UserProfile = {
   stripe_customer_id: string | null
   subscription_expires_at: string | null
   trial_start_at: string | null
+  swipe_variant: string | null
   is_verified: boolean
   created_at: string
   updated_at: string
