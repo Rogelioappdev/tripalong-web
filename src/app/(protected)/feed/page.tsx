@@ -15,6 +15,8 @@ import { getTrips, getUserSavedTripIds, saveTrip, getProfile, getHangalongs, get
 import { supabase } from '@/lib/supabase'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import { getTripMatchBreakdown } from '@/lib/matching'
+import { getNotificationStatusAsync } from '@/lib/push'
+import { NotificationPrompt } from '@/components/NotificationPrompt'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 import { MemberJoinToast } from '@/components/MemberJoinToast'
 
@@ -65,6 +67,8 @@ export default function FeedPage() {
   const [upgradeToast, setUpgradeToast] = useState(false)
   const [showTrialExpiredPaywall, setShowTrialExpiredPaywall] = useState(false)
   const [trialExpiredNudge, setTrialExpiredNudge] = useState(false)
+  const [notifNudge, setNotifNudge] = useState(false)
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false)
   const [feedProfile, setFeedProfile] = useState<UserProfile | null>(null)
   const [showFoundingScreen, setShowFoundingScreen] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -85,6 +89,20 @@ export default function FeedPage() {
     if (!userId) return
     getUserSavedTripIds(userId).then(ids => setSavedCount(ids.length))
   }, [userId])
+
+  // Nudge users who never made a notification decision (not "denied" — nothing
+  // to nudge there, the OS won't re-prompt). Capped at 3 sessions so it isn't
+  // naggy; stops entirely once they grant/deny via the prompt.
+  useEffect(() => {
+    if (!userId || isGuest) return
+    getNotificationStatusAsync().then(status => {
+      if (status !== 'default') return
+      const sessions = parseInt(localStorage.getItem('ta_notif_nudge_sessions') ?? '0', 10)
+      if (sessions >= 3) return
+      localStorage.setItem('ta_notif_nudge_sessions', String(sessions + 1))
+      setNotifNudge(true)
+    })
+  }, [userId, isGuest])
 
   const handleUpgradeSuccess = () => {
     setUpgradeToast(true)
@@ -293,6 +311,10 @@ export default function FeedPage() {
         )}
       </AnimatePresence>
 
+      {showNotifPrompt && userId && (
+        <NotificationPrompt userId={userId} onDone={() => setShowNotifPrompt(false)} />
+      )}
+
       {/* Dev: ?trial=none → preview the founding member unlock screen */}
       <AnimatePresence>
         {showFoundingScreen && userId && (
@@ -338,6 +360,28 @@ export default function FeedPage() {
                 <p className="text-white/70 text-sm font-medium">Plus trial ended</p>
               </div>
               <span className="text-white/45 text-xs font-semibold">Keep Plus →</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        {/* Notification permission nudge */}
+        <AnimatePresence>
+          {notifNudge && (
+            <motion.button
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.28, ease: 'easeOut' }}
+              type="button"
+              onClick={() => { haptic(8); setNotifNudge(false); setShowNotifPrompt(true) }}
+              className="mx-4 mt-2 mb-1 flex items-center justify-between px-4 py-2.5 rounded-2xl shrink-0 active:scale-[0.98] transition-transform"
+              style={{ backgroundColor: 'rgba(240,235,227,0.07)', border: '0.5px solid rgba(240,235,227,0.18)' }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔔</span>
+                <p className="text-white/70 text-sm font-medium">Don't miss a message or trip invite</p>
+              </div>
+              <span className="text-white/45 text-xs font-semibold">Turn on →</span>
             </motion.button>
           )}
         </AnimatePresence>
