@@ -34,6 +34,30 @@ function purchaseViaNative(bridge: { postMessage: (msg: string) => void }, billi
   })
 }
 
+// Live check (not the frozen native-app.ts constant) — paywalls can mount
+// as soon as any page loads, so this must never read stale.
+export function isNativeApp(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
+}
+
+// Apple/Google App Store Review requires a Restore Purchases path on any
+// screen selling an auto-renewable subscription (Guideline 3.1.2) — native
+// only, since Stripe subscriptions are already tied to the logged-in
+// account and have nothing to "restore".
+export async function restorePurchases(): Promise<void> {
+  const bridge = typeof window !== 'undefined' && (window as any).ReactNativeWebView
+  if (!bridge) throw new Error('Restore is only available in the app.')
+
+  return new Promise((resolve, reject) => {
+    ;(window as any).__tripalongRestoreResult = (result: NativePurchaseResult) => {
+      delete (window as any).__tripalongRestoreResult
+      if (result.success) resolve()
+      else reject(new Error(result.error ?? 'No active purchase found for this account.'))
+    }
+    bridge.postMessage(JSON.stringify({ type: 'restore_purchases' }))
+  })
+}
+
 export interface PlusPricing {
   monthly: string | null
   annual: string | null

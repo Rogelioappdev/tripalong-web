@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { purchasePlus, getNativePlusPricing, type PlusPricing } from '@/lib/purchase'
+import { purchasePlus, restorePurchases, getNativePlusPricing, isNativeApp, type PlusPricing } from '@/lib/purchase'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -51,6 +51,8 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nativePricing, setNativePricing] = useState<PlusPricing | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -95,6 +97,22 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
       setLoading(false)
       if (err?.message === 'cancelled') return
       setError(err?.message ?? 'Something went wrong. Try again.')
+    }
+  }
+
+  const handleRestore = async () => {
+    haptic(8)
+    setRestoring(true)
+    setError(null)
+    setRestoreMessage(null)
+    try {
+      await restorePurchases()
+      setRestoreMessage('Purchase restored ✓')
+      setTimeout(onClose, 1200)
+    } catch (err: any) {
+      setError(err?.message ?? 'No active purchase found for this account.')
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -272,6 +290,9 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
           {error && (
             <p className="text-center mb-2" style={{ color: '#FF453A', fontSize: 12 }}>{error}</p>
           )}
+          {restoreMessage && (
+            <p className="text-center mb-2" style={{ color: '#30D158', fontSize: 12 }}>{restoreMessage}</p>
+          )}
           <button
             type="button"
             onClick={handleUpgrade}
@@ -293,6 +314,29 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
           >
             Maybe later
           </button>
+          <div className="flex items-center justify-center gap-3 pb-1 flex-wrap">
+            {isNativeApp() && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleRestore}
+                  disabled={restoring}
+                  className="text-center py-1 active:opacity-60 disabled:opacity-50"
+                  style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textDecoration: 'underline' }}
+                >
+                  {restoring ? 'Restoring…' : 'Restore Purchases'}
+                </button>
+                <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 11 }}>·</span>
+              </>
+            )}
+            <a href="/terms" className="py-1" style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textDecoration: 'underline' }}>
+              Terms
+            </a>
+            <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 11 }}>·</span>
+            <a href="/privacy" className="py-1" style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textDecoration: 'underline' }}>
+              Privacy
+            </a>
+          </div>
         </div>
 
       </motion.div>

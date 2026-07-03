@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getProfileViewers } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
-import { purchasePlus } from '@/lib/purchase'
+import { purchasePlus, restorePurchases, isNativeApp } from '@/lib/purchase'
 import { PublicProfileModal } from './PublicProfileModal'
 
 interface Viewer {
@@ -72,6 +72,8 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
 
   const checkout = useCallback(async () => {
     haptic(12)
@@ -87,6 +89,22 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
       setError(err?.message ?? 'Something went wrong. Try again.')
     }
   }, [selected, onClose])
+
+  const handleRestore = useCallback(async () => {
+    haptic(8)
+    setRestoring(true)
+    setError(null)
+    setRestoreMessage(null)
+    try {
+      await restorePurchases()
+      setRestoreMessage('Purchase restored ✓')
+      setTimeout(onClose, 1200)
+    } catch (err: any) {
+      setError(err?.message ?? 'No active purchase found for this account.')
+    } finally {
+      setRestoring(false)
+    }
+  }, [onClose])
 
   const previewViewers = viewers.slice(0, 5)
 
@@ -286,6 +304,9 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
         {error && (
           <p className="text-center mb-2" style={{ color: '#FF453A', fontSize: 12 }}>{error}</p>
         )}
+        {restoreMessage && (
+          <p className="text-center mb-2" style={{ color: '#30D158', fontSize: 12 }}>{restoreMessage}</p>
+        )}
         <button
           onClick={checkout}
           disabled={loading}
@@ -303,6 +324,29 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
         >
           Maybe later
         </button>
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          {isNativeApp() && (
+            <>
+              <button
+                type="button"
+                onClick={handleRestore}
+                disabled={restoring}
+                className="text-center py-1 active:opacity-60 disabled:opacity-50"
+                style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textDecoration: 'underline' }}
+              >
+                {restoring ? 'Restoring…' : 'Restore Purchases'}
+              </button>
+              <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 11 }}>·</span>
+            </>
+          )}
+          <a href="/terms" className="py-1" style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textDecoration: 'underline' }}>
+            Terms
+          </a>
+          <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 11 }}>·</span>
+          <a href="/privacy" className="py-1" style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textDecoration: 'underline' }}>
+            Privacy
+          </a>
+        </div>
       </div>
     </motion.div>
   )
