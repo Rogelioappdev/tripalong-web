@@ -33,3 +33,32 @@ function purchaseViaNative(bridge: { postMessage: (msg: string) => void }, billi
     bridge.postMessage(JSON.stringify({ type: 'purchase_plus', billing }))
   })
 }
+
+export interface PlusPricing {
+  monthly: string | null
+  annual: string | null
+}
+
+// Native-only: fetches the live, store-formatted price straight from
+// RevenueCat/StoreKit, so the paywall always matches what a purchase will
+// actually charge (including scheduled App Store price changes) instead of a
+// hardcoded string that can silently drift out of date. Resolves null on
+// plain web (no bridge) or if the installed app build predates this message
+// type — callers should fall back to a static price in that case.
+export function getNativePlusPricing(): Promise<PlusPricing | null> {
+  const bridge = typeof window !== 'undefined' && (window as any).ReactNativeWebView
+  if (!bridge) return Promise.resolve(null)
+
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      delete (window as any).__tripalongPricingResult
+      resolve(null)
+    }, 2500)
+    ;(window as any).__tripalongPricingResult = (pricing: PlusPricing) => {
+      clearTimeout(timeout)
+      delete (window as any).__tripalongPricingResult
+      resolve(pricing?.monthly && pricing?.annual ? pricing : null)
+    }
+    bridge.postMessage(JSON.stringify({ type: 'get_plus_pricing' }))
+  })
+}

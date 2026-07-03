@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { purchasePlus } from '@/lib/purchase'
+import { purchasePlus, getNativePlusPricing, type PlusPricing } from '@/lib/purchase'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -50,11 +50,20 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [nativePricing, setNativePricing] = useState<PlusPricing | null>(null)
 
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
+  }, [])
+
+  // Native app: pull the live store price straight from RevenueCat/StoreKit
+  // instead of the hardcoded fallback below, so it always matches what a
+  // purchase will actually charge (including scheduled App Store price
+  // changes). Resolves null on plain web or an app build too old to answer.
+  useEffect(() => {
+    getNativePlusPricing().then(setNativePricing)
   }, [])
 
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
@@ -165,7 +174,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
                   {interval === 'annual' && (
                     <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-white font-bold"
                       style={{ backgroundColor: '#30D158', fontSize: 9, whiteSpace: 'nowrap' }}>
-                      SAVE 52%
+                      {nativePricing ? 'BEST VALUE' : 'SAVE 52%'}
                     </span>
                   )}
                 </button>
@@ -175,12 +184,18 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
             {/* Price */}
             <div className="flex items-baseline justify-center gap-1 mb-1">
               <span className="text-white font-extrabold" style={{ fontSize: 48, letterSpacing: '-2px', lineHeight: 1 }}>
-                {billing === 'annual' ? '$3.33' : '$6.99'}
+                {nativePricing
+                  ? (billing === 'annual' ? nativePricing.annual : nativePricing.monthly)
+                  : (billing === 'annual' ? '$3.33' : '$6.99')}
               </span>
-              <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>/mo</span>
+              <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>
+                {nativePricing ? (billing === 'annual' ? '/yr' : '/mo') : '/mo'}
+              </span>
             </div>
             <p className="text-center mb-6" style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>
-              {billing === 'annual' ? 'Billed $39.99/year — cancel anytime' : 'Billed monthly — cancel anytime'}
+              {nativePricing
+                ? (billing === 'annual' ? 'Billed annually — cancel anytime' : 'Billed monthly — cancel anytime')
+                : (billing === 'annual' ? 'Billed $39.99/year — cancel anytime' : 'Billed monthly — cancel anytime')}
             </p>
 
             {/* Features — expanded */}
@@ -264,7 +279,11 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
             className="w-full py-4 rounded-2xl font-bold disabled:opacity-60 active:scale-[0.98] transition-transform"
             style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000', fontSize: 15 }}
           >
-            {loading ? 'Opening checkout…' : `Unlock Plus · ${billing === 'annual' ? '$39.99/yr' : '$6.99/mo'}`}
+            {loading ? 'Opening checkout…' : `Unlock Plus · ${
+              nativePricing
+                ? (billing === 'annual' ? `${nativePricing.annual}/yr` : `${nativePricing.monthly}/mo`)
+                : (billing === 'annual' ? '$39.99/yr' : '$6.99/mo')
+            }`}
           </button>
           <button
             type="button"
