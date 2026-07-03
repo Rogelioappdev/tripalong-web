@@ -11,7 +11,7 @@ import { hasPlus } from '@/lib/trial'
 import { PublicProfileModal } from './PublicProfileModal'
 import { JoinCelebration } from './JoinCelebration'
 import { ProfilePhotoNudge } from './ProfilePhotoNudge'
-import { FoundingMemberPaywall } from './FoundingMemberPaywall'
+import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { getTrialStatus } from '@/lib/trial'
 import { haptic } from '@/lib/haptics'
@@ -593,9 +593,10 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
     </AnimatePresence>
 
     {showCompatPaywall && (
-      <FoundingMemberPaywall
-        allowDismiss
-        context={compatPaywallContext}
+      <PaywallModal
+        trigger={compatPaywallContext ? 'compatibility' : 'swipes'}
+        context={compatPaywallContext?.destination}
+        matchPct={compatPaywallContext?.matchPct}
         onClose={() => { setShowCompatPaywall(false); setCompatPaywallContext(undefined) }}
       />
     )}
