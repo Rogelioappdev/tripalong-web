@@ -16,6 +16,15 @@ type State = 'prompt' | 'loading' | 'denied' | 'success'
 export function NotificationPrompt({ userId, onDone }: Props) {
   const [state, setState] = useState<State>('prompt')
 
+  // Computed synchronously (not in an effect) so an unsupported browser never
+  // paints the full-screen overlay for a frame before bailing out — that flash
+  // is what previously made the prompt look like it "appears for one second"
+  // on iOS Safari tabs (no Home Screen install) where Notification/serviceWorker
+  // don't exist.
+  const unsupported = typeof window !== 'undefined'
+    && !(window as any).ReactNativeWebView
+    && (!('Notification' in window) || !('serviceWorker' in navigator))
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     // Check live rather than importing the frozen `isNativeApp` module constant —
@@ -29,7 +38,7 @@ export function NotificationPrompt({ userId, onDone }: Props) {
       ;(window as any).__tripalongNotificationsDone = () => onDone()
       return () => { delete (window as any).__tripalongNotificationsDone }
     }
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    if (unsupported) {
       // Nothing actionable here (iOS Safari tab) — skip silently
       onDone()
       return
@@ -41,7 +50,7 @@ export function NotificationPrompt({ userId, onDone }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (typeof window === 'undefined' || (window as any).ReactNativeWebView) return null
+  if (typeof window === 'undefined' || (window as any).ReactNativeWebView || unsupported) return null
 
   const handleAllow = async () => {
     haptic([10, 30, 10])
