@@ -236,17 +236,25 @@ export default function FeedPage() {
   // subscription. Each open realtime channel costs a Supabase connection slot;
   // at 5k-10k MAU that would exhaust the Pro plan limit. A silent refetch is
   // imperceptible to users and frees up realtime slots for chat (which needs it).
+  // refetchOnMount: 'always' — the global QueryClient (providers.tsx) has a 5 min
+  // staleTime and is never cleared on sign-out, so without this a feed mount that
+  // happened to cache an empty/transient result (e.g. a momentary auth-session
+  // hiccup) would keep serving that empty array — and thus a stuck "No trips
+  // found" — for up to 5 minutes on every subsequent visit to /feed, cached data
+  // still renders instantly while this refetch runs in the background.
   const { data: trips, isLoading, isError, refetch } = useQuery({
     queryKey: ['trips'],
     queryFn: getTrips,
     enabled: !!userId || isGuest,
     refetchInterval: 5 * 60 * 1000, // quietly refresh member counts every 5 min
+    refetchOnMount: 'always',
   })
 
   const { data: hangalongs = [] } = useQuery({
     queryKey: ['hangalongs'],
     queryFn: getHangalongs,
     enabled: !!userId,
+    refetchOnMount: 'always',
   })
 
   const { data: myHangalongs = [] } = useQuery({
@@ -254,6 +262,7 @@ export default function FeedPage() {
     queryFn: getMyHangalongs,
     enabled: !!userId,
     staleTime: 30_000,
+    refetchOnMount: 'always',
   })
 
   useEffect(() => {
@@ -519,8 +528,15 @@ export default function FeedPage() {
               />
             </div>
           ) : (
-            <div className="flex items-center justify-center w-full">
-              <p className="text-white/30 text-sm">No trips found.</p>
+            <div className="flex flex-col items-center justify-center gap-4 w-full">
+              <p className="text-white/30 text-sm text-center">No trips found.</p>
+              <button
+                onClick={() => refetch()}
+                className="px-5 py-2.5 rounded-2xl text-sm font-semibold"
+                style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff' }}
+              >
+                Refresh
+              </button>
             </div>
           )}
         </div>
