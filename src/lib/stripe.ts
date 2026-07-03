@@ -17,14 +17,14 @@ export const PLANS = {
     priceId: process.env.STRIPE_PLUS_MONTHLY_PRICE_ID!,
     tier: 'plus' as const,
     label: 'Plus Monthly',
-    amount: 799,
+    amount: 699,
     interval: 'month' as const,
   },
   plus_annual: {
     priceId: process.env.STRIPE_PLUS_ANNUAL_PRICE_ID!,
     tier: 'plus' as const,
     label: 'Plus Annual',
-    amount: 5999,
+    amount: 3999,
     interval: 'year' as const,
   },
   pro_monthly: {
