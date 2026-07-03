@@ -1,6 +1,22 @@
 import { supabase } from './supabase'
 import type { TripWithDetails, TripMessage, UserProfile, ChatMemberReadPosition, HangalongWithDetails, ActivityType, WhenLabel } from './types'
 import { sortTrips, sortHangalongs } from './feedScoring'
+import { sendPushNotification } from './push'
+
+// Best-effort "X joined" push to existing members — never blocks the join
+// flow itself, so a push failure can't break joining a trip/hangout.
+async function notifyJoin(chatId: string, joinerId: string, joinerName: string, label: string, url: string) {
+  try {
+    await sendPushNotification({
+      chatId,
+      senderId: joinerId,
+      senderName: joinerName,
+      content: `${joinerName} joined ${label}! 🎉`,
+      type: 'join',
+      url,
+    })
+  } catch {}
+}
 
 // ─── Seen tracking ───────────────────────────────────────────────────────────
 
@@ -110,13 +126,26 @@ export async function joinTrip(tripId: string, userId: string) {
   if (memberError) throw memberError
 
   // 2. Add to trip chat
-  const { error: chatError } = await supabase.rpc('ensure_trip_chat_member', { p_trip_id: tripId })
+  const { data: chatResult, error: chatError } = await supabase.rpc('ensure_trip_chat_member', { p_trip_id: tripId })
   if (chatError) throw chatError
 
   // 3. Auto-save the trip
   await supabase
     .from('saved_trips')
     .upsert({ trip_id: tripId, user_id: userId }, { onConflict: 'trip_id,user_id' })
+
+  // 4. Notify existing members someone joined
+  const chatId = (chatResult as any)?.chat_id
+  if (chatId) {
+    Promise.all([
+      supabase.from('trips').select('destination').eq('id', tripId).single(),
+      supabase.from('users').select('name').eq('id', userId).single(),
+    ]).then(([tripRes, userRes]) => {
+      const destination = (tripRes.data as any)?.destination ?? 'a trip'
+      const joinerName = (userRes.data as any)?.name ?? 'Someone'
+      notifyJoin(chatId, userId, joinerName, `your trip to ${destination}`, `/chat/${chatId}`)
+    }).catch(() => {})
+  }
 }
 
 export async function getTripMembership(tripId: string, userId: string) {
@@ -896,6 +925,16 @@ export async function joinHangalong(hangalongId: string, userId: string): Promis
   if (chatData) {
     const chatId = (chatData as any).id
     await supabase.from('trip_chat_members').upsert({ trip_chat_id: chatId, user_id: userId }, { onConflict: 'trip_chat_id,user_id' })
+
+    Promise.all([
+      supabase.from('hangalongs').select('title').eq('id', hangalongId).single(),
+      supabase.from('users').select('name').eq('id', userId).single(),
+    ]).then(([hangRes, userRes]) => {
+      const title = (hangRes.data as any)?.title ?? 'your hangout'
+      const joinerName = (userRes.data as any)?.name ?? 'Someone'
+      notifyJoin(chatId, userId, joinerName, title, `/chat/${chatId}`)
+    }).catch(() => {})
+
     return { ok: true, chatId }
   }
   return { ok: true }

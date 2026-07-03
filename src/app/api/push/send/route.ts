@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     { global: { headers: { Authorization: `Bearer ${token}` } } },
   )
 
-  const title = senderName ?? 'TripAlong'
+  const title = type === 'join' ? 'New trip member' : (senderName ?? 'TripAlong')
   const body = type === 'image' ? '📷 Photo' : (content ?? '')
 
   // Web push (VAPID) — independent of the native push path below
