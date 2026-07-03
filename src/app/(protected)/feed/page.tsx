@@ -207,7 +207,7 @@ export default function FeedPage() {
   // Compute top match score for paywall personalization once trips + profile are ready
   useEffect(() => {
     if (!showTrialExpiredPaywall || !feedProfile) return
-    const cachedTrips = queryClient.getQueryData(['trips']) as TripWithDetails[] | undefined
+    const cachedTrips = queryClient.getQueryData(['trips', userId]) as TripWithDetails[] | undefined
     if (!cachedTrips?.length) return
     let best: { pct: number; destination: string } | null = null
     for (const trip of cachedTrips) {
@@ -236,14 +236,12 @@ export default function FeedPage() {
   // subscription. Each open realtime channel costs a Supabase connection slot;
   // at 5k-10k MAU that would exhaust the Pro plan limit. A silent refetch is
   // imperceptible to users and frees up realtime slots for chat (which needs it).
-  // refetchOnMount: 'always' — the global QueryClient (providers.tsx) has a 5 min
-  // staleTime and is never cleared on sign-out, so without this a feed mount that
-  // happened to cache an empty/transient result (e.g. a momentary auth-session
-  // hiccup) would keep serving that empty array — and thus a stuck "No trips
-  // found" — for up to 5 minutes on every subsequent visit to /feed, cached data
-  // still renders instantly while this refetch runs in the background.
+  // queryKey includes userId — getTrips()/getHangalongs() filter results by the
+  // signed-in user (seen/joined/blocked), and the global QueryClient (providers.tsx)
+  // is never cleared on sign-out, so an unscoped key would keep serving one
+  // account's cached (possibly empty) results after switching to another account.
   const { data: trips, isLoading, isError, refetch } = useQuery({
-    queryKey: ['trips'],
+    queryKey: ['trips', userId],
     queryFn: getTrips,
     enabled: !!userId || isGuest,
     refetchInterval: 5 * 60 * 1000, // quietly refresh member counts every 5 min
@@ -251,14 +249,14 @@ export default function FeedPage() {
   })
 
   const { data: hangalongs = [] } = useQuery({
-    queryKey: ['hangalongs'],
+    queryKey: ['hangalongs', userId],
     queryFn: getHangalongs,
     enabled: !!userId,
     refetchOnMount: 'always',
   })
 
   const { data: myHangalongs = [] } = useQuery({
-    queryKey: ['my-hangalongs'],
+    queryKey: ['my-hangalongs', userId],
     queryFn: getMyHangalongs,
     enabled: !!userId,
     staleTime: 30_000,

@@ -100,7 +100,7 @@ export function PlusDetailsSheet({ profile, userId, onClose }: Props) {
                 Try Plus free<br />for 7 days
               </h2>
               <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, lineHeight: 1.5 }}>
-                No payment needed. Cancel anytime.<br />Then $7.99/mo.
+                No payment needed. Cancel anytime.<br />Then $6.99/mo.
               </p>
             </>
           )}
@@ -201,7 +201,7 @@ export function PlusDetailsSheet({ profile, userId, onClose }: Props) {
                   border: billing === interval ? 'none' : '0.5px solid rgba(255,255,255,0.08)',
                 }}
               >
-                {interval === 'monthly' ? '$7.99 / mo' : '$4.99 / mo'}
+                {interval === 'monthly' ? '$6.99 / mo' : '$3.33 / mo'}
                 {interval === 'annual' && (
                   <span
                     className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full font-bold whitespace-nowrap"
@@ -211,7 +211,7 @@ export function PlusDetailsSheet({ profile, userId, onClose }: Props) {
                       fontSize: 9,
                     }}
                   >
-                    SAVE 37%
+                    SAVE 52%
                   </span>
                 )}
               </button>
@@ -238,7 +238,7 @@ export function PlusDetailsSheet({ profile, userId, onClose }: Props) {
               ? (noTrial ? 'Starting trial…' : 'Opening checkout…')
               : noTrial
               ? 'Start free trial →'
-              : `Upgrade — ${billing === 'annual' ? '$4.99/mo' : '$7.99/mo'}`}
+              : `Upgrade — ${billing === 'annual' ? '$3.33/mo' : '$6.99/mo'}`}
           </button>
           <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, textAlign: 'center' }}>
             {noTrial ? 'No payment needed · 7 days free' : 'Cancel anytime · Secure payment'}
