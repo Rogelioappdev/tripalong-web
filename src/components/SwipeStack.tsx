@@ -20,7 +20,17 @@ import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 
 const AD_FREQUENCY = 6 // show ad every N swipes
-const todayKey = (uid: string) => `ta_swipes_${uid}_${new Date().toISOString().slice(0, 10)}`
+// Local date, not UTC — must match the local-midnight countdown below.
+// toISOString() gives the UTC date, which rolls over hours after local
+// midnight for anyone west of UTC, so the counter didn't actually reset when
+// the on-screen timer hit 0:00 — it silently waited for the real UTC rollover.
+const localDateKey = (d: Date) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+const todayKey = (uid: string) => `ta_swipes_${uid}_${localDateKey(new Date())}`
 
 const isNativeApp = () =>
   typeof window !== 'undefined' && navigator.userAgent.includes('TripAlong/1.0')
