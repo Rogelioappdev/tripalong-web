@@ -247,14 +247,14 @@ export function TrialExpiredPaywall({ onClose, viewerCount, topMatch }: Props) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ textAlign: 'left' }}>
                 <p style={{ color: billing === 'annual' ? '#000' : '#fff', fontSize: 16, fontWeight: 800, letterSpacing: '-0.3px' }}>
-                  $4.99 <span style={{ fontSize: 13, fontWeight: 500 }}>/ mo</span>
+                  $3.33 <span style={{ fontSize: 13, fontWeight: 500 }}>/ mo</span>
                 </p>
                 <p style={{ color: billing === 'annual' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)', fontSize: 11, marginTop: 1 }}>
-                  Billed $59.99 / year
+                  Billed $39.99 / year
                 </p>
               </div>
               <p style={{ color: billing === 'annual' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 600 }}>
-                $0.16 / day
+                $0.11 / day
               </p>
             </div>
           </button>
@@ -272,10 +272,10 @@ export function TrialExpiredPaywall({ onClose, viewerCount, topMatch }: Props) {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <p style={{ color: billing === 'monthly' ? '#000' : 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 600 }}>
-                $7.99 / mo
+                $6.99 / mo
               </p>
               <p style={{ color: billing === 'monthly' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.25)', fontSize: 11 }}>
-                $0.26 / day
+                $0.23 / day
               </p>
             </div>
           </button>

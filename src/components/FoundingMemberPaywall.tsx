@@ -205,7 +205,7 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }
                       fontSize: 9, whiteSpace: 'nowrap',
                     }}
                   >
-                    SAVE 37%
+                    SAVE 52%
                   </span>
                 )}
               </button>
@@ -225,11 +225,11 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start' }}>
                     <span style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, fontWeight: 600, marginTop: 5, marginRight: 1 }}>$</span>
-                    <span style={{ color: '#fff', fontSize: 44, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1 }}>5</span>
+                    <span style={{ color: '#fff', fontSize: 44, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1 }}>3.33</span>
                     <span style={{ color: 'rgba(255,255,255,0.32)', fontSize: 13, alignSelf: 'flex-end', paddingBottom: 5, marginLeft: 2 }}>/mo</span>
                   </div>
                   <div style={{ textAlign: 'right', paddingBottom: 4 }}>
-                    <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, textDecoration: 'line-through', marginBottom: 3 }}>$7.99/mo</div>
+                    <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, textDecoration: 'line-through', marginBottom: 3 }}>$6.99/mo</div>
                     <div style={{
                       padding: '2px 7px', borderRadius: 999, display: 'inline-block',
                       backgroundColor: 'rgba(48,209,88,0.12)', color: '#30D158',
@@ -241,15 +241,15 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }
                 </div>
                 <div style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.07)', marginBottom: 7 }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 11 }}>Billed $59.99/year</span>
-                  <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 11 }}>$0.16/day</span>
+                  <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 11 }}>Billed $39.99/year</span>
+                  <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 11 }}>$0.11/day</span>
                 </div>
               </>
             ) : (
               <>
                 <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 6 }}>
                   <span style={{ color: 'rgba(255,255,255,0.38)', fontSize: 14, fontWeight: 600, marginTop: 5, marginRight: 1 }}>$</span>
-                  <span style={{ color: '#fff', fontSize: 44, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1 }}>7.99</span>
+                  <span style={{ color: '#fff', fontSize: 44, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1 }}>6.99</span>
                   <span style={{ color: 'rgba(255,255,255,0.32)', fontSize: 13, alignSelf: 'flex-end', paddingBottom: 5, marginLeft: 2 }}>/mo</span>
                 </div>
                 <div style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.07)', marginBottom: 7 }} />
