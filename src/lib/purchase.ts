@@ -61,6 +61,7 @@ export async function restorePurchases(): Promise<void> {
 export interface PlusPricing {
   monthly: string | null
   annual: string | null
+  monthlyIntroPrice: string | null
 }
 
 // Native-only: fetches the live, store-formatted price straight from

@@ -195,26 +195,48 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
                       {nativePricing ? 'BEST VALUE' : 'SAVE 52%'}
                     </span>
                   )}
+                  {interval === 'monthly' && nativePricing?.monthlyIntroPrice && (
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-white font-bold"
+                      style={{ backgroundColor: '#FF9F0A', fontSize: 9, whiteSpace: 'nowrap' }}>
+                      50% OFF FIRST MONTH
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
 
             {/* Price */}
-            <div className="flex items-baseline justify-center gap-1 mb-1">
-              <span className="text-white font-extrabold" style={{ fontSize: 48, letterSpacing: '-2px', lineHeight: 1 }}>
-                {nativePricing
-                  ? (billing === 'annual' ? nativePricing.annual : nativePricing.monthly)
-                  : (billing === 'annual' ? '$3.33' : '$6.99')}
-              </span>
-              <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>
-                {nativePricing ? (billing === 'annual' ? '/yr' : '/mo') : '/mo'}
-              </span>
-            </div>
-            <p className="text-center mb-6" style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>
-              {nativePricing
-                ? (billing === 'annual' ? 'Billed annually — cancel anytime' : 'Billed monthly — cancel anytime')
-                : (billing === 'annual' ? 'Billed $39.99/year — cancel anytime' : 'Billed monthly — cancel anytime')}
-            </p>
+            {billing === 'monthly' && nativePricing?.monthlyIntroPrice ? (
+              <>
+                <div className="flex items-baseline justify-center gap-2 mb-1">
+                  <span className="text-white font-extrabold" style={{ fontSize: 48, letterSpacing: '-2px', lineHeight: 1 }}>
+                    {nativePricing.monthlyIntroPrice}
+                  </span>
+                  <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>first month</span>
+                </div>
+                <p className="text-center mb-6" style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>
+                  Then {nativePricing.monthly}/mo — cancel anytime
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-center gap-1 mb-1">
+                  <span className="text-white font-extrabold" style={{ fontSize: 48, letterSpacing: '-2px', lineHeight: 1 }}>
+                    {nativePricing
+                      ? (billing === 'annual' ? nativePricing.annual : nativePricing.monthly)
+                      : (billing === 'annual' ? '$3.33' : '$6.99')}
+                  </span>
+                  <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>
+                    {nativePricing ? (billing === 'annual' ? '/yr' : '/mo') : '/mo'}
+                  </span>
+                </div>
+                <p className="text-center mb-6" style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>
+                  {nativePricing
+                    ? (billing === 'annual' ? 'Billed annually — cancel anytime' : 'Billed monthly — cancel anytime')
+                    : (billing === 'annual' ? 'Billed $39.99/year — cancel anytime' : 'Billed monthly — cancel anytime')}
+                </p>
+              </>
+            )}
 
             {/* Features — expanded */}
             <div className="flex flex-col gap-4 mb-8">
@@ -301,9 +323,11 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
             style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000', fontSize: 15 }}
           >
             {loading ? 'Opening checkout…' : `Unlock Plus · ${
-              nativePricing
-                ? (billing === 'annual' ? `${nativePricing.annual}/yr` : `${nativePricing.monthly}/mo`)
-                : (billing === 'annual' ? '$39.99/yr' : '$6.99/mo')
+              billing === 'monthly' && nativePricing?.monthlyIntroPrice
+                ? `${nativePricing.monthlyIntroPrice} first month`
+                : nativePricing
+                  ? (billing === 'annual' ? `${nativePricing.annual}/yr` : `${nativePricing.monthly}/mo`)
+                  : (billing === 'annual' ? '$39.99/yr' : '$6.99/mo')
             }`}
           </button>
           <button
