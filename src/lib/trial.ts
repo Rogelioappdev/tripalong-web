@@ -10,9 +10,9 @@ export function getTrialStatus(_profile: UserProfile | null): TrialStatus {
   return 'active'
 }
 
-export function hasPlus(_profile: UserProfile | null): boolean {
-  // TripAlong+ paused — app is fully free during beta
-  return true
+export function hasPlus(profile: UserProfile | null): boolean {
+  if (!profile) return false
+  return profile.subscription_tier === 'plus' || profile.subscription_tier === 'pro'
 }
 
 export function trialDaysLeft(profile: UserProfile | null): number {
