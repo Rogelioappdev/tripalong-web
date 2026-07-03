@@ -8,6 +8,8 @@ import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getProfile } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
+import { getNotificationStatusAsync, type NotificationStatus } from '@/lib/push'
+import { NotificationPrompt } from '@/components/NotificationPrompt'
 import type { UserProfile } from '@/lib/types'
 
 // ── Primitives ────────────────────────────────────────────────────────────
@@ -103,6 +105,12 @@ export default function SettingsPage() {
   const [notifInvites, setNotifInvites] = useState(true)
   const [notifUpdates, setNotifUpdates] = useState(true)
 
+  // Push permission — separate from the localStorage toggles above, this is
+  // the actual OS/browser-level permission that gates whether any of them work
+  const [pushStatus, setPushStatus] = useState<NotificationStatus | null>(null)
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false)
+  const refreshPushStatus = () => { getNotificationStatusAsync().then(setPushStatus) }
+
   // Privacy toggles (localStorage)
   const [privOnline, setPrivOnline] = useState(true)
   const [privReceipts, setPrivReceipts] = useState(true)
@@ -126,6 +134,7 @@ export default function SettingsPage() {
     setNotifUpdates(load('ta_notif_updates', true))
     setPrivOnline(load('ta_privacy_online', true))
     setPrivReceipts(load('ta_privacy_receipts', true))
+    refreshPushStatus()
   }, [router])
 
   const setToggle = (key: string, val: boolean) => {
@@ -237,6 +246,18 @@ export default function SettingsPage() {
 
           {/* ── Notifications ── */}
           <Group title="Notifications">
+            <Row
+              label="Push Notifications"
+              sub={
+                pushStatus === 'granted' ? 'Enabled' :
+                pushStatus === 'denied' ? 'Blocked — enable in your device Settings app' :
+                pushStatus === 'unsupported' ? 'Not supported on this browser' :
+                'Turn on to get notified about messages and trip activity'
+              }
+              chevron={pushStatus === 'default'}
+              border
+              onPress={pushStatus === 'default' ? () => setShowNotificationPrompt(true) : undefined}
+            />
             <Row label="New messages" sub="Someone sent you a message"
               right={<Toggle value={notifMessages} onChange={v => { setNotifMessages(v); setToggle('ta_notif_messages', v) }} />}
               border />
@@ -329,6 +350,12 @@ export default function SettingsPage() {
 
         </div>
       </main>
+      {showNotificationPrompt && userId && (
+        <NotificationPrompt
+          userId={userId}
+          onDone={() => { setShowNotificationPrompt(false); refreshPushStatus() }}
+        />
+      )}
     </>
   )
 }
