@@ -13,6 +13,11 @@ interface Props {
   matchPct?: number
   trips?: TripWithDetails[]
   onClose: () => void
+  // Called right after a successful purchase (native or web-return), before the
+  // modal closes — lets the caller flip its own profile state to Plus immediately
+  // instead of waiting on a server round-trip, so gated features unlock without
+  // needing an app restart.
+  onSuccess?: () => void
 }
 
 const FEATURES = [
@@ -46,9 +51,10 @@ function tripDates(start: string | null, end: string | null) {
   return 'Flexible dates'
 }
 
-export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Props) {
+export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuccess }: Props) {
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
+  const [unlocked, setUnlocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nativePricing, setNativePricing] = useState<PlusPricing | null>(null)
   const [restoring, setRestoring] = useState(false)
@@ -91,8 +97,15 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
     setError(null)
     try {
       await purchasePlus(billing)
-      setLoading(false)
-      onClose()
+      // Native: the RevenueCat SDK already confirmed the entitlement against
+      // Apple's receipt at this point — no need to wait on the webhook that
+      // syncs it to Supabase. Flip the caller's local profile state right away
+      // and show a brief confirmation before closing, instead of just
+      // vanishing (which read as "did that even work?").
+      haptic(16)
+      setUnlocked(true)
+      onSuccess?.()
+      setTimeout(() => { setLoading(false); onClose() }, 700)
     } catch (err: any) {
       setLoading(false)
       if (err?.message === 'cancelled') return
@@ -320,9 +333,14 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose }: Pro
             onClick={handleUpgrade}
             disabled={loading}
             className="w-full py-4 rounded-2xl font-bold disabled:opacity-60 active:scale-[0.98] transition-transform"
-            style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000', fontSize: 15 }}
+            style={{
+              background: unlocked ? '#30D158' : 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)',
+              color: unlocked ? '#fff' : '#000',
+              fontSize: 15,
+              transition: 'background 0.25s ease',
+            }}
           >
-            {loading ? 'Opening checkout…' : `Unlock Plus · ${
+            {unlocked ? 'Unlocked ✓' : loading ? (isNativeApp() ? 'Unlocking…' : 'Opening checkout…') : `Unlock Plus · ${
               billing === 'monthly' && nativePricing?.monthlyIntroPrice
                 ? `${nativePricing.monthlyIntroPrice} first month`
                 : nativePricing

@@ -20,6 +20,11 @@ interface Viewer {
 interface ProfileViewsSheetProps {
   onClose: () => void
   isPlus?: boolean
+  // Called right after a successful native purchase from the inline paywall,
+  // so the parent can flip its own isPlus state immediately instead of
+  // waiting for a fresh fetch (which would otherwise require reopening this
+  // sheet, or restarting the app, to see the unlock take effect).
+  onUnlocked?: () => void
 }
 
 // ── localStorage helpers ────────────────────────────────────────────────────
@@ -68,9 +73,10 @@ function useCountUp(target: number, duration = 900) {
 }
 
 // ── Paywall ─────────────────────────────────────────────────────────────────
-function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]; onClose: () => void }) {
+function Paywall({ count, viewers, onClose, onSuccess }: { count: number; viewers: Viewer[]; onClose: () => void; onSuccess?: () => void }) {
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
+  const [unlocked, setUnlocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(false)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
@@ -86,14 +92,19 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
     setError(null)
     try {
       await purchasePlus(selected)
-      setLoading(false)
-      onClose()
+      // Native: RevenueCat already confirmed the entitlement against Apple's
+      // receipt — unlock immediately instead of waiting on the webhook that
+      // syncs it to Supabase (that still happens in the background).
+      haptic(16)
+      setUnlocked(true)
+      onSuccess?.()
+      setTimeout(() => { setLoading(false); onClose() }, 700)
     } catch (err: any) {
       setLoading(false)
       if (err?.message === 'cancelled') return
       setError(err?.message ?? 'Something went wrong. Try again.')
     }
-  }, [selected, onClose])
+  }, [selected, onClose, onSuccess])
 
   const handleRestore = useCallback(async () => {
     haptic(8)
@@ -334,15 +345,21 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
           onClick={checkout}
           disabled={loading}
           className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform disabled:opacity-60"
-          style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
+          style={{
+            background: unlocked ? '#30D158' : 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)',
+            color: unlocked ? '#fff' : '#000',
+            transition: 'background 0.25s ease',
+          }}
         >
-          {loading
-            ? 'Opening checkout…'
-            : selected === 'monthly' && nativePricing?.monthlyIntroPrice
-              ? `Continue · ${nativePricing.monthlyIntroPrice} first month`
-              : `Continue with ${selected === 'annual'
-                  ? `Annual · ${nativePricing?.annual ?? '$39.99'}/yr`
-                  : `Monthly · ${nativePricing?.monthly ?? '$6.99'}/mo`}`}
+          {unlocked
+            ? 'Unlocked ✓'
+            : loading
+              ? (isNativeApp() ? 'Unlocking…' : 'Opening checkout…')
+              : selected === 'monthly' && nativePricing?.monthlyIntroPrice
+                ? `Continue · ${nativePricing.monthlyIntroPrice} first month`
+                : `Continue with ${selected === 'annual'
+                    ? `Annual · ${nativePricing?.annual ?? '$39.99'}/yr`
+                    : `Monthly · ${nativePricing?.monthly ?? '$6.99'}/mo`}`}
         </button>
         <button
           onClick={() => { haptic(6); onClose() }}
@@ -380,7 +397,7 @@ function Paywall({ count, viewers, onClose }: { count: number; viewers: Viewer[]
 }
 
 // ── Main sheet ───────────────────────────────────────────────────────────────
-export function ProfileViewsSheet({ onClose, isPlus = false }: ProfileViewsSheetProps) {
+export function ProfileViewsSheet({ onClose, isPlus = false, onUnlocked }: ProfileViewsSheetProps) {
   const [viewers, setViewers] = useState<Viewer[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -598,7 +615,7 @@ export function ProfileViewsSheet({ onClose, isPlus = false }: ProfileViewsSheet
       {/* Paywall */}
       <AnimatePresence>
         {showPaywall && (
-          <Paywall count={viewers.length} viewers={viewers} onClose={() => setShowPaywall(false)} />
+          <Paywall count={viewers.length} viewers={viewers} onClose={() => setShowPaywall(false)} onSuccess={onUnlocked} />
         )}
       </AnimatePresence>
     </>,

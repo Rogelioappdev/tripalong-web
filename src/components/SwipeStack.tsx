@@ -939,6 +939,13 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
                 matchPct={paywallContext?.matchPct}
                 trips={trips.slice(currentIndex + 1, currentIndex + 4)}
                 onClose={() => { setShowPaywall(false); setPaywallContext(undefined) }}
+                onSuccess={() => {
+                  if (!profile) return
+                  const updated: UserProfile = { ...profile, subscription_tier: 'plus' }
+                  setLocalProfile(updated)
+                  setUserProfile(updated)
+                  onProfileClaimed?.(updated)
+                }}
               />
             )
           })()}

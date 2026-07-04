@@ -598,6 +598,12 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
         context={compatPaywallContext?.destination}
         matchPct={compatPaywallContext?.matchPct}
         onClose={() => { setShowCompatPaywall(false); setCompatPaywallContext(undefined) }}
+        onSuccess={() => {
+          if (!userProfile) return
+          const updated: UserProfile = { ...userProfile, subscription_tier: 'plus' }
+          setUserProfile(updated)
+          onProfileClaimed?.(updated)
+        }}
       />
     )}
 
