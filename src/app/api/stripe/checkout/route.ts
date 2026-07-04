@@ -28,6 +28,13 @@ export async function POST(req: NextRequest) {
 
     let customerId = profile?.stripe_customer_id
 
+    if (customerId) {
+      // Stored ID may belong to a different Stripe account/mode (e.g. test-mode
+      // ID left over from before a live-mode cutover) — verify it still resolves.
+      const exists = await stripe.customers.retrieve(customerId).then(c => !c.deleted).catch(() => false)
+      if (!exists) customerId = undefined
+    }
+
     if (!customerId) {
       const customer = await stripe.customers.create({
         email,
