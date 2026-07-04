@@ -28,29 +28,23 @@ export async function POST(req: NextRequest) {
 
     let customerId = profile?.stripe_customer_id
 
-    if (customerId) {
-      // Stored ID may belong to a different Stripe account/mode (e.g. test-mode
-      // ID left over from before a live-mode cutover) — verify it still resolves.
-      const exists = await stripe.customers.retrieve(customerId).then(c => !c.deleted).catch(() => false)
-      if (!exists) customerId = undefined
-    }
-
-    if (!customerId) {
+    const createCustomer = async () => {
       const customer = await stripe.customers.create({
         email,
         metadata: { supabase_user_id: userId },
       })
-      customerId = customer.id
       await supabaseAdmin
         .from('users')
-        .update({ stripe_customer_id: customerId })
+        .update({ stripe_customer_id: customer.id })
         .eq('id', userId)
+      return customer.id
     }
 
-    const origin = req.headers.get('origin') ?? 'https://tripalong.app'
+    if (!customerId) customerId = await createCustomer()
 
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
+    const origin = req.headers.get('origin') ?? 'https://tripalong.app'
+    const createSession = (customer: string) => stripe.checkout.sessions.create({
+      customer,
       mode: 'subscription',
       line_items: [{ price: plan.priceId, quantity: 1 }],
       success_url: `${origin}/feed?upgrade=success&plan=${planKey}`,
@@ -60,6 +54,21 @@ export async function POST(req: NextRequest) {
       },
       allow_promotion_codes: true,
     })
+
+    let session
+    try {
+      session = await createSession(customerId)
+    } catch (err: any) {
+      // Stored ID may belong to a different Stripe account/mode (e.g. test-mode
+      // ID left over from before a live-mode cutover) — self-heal once instead
+      // of paying an extra round-trip to pre-verify on every checkout.
+      if (err?.code === 'resource_missing' && err?.param === 'customer') {
+        customerId = await createCustomer()
+        session = await createSession(customerId)
+      } else {
+        throw err
+      }
+    }
 
     return NextResponse.json({ url: session.url })
   } catch (err: any) {

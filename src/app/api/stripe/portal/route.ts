@@ -22,19 +22,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No subscription found' }, { status: 404 })
     }
 
-    // Stored ID may belong to a different Stripe account/mode (e.g. test-mode
-    // ID left over from before a live-mode cutover).
-    const exists = await stripe.customers.retrieve(profile.stripe_customer_id).then(c => !c.deleted).catch(() => false)
-    if (!exists) {
-      return NextResponse.json({ error: 'No subscription found' }, { status: 404 })
-    }
-
     const origin = req.headers.get('origin') ?? 'https://tripalong.app'
 
-    const session = await stripe.billingPortal.sessions.create({
-      customer: profile.stripe_customer_id,
-      return_url: `${origin}/settings`,
-    })
+    let session
+    try {
+      session = await stripe.billingPortal.sessions.create({
+        customer: profile.stripe_customer_id,
+        return_url: `${origin}/settings`,
+      })
+    } catch (err: any) {
+      // Stored ID may belong to a different Stripe account/mode (e.g. test-mode
+      // ID left over from before a live-mode cutover) — nothing to manage there.
+      if (err?.code === 'resource_missing' && err?.param === 'customer') {
+        return NextResponse.json({ error: 'No subscription found' }, { status: 404 })
+      }
+      throw err
+    }
 
     return NextResponse.json({ url: session.url })
   } catch (err: any) {
