@@ -418,8 +418,10 @@ export default function SettingsPage() {
       {showPaywall && (
         <PaywallModal
           trigger="upgrade"
+          userId={userId ?? undefined}
           onClose={() => setShowPaywall(false)}
           onSuccess={() => setProfile(p => p ? { ...p, subscription_tier: 'plus' } : p)}
+          onWelcomeDone={(confirmed) => { if (confirmed) setProfile(confirmed) }}
         />
       )}
     </>

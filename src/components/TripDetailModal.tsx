@@ -597,12 +597,18 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
         trigger={compatPaywallContext ? 'compatibility' : 'swipes'}
         context={compatPaywallContext?.destination}
         matchPct={compatPaywallContext?.matchPct}
+        userId={userId ?? undefined}
         onClose={() => { setShowCompatPaywall(false); setCompatPaywallContext(undefined) }}
         onSuccess={() => {
           if (!userProfile) return
           const updated: UserProfile = { ...userProfile, subscription_tier: 'plus' }
           setUserProfile(updated)
           onProfileClaimed?.(updated)
+        }}
+        onWelcomeDone={(confirmed) => {
+          if (!confirmed) return
+          setUserProfile(confirmed)
+          onProfileClaimed?.(confirmed)
         }}
       />
     )}

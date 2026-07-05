@@ -6,7 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getProfileViewers } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
 import { purchasePlus, restorePurchases, isNativeApp, getNativePlusPricing, type PlusPricing } from '@/lib/purchase'
+import { hasPlus } from '@/lib/trial'
 import { PublicProfileModal } from './PublicProfileModal'
+import { PlusWelcomeFlow } from './PlusWelcomeFlow'
 
 interface Viewer {
   id: string
@@ -20,11 +22,15 @@ interface Viewer {
 interface ProfileViewsSheetProps {
   onClose: () => void
   isPlus?: boolean
+  userId?: string
   // Called right after a successful native purchase from the inline paywall,
   // so the parent can flip its own isPlus state immediately instead of
   // waiting for a fresh fetch (which would otherwise require reopening this
   // sheet, or restarting the app, to see the unlock take effect).
   onUnlocked?: () => void
+  // Called once the post-purchase welcome flow confirms the real server-side
+  // profile — the definitive commit, replacing onUnlocked's optimistic guess.
+  onWelcomeDone?: (isPlus: boolean) => void
 }
 
 // ── localStorage helpers ────────────────────────────────────────────────────
@@ -73,10 +79,11 @@ function useCountUp(target: number, duration = 900) {
 }
 
 // ── Paywall ─────────────────────────────────────────────────────────────────
-function Paywall({ count, viewers, onClose, onSuccess }: { count: number; viewers: Viewer[]; onClose: () => void; onSuccess?: () => void }) {
+function Paywall({ count, viewers, onClose, onSuccess, userId, onWelcomeDone }: { count: number; viewers: Viewer[]; onClose: () => void; onSuccess?: () => void; userId?: string; onWelcomeDone?: (isPlus: boolean) => void }) {
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
   const [unlocked, setUnlocked] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(false)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
@@ -98,13 +105,33 @@ function Paywall({ count, viewers, onClose, onSuccess }: { count: number; viewer
       haptic(16)
       setUnlocked(true)
       onSuccess?.()
-      setTimeout(() => { setLoading(false); onClose() }, 700)
+      if (userId) {
+        // Show the full welcome flow instead of just closing — it polls the
+        // server in the background so Plus is guaranteed to actually be live
+        // by the time the user is back in the app, not just optimistically
+        // assumed here.
+        setTimeout(() => setShowWelcome(true), 500)
+      } else {
+        setTimeout(() => { setLoading(false); onClose() }, 700)
+      }
     } catch (err: any) {
       setLoading(false)
       if (err?.message === 'cancelled') return
       setError(err?.message ?? 'Something went wrong. Try again.')
     }
-  }, [selected, onClose, onSuccess])
+  }, [selected, onClose, onSuccess, userId])
+
+  if (showWelcome && userId) {
+    return (
+      <PlusWelcomeFlow
+        userId={userId}
+        onDone={(confirmed) => {
+          onWelcomeDone?.(hasPlus(confirmed))
+          onClose()
+        }}
+      />
+    )
+  }
 
   const handleRestore = useCallback(async () => {
     haptic(8)
@@ -397,7 +424,7 @@ function Paywall({ count, viewers, onClose, onSuccess }: { count: number; viewer
 }
 
 // ── Main sheet ───────────────────────────────────────────────────────────────
-export function ProfileViewsSheet({ onClose, isPlus = false, onUnlocked }: ProfileViewsSheetProps) {
+export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked, onWelcomeDone }: ProfileViewsSheetProps) {
   const [viewers, setViewers] = useState<Viewer[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -615,7 +642,7 @@ export function ProfileViewsSheet({ onClose, isPlus = false, onUnlocked }: Profi
       {/* Paywall */}
       <AnimatePresence>
         {showPaywall && (
-          <Paywall count={viewers.length} viewers={viewers} onClose={() => setShowPaywall(false)} onSuccess={onUnlocked} />
+          <Paywall count={viewers.length} viewers={viewers} onClose={() => setShowPaywall(false)} onSuccess={onUnlocked} userId={userId} onWelcomeDone={onWelcomeDone} />
         )}
       </AnimatePresence>
     </>,

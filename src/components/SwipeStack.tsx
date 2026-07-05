@@ -938,6 +938,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
                 context={currentTrip?.destination}
                 matchPct={paywallContext?.matchPct}
                 trips={trips.slice(currentIndex + 1, currentIndex + 4)}
+                userId={userId ?? undefined}
                 onClose={() => { setShowPaywall(false); setPaywallContext(undefined) }}
                 onSuccess={() => {
                   if (!profile) return
@@ -945,6 +946,12 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
                   setLocalProfile(updated)
                   setUserProfile(updated)
                   onProfileClaimed?.(updated)
+                }}
+                onWelcomeDone={(confirmed) => {
+                  if (!confirmed) return
+                  setLocalProfile(confirmed)
+                  setUserProfile(confirmed)
+                  onProfileClaimed?.(confirmed)
                 }}
               />
             )
