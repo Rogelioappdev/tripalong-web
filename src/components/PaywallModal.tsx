@@ -5,7 +5,8 @@ import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { purchasePlus, restorePurchases, getNativePlusPricing, isNativeApp, type PlusPricing } from '@/lib/purchase'
 import { haptic } from '@/lib/haptics'
-import type { TripWithDetails } from '@/lib/types'
+import { PlusWelcomeFlow } from './PlusWelcomeFlow'
+import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 interface Props {
   trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade'
@@ -18,6 +19,14 @@ interface Props {
   // instead of waiting on a server round-trip, so gated features unlock without
   // needing an app restart.
   onSuccess?: () => void
+  // Needed to show the post-purchase welcome flow (which polls the server in
+  // the background) — pass this to get it; without it the modal falls back to
+  // the old instant-close behavior.
+  userId?: string
+  // Called once the welcome flow confirms the real server-side profile —
+  // callers should commit this as their new source of truth, replacing
+  // whatever optimistic guess onSuccess produced.
+  onWelcomeDone?: (profile: UserProfile | null) => void
 }
 
 const FEATURES = [
@@ -51,10 +60,11 @@ function tripDates(start: string | null, end: string | null) {
   return 'Flexible dates'
 }
 
-export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuccess }: Props) {
+export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuccess, userId, onWelcomeDone }: Props) {
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
   const [unlocked, setUnlocked] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nativePricing, setNativePricing] = useState<PlusPricing | null>(null)
   const [restoring, setRestoring] = useState(false)
@@ -102,12 +112,20 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
       // Native: the RevenueCat SDK already confirmed the entitlement against
       // Apple's receipt at this point — no need to wait on the webhook that
       // syncs it to Supabase. Flip the caller's local profile state right away
-      // and show a brief confirmation before closing, instead of just
-      // vanishing (which read as "did that even work?").
+      // so gated features unlock without needing an app restart.
       haptic(16)
       setUnlocked(true)
       onSuccess?.()
-      setTimeout(() => { setLoading(false); onClose() }, 700)
+      if (userId) {
+        // Show the full welcome flow instead of just closing — while the user
+        // clicks through it, PlusWelcomeFlow polls the server in the
+        // background so subscription_tier is guaranteed correct everywhere by
+        // the time they land back in the app (not just wherever the
+        // optimistic onSuccess() flip above happened to reach).
+        setTimeout(() => setShowWelcome(true), 500)
+      } else {
+        setTimeout(() => { setLoading(false); onClose() }, 700)
+      }
     } catch (err: any) {
       setLoading(false)
       if (err?.message === 'cancelled') return
@@ -129,6 +147,19 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     } finally {
       setRestoring(false)
     }
+  }
+
+  if (showWelcome && userId) {
+    return createPortal(
+      <PlusWelcomeFlow
+        userId={userId}
+        onDone={(confirmed) => {
+          onWelcomeDone?.(confirmed)
+          onClose()
+        }}
+      />,
+      document.body
+    )
   }
 
   const content = (

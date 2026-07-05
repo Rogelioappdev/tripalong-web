@@ -160,7 +160,13 @@ export default function MessagesPage() {
       <NavBar />
       <AnimatePresence>
         {showViews && (
-          <ProfileViewsSheet onClose={() => { setShowViews(false) }} isPlus={isPlus} onUnlocked={() => setIsPlus(true)} />
+          <ProfileViewsSheet
+            onClose={() => { setShowViews(false) }}
+            isPlus={isPlus}
+            userId={userId ?? undefined}
+            onUnlocked={() => setIsPlus(true)}
+            onWelcomeDone={(confirmedIsPlus) => setIsPlus(confirmedIsPlus)}
+          />
         )}
       </AnimatePresence>
       <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>

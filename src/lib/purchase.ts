@@ -22,9 +22,20 @@ export async function purchasePlus(billing: BillingInterval): Promise<void> {
   await startCheckout(planKey)
 }
 
+// 60s covers a slow App Store sheet (Face ID prompt, family-approval wait,
+// etc.) without hanging forever — previously had no timeout at all, so a
+// dropped bridge message left the button spinning indefinitely with no error,
+// which is why a purchase could look "stuck" until the user tried again.
+const PURCHASE_TIMEOUT_MS = 60_000
+
 function purchaseViaNative(bridge: { postMessage: (msg: string) => void }, billing: BillingInterval): Promise<void> {
   return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      delete (window as any).__tripalongPurchaseResult
+      reject(new Error("This is taking longer than expected. Check the App Store app, or try again."))
+    }, PURCHASE_TIMEOUT_MS)
     ;(window as any).__tripalongPurchaseResult = (result: NativePurchaseResult) => {
+      clearTimeout(timeout)
       delete (window as any).__tripalongPurchaseResult
       if (result.success) resolve()
       else if (result.cancelled) reject(new Error('cancelled'))
