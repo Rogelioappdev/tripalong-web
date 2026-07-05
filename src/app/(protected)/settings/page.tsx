@@ -10,6 +10,10 @@ import { getProfile } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
 import { getNotificationStatusAsync, type NotificationStatus } from '@/lib/push'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
+import { PaywallModal } from '@/components/PaywallModal'
+import { hasPlus } from '@/lib/trial'
+import { isNativeApp, openNativeSubscriptionManagement } from '@/lib/purchase'
+import { openBillingPortal } from '@/lib/subscription'
 import type { UserProfile } from '@/lib/types'
 
 // ── Primitives ────────────────────────────────────────────────────────────
@@ -115,6 +119,11 @@ export default function SettingsPage() {
   const [privOnline, setPrivOnline] = useState(true)
   const [privReceipts, setPrivReceipts] = useState(true)
 
+  // Membership / subscription
+  const [showPaywall, setShowPaywall] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError, setPortalError] = useState('')
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.replace('/'); return }
@@ -163,6 +172,27 @@ export default function SettingsPage() {
     router.replace('/')
   }
 
+  const handleManageSubscription = async () => {
+    haptic(8)
+    setPortalError('')
+    // Native subscribers pay via RevenueCat/the App Store — there's no Stripe
+    // customer to open a billing portal for, so hand off to the OS instead.
+    if (isNativeApp()) { openNativeSubscriptionManagement(); return }
+    if (!userId) return
+    setPortalLoading(true)
+    try {
+      await openBillingPortal(userId)
+    } catch (err: any) {
+      setPortalError(err?.message ?? 'Could not open billing portal. Try again.')
+      setPortalLoading(false)
+    }
+  }
+
+  const isPlus = hasPlus(profile)
+  const expiresLabel = profile?.subscription_expires_at
+    ? new Date(profile.subscription_expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
+
   return (
     <>
       <NavBar />
@@ -177,6 +207,35 @@ export default function SettingsPage() {
         </div>
 
         <div className="max-w-lg mx-auto px-5 py-4 flex flex-col gap-5">
+
+          {/* ── Membership ── */}
+          <Group title="Membership">
+            {isPlus ? (
+              <>
+                <Row
+                  label="TripAlong+"
+                  value={profile?.subscription_status === 'canceled' ? 'Canceling' : 'Active'}
+                  sub={expiresLabel ? (profile?.subscription_status === 'canceled' ? `Ends ${expiresLabel}` : `Renews ${expiresLabel}`) : undefined}
+                  border
+                />
+                <Row
+                  label={portalLoading ? 'Opening…' : 'Manage Subscription'}
+                  chevron={!portalLoading}
+                  border={false}
+                  onPress={portalLoading ? undefined : handleManageSubscription}
+                />
+                {portalError && <p className="text-red-400 text-xs px-4 pb-3">{portalError}</p>}
+              </>
+            ) : (
+              <Row
+                label="Upgrade to TripAlong+"
+                sub="Unlimited swipes, no ads, and more"
+                chevron
+                border={false}
+                onPress={() => { haptic(8); setShowPaywall(true) }}
+              />
+            )}
+          </Group>
 
           {/* ── Account ── */}
           <Group title="Account">
@@ -354,6 +413,13 @@ export default function SettingsPage() {
         <NotificationPrompt
           userId={userId}
           onDone={() => { setShowNotificationPrompt(false); refreshPushStatus() }}
+        />
+      )}
+      {showPaywall && (
+        <PaywallModal
+          trigger="upgrade"
+          onClose={() => setShowPaywall(false)}
+          onSuccess={() => setProfile(p => p ? { ...p, subscription_tier: 'plus' } : p)}
         />
       )}
     </>

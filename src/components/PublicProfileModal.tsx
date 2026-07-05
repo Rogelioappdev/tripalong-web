@@ -10,6 +10,7 @@ import { BlockReportSheet } from './BlockReportSheet'
 import { getFlag } from '@/lib/countries'
 import { TripDetailModal } from './TripDetailModal'
 import { haptic } from '@/lib/haptics'
+import { hasPlus } from '@/lib/trial'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
 interface PublicProfileModalProps {
@@ -391,6 +392,14 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   <div className="flex items-baseline gap-3 mb-1">
                     <span className="text-white font-bold" style={{ fontSize: 36 }}>{profile.name}</span>
                     {profile.age && <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 28, fontWeight: 300 }}>{profile.age}</span>}
+                    {hasPlus(profile) && (
+                      <span
+                        className="font-bold rounded-full px-2.5 py-1"
+                        style={{ backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.4)', color: '#F0EBE3', fontSize: 12, letterSpacing: 0.2 }}
+                      >
+                        TripAlong+
+                      </span>
+                    )}
                   </div>
                   {(profile.city || profile.country) && (
                     <div className="flex items-center gap-1">
