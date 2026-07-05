@@ -8,7 +8,7 @@ import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
 interface Props {
-  trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility'
+  trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade'
   context?: string
   matchPct?: number
   trips?: TripWithDetails[]
@@ -81,6 +81,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     trigger === 'swipes' && context ? `${context} is waiting` :
     trigger === 'swipes' ? 'More trips are waiting' :
     trigger === 'rewind' ? 'Want that trip back?' :
+    trigger === 'upgrade' ? 'Go further with TripAlong+' :
     'See who checked you out'
 
   const subcopy =
@@ -89,6 +90,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
         ? `You're a ${matchPct >= 80 ? 'strong' : 'good'} match — unlock to see the exact number.`
         : 'Unlock to see exactly how much you match.' :
     trigger === 'rewind' ? 'Unlock rewind and never lose a great trip again.' :
+    trigger === 'upgrade' ? 'Unlimited swipes, no ads, and your compatibility % on every trip.' :
     "You've hit today's limit. Upgrade for unlimited."
 
   const handleUpgrade = async () => {

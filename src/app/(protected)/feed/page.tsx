@@ -74,8 +74,7 @@ export default function FeedPage() {
     if (typeof window === 'undefined') return false
     return new URLSearchParams(window.location.search).get('trial') === 'none'
   })
-  // 'none' = free, 'animate' = first-ever Plus visit (animate in), 'static' = already seen
-  const [plusTitleState, setPlusTitleState] = useState<'none' | 'animate' | 'static'>('none')
+  const isPlusUser = hasPlus(feedProfile)
 
   const [justUpgraded, setJustUpgraded] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
@@ -217,8 +216,6 @@ export default function FeedPage() {
     }
     if (best) setPaywallStats(prev => ({ viewerCount: prev?.viewerCount ?? 0, topMatch: best }))
   }, [showTrialExpiredPaywall, feedProfile, queryClient])
-
-  // TripAlong+ paused — title stays as "TripAlong" (plusTitleState stays 'none')
 
   // Lock page scroll — feed is a fixed app screen, not a scrollable document
   useEffect(() => {
@@ -426,7 +423,7 @@ export default function FeedPage() {
         <div className="md:hidden flex items-center justify-between px-5 shrink-0"
           style={{ paddingTop: isGuest ? 8 : 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
           <h1 className="text-white font-extrabold text-2xl tracking-tight">
-            TripAlong{plusTitleState !== 'none' ? '+' : ''}
+            TripAlong{isPlusUser ? '+' : ''}
           </h1>
           <div className="flex items-center gap-2">
             <motion.button

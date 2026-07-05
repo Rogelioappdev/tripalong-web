@@ -58,6 +58,15 @@ export async function restorePurchases(): Promise<void> {
   })
 }
 
+// Native only — opens the App Store/Play Store subscription management UI via
+// RevenueCat. Fire-and-forget: native has nothing meaningful to report back,
+// the OS UI takes over. Web (Stripe) subscribers use openBillingPortal instead.
+export function openNativeSubscriptionManagement(): void {
+  const bridge = typeof window !== 'undefined' && (window as any).ReactNativeWebView
+  if (!bridge) return
+  bridge.postMessage(JSON.stringify({ type: 'manage_subscription' }))
+}
+
 export interface PlusPricing {
   monthly: string | null
   annual: string | null
