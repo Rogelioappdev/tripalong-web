@@ -10,8 +10,8 @@ export async function startCheckout(planKey: PlanKey) {
 
   const res = await fetch('/api/stripe/checkout', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ planKey, userId: session.user.id, email: session.user.email }),
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ planKey }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -41,9 +41,12 @@ export async function pollForPlus(userId: string, attempts = 8, delayMs = 1500):
 }
 
 export async function openBillingPortal(userId: string) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) throw new Error('Not logged in')
+
   const res = await fetch('/api/stripe/portal', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
     body: JSON.stringify({ userId }),
   })
   const { url, error } = await res.json()
