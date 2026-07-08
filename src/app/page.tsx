@@ -9,7 +9,7 @@ import { haptic } from '@/lib/haptics'
 import { GuidelinesSlide } from '@/components/GuidelinesSlide'
 
 // ── Pre-launch gate ────────────────────────────────────────────────────────────
-const LAUNCH = new Date('2026-07-01T00:00:00')
+const LAUNCH = new Date('2026-07-09T12:00:00-07:00') // July 9th, 12pm PDT (Pacific)
 const ACCESS_KEY = 'tripalong_early_access'
 
 function pad(n: number) { return String(n).padStart(2, '0') }
@@ -241,7 +241,7 @@ function PreLaunchPage() {
           borderRadius: 20, padding: '5px 14px', marginBottom: 22,
         }}>
           <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-            Launching July 1st
+            Launching July 9th, 12pm PST
           </span>
         </div>
 
