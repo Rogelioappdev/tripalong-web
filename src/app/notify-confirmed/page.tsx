@@ -27,7 +27,7 @@ export default function NotifyConfirmedPage() {
 
       <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 15, lineHeight: 1.65, maxWidth: 280, marginBottom: 40 }}>
         Expect a notification the moment TripAlong goes live on{' '}
-        <span style={{ color: '#F0EBE3', fontWeight: 600 }}>July 1st</span>.
+        <span style={{ color: '#F0EBE3', fontWeight: 600 }}>July 9th, 12pm PST</span>.
       </p>
 
       <button

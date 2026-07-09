@@ -5,16 +5,26 @@ import { stripe, PLANS, type PlanKey } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: NextRequest) {
+  const authHeader = req.headers.get('authorization') ?? ''
+  const token = authHeader.replace('Bearer ', '').trim()
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const supabaseAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } },
+  )
+  const { data: { user } } = await supabaseAuth.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
   try {
-    const { planKey, userId, email } = await req.json() as {
-      planKey: PlanKey
-      userId: string
-      email: string
-    }
+    const { planKey } = await req.json() as { planKey: PlanKey }
+    const userId = user.id
+    const email = user.email ?? ''
 
     const plan = PLANS[planKey]
     if (!plan) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
