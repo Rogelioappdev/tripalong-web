@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
@@ -23,8 +23,21 @@ export function AuthGate({ destination, onClose, required = false }: AuthGatePro
   const headline = destination ? `${destination} is calling.` : 'Your next trip is one yes away.'
   const subline = destination ? "You're one yes away. It's free." : 'Find your people. It\'s free.'
 
+  useEffect(() => {
+    ;(window as any).__tripalongGoogleSignInResult = (result: { success: boolean }) => {
+      if (result.success) window.location.href = '/feed'
+    }
+    return () => { delete (window as any).__tripalongGoogleSignInResult }
+  }, [])
+
   const handleGoogle = () => {
     haptic(8)
+    // Google blocks/degrades OAuth run inside an embedded WebView, so hand off
+    // to native, which opens a real system browser (matches /login's flow).
+    if ((window as any).ReactNativeWebView) {
+      ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'google_signin' }))
+      return
+    }
     sessionStorage.setItem('postAuthRedirect', '/feed')
     supabase.auth.signInWithOAuth({
       provider: 'google',
