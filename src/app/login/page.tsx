@@ -32,8 +32,7 @@ export default function LoginPage() {
   }
 
   const postLoginRedirect = () => {
-    const hasBeta = document.cookie.includes('ta_access=true') || process.env.NEXT_PUBLIC_SKIP_ACCESS_GATE === 'true'
-    window.location.href = hasBeta ? '/feed' : '/early-access'
+    window.location.href = '/feed'
   }
 
   const handleSignIn = async () => {
