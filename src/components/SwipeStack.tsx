@@ -19,7 +19,6 @@ import { hasPlus, getTrialStatus } from '@/lib/trial'
 import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 
-const AD_FREQUENCY = 6 // show ad every N swipes
 // Local date, not UTC — must match the local-midnight countdown below.
 // toISOString() gives the UTC date, which rolls over hours after local
 // midnight for anyone west of UTC, so the counter didn't actually reset when
@@ -605,12 +604,8 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     return () => { delete (window as any).__tripalongAdvanceFeed }
   }, [])
 
-  // Interleave ad slots into the feed: one ad card after every AD_FREQUENCY content items
+  // Ads disabled — feed is content-only, no ad slots interleaved.
   type FeedItem = { type: 'trip'; trip: TripWithDetails } | { type: 'hangout'; hang: HangalongWithDetails } | { type: 'ad'; id: string }
-  // hasPlus() returns true for everyone during beta (Plus is paused/free).
-  // Decoupled from showAds so beta free-tier doesn't accidentally block ads.
-  // show_ad_content fires only in the native app via its own isNativeApp() guard.
-  const showAds = true
   const feedItems = useMemo<FeedItem[]>(() => {
     type ContentItem = { type: 'trip'; trip: TripWithDetails; ts: string } | { type: 'hangout'; hang: HangalongWithDetails; ts: string }
     const combined: ContentItem[] = [
@@ -618,14 +613,10 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
       ...hangalongs.map(h => ({ type: 'hangout' as const, hang: h, ts: h.created_at })),
     ].sort((a, b) => b.ts.localeCompare(a.ts))
 
-    const items: FeedItem[] = []
-    let adIdx = 0
-    combined.forEach((item, i) => {
-      items.push(item.type === 'trip' ? { type: 'trip', trip: item.trip } : { type: 'hangout', hang: item.hang })
-      if (showAds && (i + 1) % AD_FREQUENCY === 0) items.push({ type: 'ad', id: `ad-${adIdx++}` })
-    })
-    return items
-  }, [trips, hangalongs, showAds])
+    return combined.map(item =>
+      item.type === 'trip' ? { type: 'trip' as const, trip: item.trip } : { type: 'hangout' as const, hang: item.hang }
+    )
+  }, [trips, hangalongs])
 
   const visibleItems = feedItems.slice(currentIndex, currentIndex + 2)
   const currentItem = visibleItems[0]
