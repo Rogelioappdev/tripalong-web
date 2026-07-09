@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 
 // Paths where the button would be redundant or intrusive
-const HIDDEN_PATHS = ['/beta-feedback', '/early-access', '/login', '/onboarding', '/', '/privacy', '/terms', '/faq']
+const HIDDEN_PATHS = ['/beta-feedback', '/login', '/onboarding', '/', '/privacy', '/terms', '/faq']
 
 export function BetaFeedbackButton() {
   const pathname = usePathname()

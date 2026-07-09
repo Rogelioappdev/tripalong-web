@@ -16,11 +16,6 @@ export default function AuthCallbackPage() {
     const redirect = async (session: Session) => {
       if (resolved) return
       resolved = true
-      const hasBeta = document.cookie.includes('ta_access=true')
-      if (!hasBeta) {
-        router.replace('/early-access')
-        return
-      }
       const { data: user } = await supabase
         .from('users')
         .select('age')

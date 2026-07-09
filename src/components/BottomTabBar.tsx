@@ -9,7 +9,7 @@ import { getUnreadCount } from '@/lib/queries'
 import { setTabDir } from '@/lib/tab-direction'
 import { haptic } from '@/lib/haptics'
 
-const HIDE_ON = ['/', '/onboarding', '/travel-dna', '/terms', '/privacy', '/faq', '/report-bug', '/early-access', '/notify-confirmed', '/get']
+const HIDE_ON = ['/', '/onboarding', '/travel-dna', '/terms', '/privacy', '/faq', '/report-bug', '/notify-confirmed', '/get']
 
 export function BottomTabBar() {
   const pathname = usePathname()
