@@ -1,4 +1,5 @@
 import { startCheckout } from './subscription'
+import { track } from './analytics'
 import type { PlanKey } from './stripe'
 
 export type BillingInterval = 'monthly' | 'annual'
@@ -15,9 +16,19 @@ interface NativePurchaseResult {
 export async function purchasePlus(billing: BillingInterval): Promise<void> {
   const bridge = typeof window !== 'undefined' && (window as any).ReactNativeWebView
   if (bridge) {
-    await purchaseViaNative(bridge, billing)
+    track('checkout_started', { rail: 'native', billing })
+    try {
+      await purchaseViaNative(bridge, billing)
+    } catch (err: any) {
+      if (err?.message === 'cancelled') track('purchase_cancelled', { rail: 'native' })
+      else track('purchase_failed', { rail: 'native', reason: err?.message })
+      throw err
+    }
+    track('purchase_completed', { rail: 'native', billing })
     return
   }
+  // Web (Stripe) rail — startCheckout fires 'checkout_started'; the purchase
+  // itself completes after the redirect back to /feed?upgrade=success.
   const planKey: PlanKey = billing === 'annual' ? 'plus_annual' : 'plus_monthly'
   await startCheckout(planKey)
 }

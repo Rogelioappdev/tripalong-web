@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip, getProfile } from '@/lib/queries'
 import { getTripMatchBreakdown, getMatchingVibes, memberCompatibility } from '@/lib/matching'
 import { hasPlus } from '@/lib/trial'
+import { track } from '@/lib/analytics'
 import { PublicProfileModal } from './PublicProfileModal'
 import { JoinCelebration } from './JoinCelebration'
 import { ProfilePhotoNudge } from './ProfilePhotoNudge'
@@ -87,6 +88,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   const joinMutation = useMutation({
     mutationFn: () => joinTrip(trip.id, userId!),
     onSuccess: async () => {
+      track('trip_joined', { trip_id: trip.id, source: 'detail' })
       haptic([15, 30, 15, 30, 60])
       queryClient.invalidateQueries({ queryKey: ['membership', trip.id, userId] })
       queryClient.invalidateQueries({ queryKey: ['trips'] })

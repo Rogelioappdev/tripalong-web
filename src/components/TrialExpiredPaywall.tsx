@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { startCheckout } from '@/lib/subscription'
+import { track } from '@/lib/analytics'
+import { isNativeApp } from '@/lib/purchase'
 import { getTravelImages } from '@/lib/queries'
 
 interface Props {
@@ -21,6 +23,7 @@ export function TrialExpiredPaywall({ onClose, viewerCount, topMatch }: Props) {
   const [bgImage, setBgImage] = useState<string | null>(null)
 
   useEffect(() => {
+    track('paywall_viewed', { surface: 'trial_expired', rail: isNativeApp() ? 'native' : 'web' })
     getTravelImages(4).then(imgs => { if (imgs[0]) setBgImage(imgs[0]) })
     const t = setTimeout(() => setCanDismiss(true), 2500)
     return () => clearTimeout(t)

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createTrip, getDestinationPhotos } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
+import { track } from '@/lib/analytics'
 
 interface CreateTripModalProps {
   onClose: () => void
@@ -145,6 +146,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
         images: [],
         cover_image: coverImage,
       })
+      track('trip_created', { destination: destination.trim(), vibes_count: vibes.length })
       queryClient.invalidateQueries({ queryKey: ['trips'] })
       haptic(18)
       setCreatedTripId(tripId)

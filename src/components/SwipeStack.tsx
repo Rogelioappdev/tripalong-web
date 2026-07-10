@@ -15,6 +15,7 @@ import { FoundingMemberPaywall } from './FoundingMemberPaywall'
 import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen } from '@/lib/queries'
 import { JoinCelebration } from './JoinCelebration'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
+import { track } from '@/lib/analytics'
 import { hasPlus, getTrialStatus } from '@/lib/trial'
 import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
@@ -661,6 +662,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     if (userId && !savedIds.has(trip.id)) {
       setSavedIds(s => new Set([...s, trip.id]))
       onSave?.(trip)
+      track('trip_saved', { trip_id: trip.id })
       try {
         await saveTrip(trip.id, userId)
         qc.invalidateQueries({ queryKey: ['saved-trips', userId] })

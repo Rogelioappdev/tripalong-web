@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { startCheckout } from '@/lib/subscription'
+import { track } from '@/lib/analytics'
+import { isNativeApp } from '@/lib/purchase'
 
 interface Props {
   onClose?: () => void
@@ -30,6 +32,10 @@ const FEATURES = [
 export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }: Props) {
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    track('paywall_viewed', { surface: 'founding_member', rail: isNativeApp() ? 'native' : 'web' })
+  }, [])
   const [error, setError] = useState<string | null>(null)
 
   const handleUpgrade = async () => {

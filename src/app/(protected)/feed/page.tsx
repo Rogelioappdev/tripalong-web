@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import { getTripMatchBreakdown } from '@/lib/matching'
 import { getNotificationStatusAsync } from '@/lib/push'
+import { track } from '@/lib/analytics'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 import { MemberJoinToast } from '@/components/MemberJoinToast'
@@ -40,6 +41,9 @@ function UpgradeToastHandler({ onUpgrade }: { onUpgrade: () => void }) {
   const searchParams = useSearchParams()
   useEffect(() => {
     if (searchParams.get('upgrade') !== 'success') return
+    // Returned from Stripe Checkout — the web (Stripe) rail's completion point.
+    // (Native/RevenueCat purchases fire 'purchase_completed' in purchase.ts.)
+    track('purchase_completed', { rail: 'web' })
     onUpgrade()
     router.replace('/feed', { scroll: false })
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps

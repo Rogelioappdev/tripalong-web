@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { purchasePlus, restorePurchases, getNativePlusPricing, isNativeApp, type PlusPricing } from '@/lib/purchase'
+import { track } from '@/lib/analytics'
 import { haptic } from '@/lib/haptics'
 import { PlusWelcomeFlow } from './PlusWelcomeFlow'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
@@ -75,6 +76,11 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [])
+
+  // Top of the conversion funnel: which wall the user hit, and via which trigger.
+  useEffect(() => {
+    track('paywall_viewed', { surface: 'swipe_paywall', trigger, rail: isNativeApp() ? 'native' : 'web' })
+  }, [trigger])
 
   // Native app: pull the live store price straight from RevenueCat/StoreKit
   // instead of the hardcoded fallback below, so it always matches what a
