@@ -430,6 +430,13 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
   const [mounted, setMounted] = useState(false)
   const [selectedViewer, setSelectedViewer] = useState<{ id: string; locked: boolean } | null>(null)
   const [showPaywall, setShowPaywall] = useState(false)
+  // Revealed viewer IDs in state (backed by localStorage) so revealing someone
+  // immediately re-renders the list — unblurring them and floating them to top.
+  const [revealedIds, setRevealedIds] = useState<Set<string>>(() => new Set())
+  const reveal = (id: string) => {
+    addRevealedId(id)
+    setRevealedIds(prev => new Set(prev).add(id))
+  }
   const displayCount = useCountUp(viewers.length)
 
   useEffect(() => {
@@ -442,6 +449,7 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
         localStorage.removeItem(LS_IDS_KEY)
       }
     } catch {}
+    setRevealedIds(getRevealedIds())
   }, [])
   useEffect(() => {
     getProfileViewers().then(v => { setViewers(v as Viewer[]); setLoading(false) })
@@ -449,18 +457,18 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
 
   const handleViewerTap = (viewer: Viewer) => {
     haptic(8)
-    const revealedIds = getRevealedIds()
     setSelectedViewer({ id: viewer.id, locked: !revealedIds.has(viewer.id) })
   }
 
   const handleRevealRequest = (): boolean => {
     if (!selectedViewer) return false
-    // Plus users (trial or paid) see everyone — no gate
-    if (isPlus) return true
-    const revealedIds = getRevealedIds()
+    // Plus users (trial or paid) see everyone — persist the reveal so the list
+    // unblurs them and floats them to the top (previously it wasn't recorded,
+    // so they stayed blurred in the grid even after being revealed).
+    if (isPlus) { reveal(selectedViewer.id); return true }
     if (revealedIds.has(selectedViewer.id)) return true
     if (revealedIds.size < 1) {
-      addRevealedId(selectedViewer.id)
+      reveal(selectedViewer.id)
       return true
     }
     setShowPaywall(true)
@@ -558,8 +566,10 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
 
               {/* ── Profile grid ── */}
               <div className="grid grid-cols-3 gap-x-3 gap-y-7 px-5 pt-7 pb-10">
-                {viewers.map((viewer, i) => {
-                  const isRevealed = getRevealedIds().has(viewer.id)
+                {[...viewers]
+                  .sort((a, b) => (revealedIds.has(b.id) ? 1 : 0) - (revealedIds.has(a.id) ? 1 : 0))
+                  .map((viewer, i) => {
+                  const isRevealed = revealedIds.has(viewer.id)
                   return (
                     <motion.button
                       key={viewer.id}

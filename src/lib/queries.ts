@@ -34,6 +34,21 @@ export async function markHangalongSeen(hangalongId: string): Promise<void> {
     .upsert({ user_id: uid, hangalong_id: hangalongId }, { onConflict: 'user_id,hangalong_id' })
 }
 
+// ─── Daily swipe limit (server-side, UTC-keyed) ────────────────────────────────
+// Enforced in Postgres via SECURITY DEFINER functions keyed off auth.uid(), so
+// it can't be reset by changing the device timezone or clearing localStorage.
+export async function getSwipesToday(): Promise<number> {
+  const { data, error } = await supabase.rpc('get_swipes_today')
+  if (error) throw error
+  return data ?? 0
+}
+
+export async function incrementSwipesToday(): Promise<number> {
+  const { data, error } = await supabase.rpc('increment_swipes_today')
+  if (error) throw error
+  return data ?? 0
+}
+
 // ─── Trip feed ────────────────────────────────────────────────────────────────
 
 export async function getTrips(): Promise<TripWithDetails[]> {
@@ -309,7 +324,18 @@ export async function createTrip(data: {
 }): Promise<string> {
   const { data: inserted, error } = await supabase.from('trips').insert(data).select('id').single()
   if (error) throw error
-  return inserted.id
+  const tripId = inserted.id as string
+
+  // Auto-join the creator to their own trip and its group chat, so the chat
+  // exists and they're already in it (mirrors joinTrip, minus the "someone
+  // joined" self-notification). Without this the creator wasn't a member and
+  // the chat didn't exist, so "Open Group Chat" fell back to the inbox.
+  await supabase.from('trip_members')
+    .upsert({ trip_id: tripId, user_id: data.creator_id, status: 'in' }, { onConflict: 'trip_id,user_id' })
+  const { error: chatError } = await supabase.rpc('ensure_trip_chat_member', { p_trip_id: tripId })
+  if (chatError) console.error('createTrip: ensure_trip_chat_member failed', chatError)
+
+  return tripId
 }
 
 export async function getUserTripChats(_userId: string) {

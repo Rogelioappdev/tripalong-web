@@ -12,7 +12,7 @@ import { PublicProfileModal } from './PublicProfileModal'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
-import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen } from '@/lib/queries'
+import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen, getSwipesToday, incrementSwipesToday } from '@/lib/queries'
 import { JoinCelebration } from './JoinCelebration'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { track } from '@/lib/analytics'
@@ -20,18 +20,10 @@ import { hasPlus, getTrialStatus } from '@/lib/trial'
 import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 
-// Local date, not UTC — must match the local-midnight countdown below.
-// toISOString() gives the UTC date, which rolls over hours after local
-// midnight for anyone west of UTC, so the counter didn't actually reset when
-// the on-screen timer hit 0:00 — it silently waited for the real UTC rollover.
-const localDateKey = (d: Date) => {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-const todayKey = (uid: string) => `ta_swipes_${uid}_${localDateKey(new Date())}`
-
+// Daily swipe counts now live server-side (see getSwipesToday /
+// incrementSwipesToday), keyed to the UTC date and enforced in Postgres — so
+// the count can't be reset by changing the device timezone or clearing
+// localStorage. The countdown below is aligned to the same UTC rollover.
 const isNativeApp = () =>
   typeof window !== 'undefined' && navigator.userAgent.includes('TripAlong/1.0')
 
@@ -39,7 +31,7 @@ function useMidnightCountdown() {
   const getSecsUntilMidnight = () => {
     const now = new Date()
     const midnight = new Date(now)
-    midnight.setHours(24, 0, 0, 0)
+    midnight.setUTCHours(24, 0, 0, 0) // reset at UTC midnight — matches the server-side counter
     return Math.floor((midnight.getTime() - now.getTime()) / 1000)
   }
   const [secs, setSecs] = useState(() => getSecsUntilMidnight())
@@ -52,13 +44,6 @@ function useMidnightCountdown() {
   const s = secs % 60
   const pad = (n: number) => String(n).padStart(2, '0')
   return { h: pad(h), m: pad(m), s: pad(s) }
-}
-const getDailySwipes = (uid: string) => parseInt(localStorage.getItem(todayKey(uid)) ?? '0', 10)
-const incrementDailySwipes = (uid: string) => {
-  const key = todayKey(uid)
-  const next = getDailySwipes(uid) + 1
-  localStorage.setItem(key, String(next))
-  return next
 }
 
 interface SwipeStackProps {
@@ -462,6 +447,9 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   const { h, m, s } = useMidnightCountdown()
   const [swipeLimitReached, setSwipeLimitReached] = useState(false)
   const [limitChecked, setLimitChecked] = useState(false)
+  // Authoritative daily swipe count from the server; optimistically bumped on
+  // each swipe for instant UX, then reconciled with the server's return value.
+  const swipesTodayRef = useRef(0)
   const [showPaywall, setShowPaywall] = useState(false)
   const [paywallContext, setPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
   const [showFoundingScreen, setShowFoundingScreen] = useState(false)
@@ -520,16 +508,26 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     updateProfile(userId, { swipe_variant: swipeVariant }).catch(() => {})
   }, [userId, userProfile, swipeVariant])
 
-  // Check limit once userId + profile are known — user-specific key prevents cross-account bleed
+  // Check limit once userId + profile are known. The count is fetched from the
+  // server (UTC-keyed, tamper-proof) rather than localStorage.
   useEffect(() => {
     if (isGuest) { setLimitChecked(true); return }
     if (!userId || !userProfile) return
-    if (hasPlus(userProfile)) {
+    if (hasPlus(userProfile) || dailyLimit === Infinity) {
       setSwipeLimitReached(false)
-    } else {
-      setSwipeLimitReached(getDailySwipes(userId) >= dailyLimit)
+      setLimitChecked(true)
+      return
     }
-    setLimitChecked(true)
+    let cancelled = false
+    getSwipesToday()
+      .then(count => {
+        if (cancelled) return
+        swipesTodayRef.current = count
+        setSwipeLimitReached(count >= dailyLimit)
+      })
+      .catch(() => {}) // network failure shouldn't wall the user; server still enforces on increment
+      .finally(() => { if (!cancelled) setLimitChecked(true) })
+    return () => { cancelled = true }
   }, [userId, userProfile, isGuest, dailyLimit])
 
   // Show DNA nudge at card 3 — only on return visits (hint already dismissed before)
@@ -581,9 +579,19 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
       else if (item?.type === 'hangout') markHangalongSeen(item.hang.id).catch(() => {})
     }
 
-    if (!skipDailyCount && !isGuest && userId && !hasPlus(localProfile ?? userProfile)) {
-      const count = incrementDailySwipes(userId)
-      if (count >= dailyLimit) {
+    if (!skipDailyCount && !isGuest && userId && !hasPlus(localProfile ?? userProfile) && dailyLimit !== Infinity) {
+      // Optimistic local bump for instant UX...
+      const optimistic = swipesTodayRef.current + 1
+      swipesTodayRef.current = optimistic
+      // ...but the server is the source of truth and can't be bypassed. Reconcile
+      // with its authoritative count (e.g. if the user already swiped elsewhere).
+      incrementSwipesToday()
+        .then(serverCount => {
+          swipesTodayRef.current = serverCount
+          if (serverCount >= dailyLimit) setSwipeLimitReached(true)
+        })
+        .catch(() => {})
+      if (optimistic >= dailyLimit) {
         setSwipeLimitReached(true)
         return
       }
@@ -719,7 +727,10 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
       return
     }
     haptic(8)
-    onTripTap(currentTrip)
+    // Actually save the trip — route through the same right-swipe path so it
+    // runs saveTrip + shows the "Trip saved" toast + advances, instead of just
+    // opening the detail modal (which is what the Join button is for).
+    await topCardRef.current?.swipeRight()
   }
 
 

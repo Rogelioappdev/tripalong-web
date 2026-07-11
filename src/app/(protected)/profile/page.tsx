@@ -4,9 +4,11 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { Reorder } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getProfile, updateProfile, getMyTrips } from '@/lib/queries'
+import { normalizeImageToJpeg } from '@/lib/image'
 import { haptic } from '@/lib/haptics'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
@@ -169,6 +171,12 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false)
   const [uploadingMain, setUploadingMain] = useState(false)
   const [uploadingGrid, setUploadingGrid] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!photoError) return
+    const t = setTimeout(() => setPhotoError(null), 3500)
+    return () => clearTimeout(t)
+  }, [photoError])
   const [showPreview, setShowPreview] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [myTrips, setMyTrips] = useState<TripWithDetails[]>([])
@@ -225,14 +233,20 @@ export default function ProfilePage() {
   const handlePhotoUpload = async (file: File) => {
     if (!profile) return
     setUploadingMain(true)
+    setPhotoError(null)
     try {
-      const ext = file.name.split('.').pop()
-      const path = `${profile.id}/profile.${ext}`
-      await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      // Normalize to a web-safe JPEG first (fixes HEIC/odd-format black photos).
+      const jpeg = await normalizeImageToJpeg(file)
+      const path = `${profile.id}/profile.jpg`
+      const { error: uploadError } = await supabase.storage.from('avatars')
+        .upload(path, jpeg, { upsert: true, contentType: 'image/jpeg' })
+      if (uploadError) throw uploadError
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
       // Bust the browser cache — same path means same URL, so the old image sticks without this
       const bustedUrl = `${publicUrl}?v=${Date.now()}`
       await save({ profile_photo: bustedUrl })
+    } catch (e: any) {
+      setPhotoError(e?.message ?? 'Photo upload failed. Try again.')
     } finally {
       setUploadingMain(false)
       // Reset input so selecting the same file again still triggers onChange
@@ -240,19 +254,36 @@ export default function ProfilePage() {
     }
   }
 
-  const handlePhotoGridUpload = async (file: File) => {
-    if (!profile) return
+  const handleGridPhotosUpload = async (files: File[]) => {
+    if (!profile || files.length === 0) return
+    const remaining = 10 - (profile.photos?.length ?? 0)
+    const toUpload = files.slice(0, Math.max(0, remaining))
+    if (toUpload.length === 0) return
     setUploadingGrid(true)
+    setPhotoError(null)
     try {
-      const ts = Date.now()
-      const ext = file.name.split('.').pop()
-      const path = `${profile.id}/${ts}.${ext}`
-      await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
-      await save({ photos: [...(profile.photos ?? []), publicUrl] })
+      const urls: string[] = []
+      for (const file of toUpload) {
+        const jpeg = await normalizeImageToJpeg(file)
+        // Unique path per photo (random suffix avoids collisions within a batch).
+        const path = `${profile.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`
+        const { error: uploadError } = await supabase.storage.from('avatars')
+          .upload(path, jpeg, { upsert: true, contentType: 'image/jpeg' })
+        if (uploadError) throw uploadError
+        urls.push(supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl)
+      }
+      if (urls.length) await save({ photos: [...(profile.photos ?? []), ...urls] })
+    } catch (e: any) {
+      setPhotoError(e?.message ?? 'Photo upload failed. Try again.')
     } finally {
       setUploadingGrid(false)
     }
+  }
+
+  const reorderPhotos = (next: string[]) => {
+    if (!profile) return
+    setProfile({ ...profile, photos: next }) // optimistic so the drag feels instant
+    save({ photos: next })
   }
 
   const removePhoto = (url: string) => {
@@ -310,6 +341,11 @@ export default function ProfilePage() {
   return (
     <>
       <NavBar />
+      {photoError && (
+        <div className="fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top)+16px)] z-50 max-w-[90%] bg-red-500/95 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg text-center">
+          {photoError}
+        </div>
+      )}
       <main className="pt-[calc(env(safe-area-inset-top)+12px)] md:pt-14 min-h-screen bg-black pb-20 md:pb-8">
         <div className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-6">
 
@@ -577,22 +613,29 @@ export default function ProfilePage() {
 
           {/* Photos grid */}
           <Section title="Photos">
-            <div className="grid grid-cols-3 gap-1.5">
+            <p className="text-white/25 text-xs mb-2">Drag to reorder · your first photo is your main.</p>
+            <Reorder.Group as="div" axis="y" values={profile?.photos ?? []} onReorder={reorderPhotos} className="grid grid-cols-3 gap-1.5">
               {(profile?.photos ?? []).map((url) => (
-                <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
-                  <img src={url} alt="" className="w-full h-full object-cover" />
+                <Reorder.Item
+                  as="div"
+                  key={url}
+                  value={url}
+                  className="aspect-square rounded-2xl overflow-hidden relative cursor-grab active:cursor-grabbing"
+                >
+                  <img src={url} alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
                   <button
                     type="button"
+                    onPointerDown={e => e.stopPropagation()}
                     onClick={() => removePhoto(url)}
                     className="absolute top-1 right-1 z-10 w-8 h-8 rounded-full flex items-center justify-center"
                     style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 13, lineHeight: 1 }}
                   >✕</button>
-                </div>
+                </Reorder.Item>
               ))}
               {(profile?.photos?.length ?? 0) < 10 && (
                 <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer active:border-white/30 transition-colors">
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoGridUpload(f) }} />
+                  <input type="file" accept="image/*" multiple className="hidden"
+                    onChange={e => { const fs = Array.from(e.target.files ?? []); e.currentTarget.value = ''; handleGridPhotosUpload(fs) }} />
                   {uploadingGrid ? (
                     <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
                   ) : (
@@ -603,7 +646,7 @@ export default function ProfilePage() {
                   )}
                 </label>
               )}
-            </div>
+            </Reorder.Group>
           </Section>
 
           {/* Languages */}

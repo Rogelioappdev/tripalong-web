@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { useRouter } from 'next/navigation'
@@ -39,6 +39,7 @@ const PERSONALITY_OPT = [{ id: 'introvert', label: 'Introvert', emoji: '🌙' },
 const EXPERIENCE_OPT  = [{ id: 'beginner', label: 'Beginner', emoji: '🌱' }, { id: 'intermediate', label: 'Intermediate', emoji: '🌿' }, { id: 'experienced', label: 'Experienced', emoji: '🌳' }, { id: 'expert', label: 'Expert', emoji: '🌍' }]
 
 const SWIPE_THRESHOLD = 50
+const HERO_SWIPE_THRESHOLD = 30 // in-profile hero swipe — lighter than the fullscreen lightbox
 const VELOCITY_THRESHOLD = 400
 
 function label(opts: { id: string; label: string; emoji: string }[], id: string | null | undefined) {
@@ -176,6 +177,18 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   const [photoIndex, setPhotoIndex] = useState(0)
   const [photoDirection, setPhotoDirection] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  // Single source of truth for the photo list (profile photo first, then the
+  // rest deduped). Both the swipe handler and the render use this — previously
+  // they computed it differently, so the swipe boundary was wrong and you
+  // couldn't reach every photo without opening the fullscreen lightbox.
+  const allPhotos = useMemo(() => {
+    if (!profile) return [] as string[]
+    const base = profile.profile_photo?.split('?')[0]
+    return [
+      ...(profile.profile_photo ? [profile.profile_photo] : []),
+      ...(profile.photos ?? []).filter(p => p.split('?')[0] !== base),
+    ]
+  }, [profile])
   const [savedTrips, setSavedTrips] = useState<any[]>([])
   const [mounted, setMounted] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -247,10 +260,11 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   }
 
   const handleHeroDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const allPhotos = profile?.photos?.length ? profile.photos : profile?.profile_photo ? [profile.profile_photo] : []
-    if (info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
+    // Lower threshold than the fullscreen lightbox so a light in-profile swipe
+    // reliably turns the photo instead of dying in the tap/swipe dead zone.
+    if (info.offset.x < -HERO_SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
       if (photoIndex < allPhotos.length - 1) navigatePhoto(photoIndex + 1, 1)
-    } else if (info.offset.x > SWIPE_THRESHOLD || info.velocity.x > VELOCITY_THRESHOLD) {
+    } else if (info.offset.x > HERO_SWIPE_THRESHOLD || info.velocity.x > VELOCITY_THRESHOLD) {
       if (photoIndex > 0) navigatePhoto(photoIndex - 1, -1)
     }
   }
@@ -271,11 +285,6 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
             <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
           </div>
         ) : (() => {
-          const profilePhotoBase = profile.profile_photo?.split('?')[0]
-          const allPhotos = [
-            ...(profile.profile_photo ? [profile.profile_photo] : []),
-            ...(profile.photos ?? []).filter(p => p.split('?')[0] !== profilePhotoBase),
-          ]
           const mainPhoto = allPhotos[photoIndex] ?? null
           const travelStyles = profile.travel_styles ?? []
           const languages = profile.languages ?? []
@@ -343,7 +352,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                     className="absolute inset-0"
                     drag={allPhotos.length > 1 ? 'x' : false}
                     dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.12}
+                    dragElastic={0.22}
                     onDragEnd={handleHeroDragEnd}
                     onPointerDown={(e) => { heroPtrRef.current = { x: e.clientX, y: e.clientY } }}
                     onPointerUp={(e) => {

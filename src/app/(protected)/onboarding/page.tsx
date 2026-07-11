@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { createProfile, updateProfile } from '@/lib/queries'
+import { normalizeImageToJpeg } from '@/lib/image'
 import { haptic } from '@/lib/haptics'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 
@@ -54,15 +55,18 @@ export default function OnboardingPage() {
     setError('')
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const ext = file.name.split('.').pop()
-      const path = `${user.id}/profile.${ext}`
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      if (!user) { setError('Please sign in again.'); return }
+      // Normalize to a web-safe JPEG first (fixes HEIC/odd-format black photos).
+      const jpeg = await normalizeImageToJpeg(file)
+      const path = `${user.id}/profile.jpg`
+      const { error: uploadError } = await supabase.storage.from('avatars')
+        .upload(path, jpeg, { upsert: true, contentType: 'image/jpeg' })
       if (uploadError) throw uploadError
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
-      setPhotoUrl(publicUrl)
-    } catch {
-      setError('Photo upload failed. Try again.')
+      // Cache-bust so the new upload replaces any cached image at the same path.
+      setPhotoUrl(`${publicUrl}?t=${Date.now()}`)
+    } catch (e: any) {
+      setError(e?.message ?? 'Photo upload failed. Try again.')
     } finally {
       setUploading(false)
     }

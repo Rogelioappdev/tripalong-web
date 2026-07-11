@@ -117,7 +117,10 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
 
   // Sort: You first, creator second, then alphabetical
   const rawMembers = tripInfo.members ?? []
-  const members = [...rawMembers].sort((a: any, b: any) => {
+  // Only members with a real user record can be rendered — filter first so the
+  // count and the list can never disagree (a null-user member used to inflate
+  // the badge without showing a row).
+  const members = [...rawMembers].filter((m: any) => m.user).sort((a: any, b: any) => {
     const aId = a.user?.id
     const bId = b.user?.id
     if (aId === userId) return -1
@@ -131,7 +134,10 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
   const hasDescription = !!tripInfo.description?.trim()
   const descLong = (tripInfo.description?.length ?? 0) > 120
   const hasVibes = (tripInfo.vibes?.length ?? 0) > 0
-  const memberCount = Math.max(members.length, tripInfo.member_count ?? 0)
+  // The rendered list is the source of truth. Using Math.max with a cached
+  // member_count kept the badge pinned to a stale higher number when someone
+  // left, so it never counted back down.
+  const memberCount = members.length
 
   return (
     <>

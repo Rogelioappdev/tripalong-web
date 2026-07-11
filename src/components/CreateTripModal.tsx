@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createTrip, getDestinationPhotos } from '@/lib/queries'
+import { createTrip, getDestinationPhotos, joinTripChat } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
 import { track } from '@/lib/analytics'
 
@@ -182,7 +182,13 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       setSlideIdx(i => i + 1)
     } else {
       onClose()
-      if (createdTripId) router.push(`/trip/${createdTripId}`)
+      // Open the trip's actual group chat (the creator is auto-joined in
+      // createTrip). Fall back to the trip page if the chat lookup hiccups.
+      if (createdTripId) {
+        joinTripChat(createdTripId)
+          .then(chatId => router.push(`/chat/${chatId}`))
+          .catch(() => router.push(`/trip/${createdTripId}`))
+      }
     }
   }, [slideIdx, SLIDES.length, onClose, createdTripId, router])
 
@@ -415,7 +421,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                   className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
                   style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
                 >
-                  {slideIdx < SLIDES.length - 1 ? 'Next →' : "Let's go →"}
+                  {slideIdx < SLIDES.length - 1 ? 'Next →' : 'Open Group Chat →'}
                 </button>
                 {slideIdx < SLIDES.length - 1 && (
                   <button
