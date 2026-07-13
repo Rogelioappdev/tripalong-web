@@ -26,6 +26,7 @@ import {
   unblockUser,
 } from '@/lib/queries'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
+import { displayName } from '@/lib/displayName'
 import type { DMMessage, TripMessage } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
 
@@ -664,7 +665,7 @@ export default function DMPage() {
                         className={`px-3 py-1.5 rounded-xl text-xs mb-0.5 max-w-full ${isMe ? 'text-right' : 'text-left'}`}
                         style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderLeft: isMe ? 'none' : '2px solid rgba(255,255,255,0.2)', borderRight: isMe ? '2px solid rgba(255,255,255,0.2)' : 'none' }}
                       >
-                        <p className="text-white/50 font-semibold truncate">{msg.reply_to.sender?.name ?? 'Unknown'}</p>
+                        <p className="text-white/50 font-semibold truncate">{displayName(msg.reply_to.sender?.name)}</p>
                         <p className="text-white/35 truncate">{msg.reply_to.content?.startsWith('https://') ? '📷 Photo' : msg.reply_to.content}</p>
                       </div>
                     )}
@@ -738,7 +739,7 @@ export default function DMPage() {
               <div className="w-0.5 self-stretch rounded-full" style={{ backgroundColor: '#F0EBE3', opacity: 0.4 }} />
               <div className="flex-1 min-w-0">
                 <p className="text-white/50 text-xs font-semibold truncate">
-                  {replyTo.sender_id === userId ? 'You' : (replyTo.sender?.name ?? 'Unknown')}
+                  {replyTo.sender_id === userId ? 'You' : displayName(replyTo.sender?.name)}
                 </p>
                 <p className="text-white/30 text-xs truncate">
                   {replyTo.type === 'image' ? '📷 Photo' : replyTo.content}

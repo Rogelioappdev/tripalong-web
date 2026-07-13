@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { TripWithDetails, TripMessage, UserProfile, ChatMemberReadPosition, HangalongWithDetails, ActivityType, WhenLabel } from './types'
 import { sortTrips, sortHangalongs } from './feedScoring'
+import { displayName } from './displayName'
 import { sendPushNotification } from './push'
 
 // Best-effort "X joined" push to existing members — never blocks the join
@@ -818,7 +819,7 @@ export async function getProfileViewers(limit = 50): Promise<{ id: string; name:
   if (error) return []
   return (data ?? []).map((row: any) => ({
     id: row.viewer_id,
-    name: row.name ?? 'Unknown',
+    name: displayName(row.name),
     profile_photo: row.profile_photo ?? null,
     travel_styles: row.travel_styles ?? [],
     country: row.country ?? null,

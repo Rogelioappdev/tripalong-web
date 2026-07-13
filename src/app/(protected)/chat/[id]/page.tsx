@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { registerPush, sendPushNotification } from '@/lib/push'
 import { initPresence, useOnlineUsers } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
+import { displayName } from '@/lib/displayName'
 import {
   getChatMessages,
   getOlderChatMessages,
@@ -729,7 +730,7 @@ export default function ChatPage() {
                     <div className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs">
                       {msg.sender?.profile_photo
                         ? <img src={msg.sender.profile_photo} alt="" className="w-full h-full object-cover" />
-                        : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
+                        : displayName(msg.sender?.name)[0].toUpperCase()}
                     </div>
                   )}
                   {!isMe && !isLastInGroup && <div className="w-7 shrink-0" />}
@@ -737,10 +738,10 @@ export default function ChatPage() {
                   {/* Bubble column */}
                   <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
                     {!isMe && idx > 0 && displayMessages[idx - 1].sender_id !== msg.sender_id && (
-                      <span className="text-white/30 text-xs px-1">{msg.sender?.name}</span>
+                      <span className="text-white/30 text-xs px-1">{displayName(msg.sender?.name)}</span>
                     )}
                     {!isMe && idx === 0 && (
-                      <span className="text-white/30 text-xs px-1">{msg.sender?.name}</span>
+                      <span className="text-white/30 text-xs px-1">{displayName(msg.sender?.name)}</span>
                     )}
 
                     {/* Reply-to quote */}
@@ -749,7 +750,7 @@ export default function ChatPage() {
                         className={`px-3 py-1.5 rounded-xl text-xs max-w-full ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
                         style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
                       >
-                        <p className="text-white/50 font-medium truncate">{msg.reply_to.sender?.name ?? 'Unknown'}</p>
+                        <p className="text-white/50 font-medium truncate">{displayName(msg.reply_to.sender?.name)}</p>
                         <p className="text-white/35 truncate">{msg.reply_to.content?.startsWith('https://') ? '📷 Photo' : msg.reply_to.content}</p>
                       </div>
                     )}
@@ -862,7 +863,7 @@ export default function ChatPage() {
               style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderTop: '0.5px solid rgba(255,255,255,0.08)' }}
             >
               <div className="flex-1 min-w-0" style={{ borderLeft: '2px solid rgba(255,255,255,0.3)', paddingLeft: 10 }}>
-                <p className="text-white/50 text-xs font-medium truncate">{replyTo.sender?.name ?? 'Unknown'}</p>
+                <p className="text-white/50 text-xs font-medium truncate">{displayName(replyTo.sender?.name)}</p>
                 <p className="text-white/35 text-xs truncate">{replyTo.content?.startsWith('https://') ? '📷 Photo' : replyTo.content}</p>
               </div>
               <button

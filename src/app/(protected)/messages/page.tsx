@@ -13,6 +13,7 @@ import { getPushState, registerPush } from '@/lib/push'
 import { hasPlus } from '@/lib/trial'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
+import { displayName } from '@/lib/displayName'
 import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 import { isNativeApp } from '@/lib/native-app'
 
@@ -335,7 +336,7 @@ export default function MessagesPage() {
                           <img src={other.profile_photo} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/50">
-                            {other?.name?.[0]?.toUpperCase() ?? '?'}
+                            {displayName(other?.name)[0].toUpperCase()}
                           </div>
                         )}
                       </div>
@@ -345,7 +346,7 @@ export default function MessagesPage() {
                     </div>
                     <div className="flex-1 min-w-0 text-left">
                       <p className={`text-sm truncate ${hasUnread ? 'text-white font-semibold' : 'text-white/70 font-medium'}`}>
-                        {other?.name ?? 'Unknown'}
+                        {displayName(other?.name)}
                       </p>
                       {/* Presence line — always shown when available; falls back to last message */}
                       {presenceText ? (
