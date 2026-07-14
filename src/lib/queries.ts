@@ -493,7 +493,6 @@ export async function getOrCreateDM(otherUserId: string): Promise<string> {
 const DM_MSG_SELECT = `
   *,
   sender:users(id, name, profile_photo),
-  reactions:message_reactions(id, user_id, emoji),
   reply_to:messages!reply_to_id(id, content, sender:users(name))
 `
 
