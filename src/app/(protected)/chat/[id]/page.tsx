@@ -778,6 +778,9 @@ export default function ChatPage() {
 
                   {/* Bubble column */}
                   <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+                    {!isMe && (idx === 0 || displayMessages[idx - 1].sender_id !== msg.sender_id) && (
+                      <span className="text-white/50 text-xs font-medium px-1">{senderName}</span>
+                    )}
                     {/* Reply-to quote */}
                     {msg.reply_to && (
                       <div
