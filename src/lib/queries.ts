@@ -197,7 +197,7 @@ export async function joinTripChat(tripId: string): Promise<string> {
 const MSG_SELECT = `
   *,
   sender:users(id, name, profile_photo),
-  reply_to:trip_messages!reply_to_id(id, content, sender:users(name)),
+  reply_to:trip_messages!reply_to_id(id, content, sender_id, sender:users(name)),
   reactions:message_reactions(id, user_id, emoji)
 `
 
@@ -293,6 +293,23 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
     .single()
   if (error) return null
   return data as UserProfile
+}
+
+// Batched direct read of user names/photos by id. Uses a plain select (like
+// getProfile), NOT a PostgREST embed — embedded `users` joins (e.g. the chat's
+// sender:users(...)) come back empty on the client, but direct reads work, so
+// this is the reliable way to resolve sender names in the chat.
+export async function getUsersByIds(
+  ids: string[],
+): Promise<{ id: string; name: string | null; profile_photo: string | null }[]> {
+  const unique = Array.from(new Set(ids.filter(Boolean)))
+  if (unique.length === 0) return []
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name, profile_photo')
+    .in('id', unique)
+  if (error) return []
+  return (data ?? []) as { id: string; name: string | null; profile_photo: string | null }[]
 }
 
 export async function updateProfile(userId: string, updates: Partial<UserProfile>) {

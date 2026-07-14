@@ -18,6 +18,7 @@ import { haptic } from '@/lib/haptics'
 import { displayName } from '@/lib/displayName'
 import {
   getChatMessages,
+  getUsersByIds,
   getOlderChatMessages,
   sendMessage,
   uploadChatImage,
@@ -505,22 +506,42 @@ export default function ChatPage() {
   const isSearchMode = searchOpen && debouncedQuery.length >= 2
   const displayMessages = isSearchMode ? searchResults : allMessages
 
-  // Authoritative sender lookup built from the trip/hangout roster (which
-  // reliably carries every member's name + photo). The per-message `sender`
-  // embed can come back empty, which used to render "Unknown"/"Traveler" even
-  // though the name is known — so resolve by sender_id from the roster first.
+  // Every user id referenced in the chat — message senders and reply-quote
+  // senders alike. Embedded `sender:users(...)` joins come back empty on the
+  // client, so we resolve names via a direct batched read instead.
+  const referencedUserIds = useMemo(() => {
+    const ids = new Set<string>()
+    allMessages.forEach((m: any) => {
+      if (m.sender_id) ids.add(m.sender_id)
+      if (m.reply_to?.sender_id) ids.add(m.reply_to.sender_id)
+    })
+    return Array.from(ids).sort()
+  }, [allMessages])
+
+  const { data: fetchedProfiles = [] } = useQuery({
+    queryKey: ['chatSenderProfiles', chatId, referencedUserIds.join(',')],
+    queryFn: () => getUsersByIds(referencedUserIds),
+    enabled: referencedUserIds.length > 0,
+    staleTime: 60_000,
+  })
+
+  // Authoritative sender lookup. Direct profile reads (fetchedProfiles) are the
+  // reliable source — the same mechanism the public profile modal uses — with
+  // the trip/hangout roster as a secondary source. Resolving by sender_id here
+  // avoids depending on the flaky per-message `sender` embed, so names never
+  // fall back to "Unknown"/"Traveler" when the name is actually known.
   const senderById = useMemo(() => {
     const map = new Map<string, { name: string | null; profile_photo: string | null }>()
     const add = (u: any) => {
       if (u?.id && !map.has(u.id)) map.set(u.id, { name: u.name ?? null, profile_photo: u.profile_photo ?? null })
     }
+    fetchedProfiles.forEach((u: any) => add(u))
     tripInfo?.members?.forEach((m: any) => add(m.user))
     if (tripInfo?.creator) add(tripInfo.creator)
     hangInfo?.members?.forEach((m: any) => add(m.user))
     if (hangInfo?.creator) add(hangInfo.creator)
-    if (userId) map.set(userId, { name: userName || null, profile_photo: null })
     return map
-  }, [tripInfo, hangInfo, userId, userName])
+  }, [fetchedProfiles, tripInfo, hangInfo])
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -770,7 +791,7 @@ export default function ChatPage() {
                         className={`px-3 py-1.5 rounded-xl text-xs max-w-full ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
                         style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
                       >
-                        <p className="text-white/50 font-medium truncate">{displayName(msg.reply_to.sender?.name)}</p>
+                        <p className="text-white/50 font-medium truncate">{displayName(senderById.get(msg.reply_to.sender_id ?? '')?.name ?? msg.reply_to.sender?.name)}</p>
                         <p className="text-white/35 truncate">{msg.reply_to.content?.startsWith('https://') ? '📷 Photo' : msg.reply_to.content}</p>
                       </div>
                     )}
@@ -883,7 +904,7 @@ export default function ChatPage() {
               style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderTop: '0.5px solid rgba(255,255,255,0.08)' }}
             >
               <div className="flex-1 min-w-0" style={{ borderLeft: '2px solid rgba(255,255,255,0.3)', paddingLeft: 10 }}>
-                <p className="text-white/50 text-xs font-medium truncate">{displayName(replyTo.sender?.name)}</p>
+                <p className="text-white/50 text-xs font-medium truncate">{displayName(senderById.get(replyTo.sender_id)?.name ?? replyTo.sender?.name)}</p>
                 <p className="text-white/35 text-xs truncate">{replyTo.content?.startsWith('https://') ? '📷 Photo' : replyTo.content}</p>
               </div>
               <button

@@ -105,7 +105,7 @@ export type DMMessage = {
   reply_to_id: string | null
   created_at: string
   sender?: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
-  reply_to?: { id: string; content: string; sender?: { name: string } } | null
+  reply_to?: { id: string; content: string; sender_id?: string; sender?: { name: string } } | null
   reactions?: MessageReaction[]
 }
 
@@ -125,7 +125,7 @@ export type TripMessage = {
   is_edited: boolean
   created_at: string
   sender?: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
-  reply_to?: { id: string; content: string; sender?: { name: string } } | null
+  reply_to?: { id: string; content: string; sender_id?: string; sender?: { name: string } } | null
   reactions?: MessageReaction[]
 }
 
