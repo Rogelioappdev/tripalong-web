@@ -520,7 +520,7 @@ export default function ChatPage() {
   }, [allMessages])
   const referencedUserIdsKey = referencedUserIds.join(',')
 
-  const { data: fetchedProfiles = [] } = useQuery({
+  const { data: fetchedProfiles = [], isFetching: profilesFetching } = useQuery({
     queryKey: ['chatSenderProfiles', chatId, referencedUserIdsKey],
     queryFn: () => getUsersByIds(referencedUserIds),
     enabled: referencedUserIds.length > 0,
@@ -560,6 +560,11 @@ export default function ChatPage() {
   }, [fetchedProfiles, tripInfo, hangInfo, fallbackProfiles])
 
   useEffect(() => {
+    // Wait for the batched read to settle before falling back — otherwise
+    // this fires for every referenced id on first render (before
+    // fetchedProfiles has data), turning one batched request into N
+    // redundant individual ones.
+    if (profilesFetching) return
     const missing = referencedUserIds.filter(id => !senderById.has(id) && !pendingFallbackIds.current.has(id))
     if (missing.length === 0) return
     missing.forEach(id => pendingFallbackIds.current.add(id))
@@ -581,7 +586,7 @@ export default function ChatPage() {
     })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [referencedUserIdsKey, senderById])
+  }, [referencedUserIdsKey, senderById, profilesFetching])
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -791,7 +796,17 @@ export default function ChatPage() {
               const resolvedName = (rosterSender?.name ?? msg.sender?.name ?? '').trim()
               const hasRealName = resolvedName !== '' && resolvedName.toLowerCase() !== 'unknown'
               const reactionGroups = groupReactions(msg.reactions)
-              const isLastInGroup = idx === displayMessages.length - 1 || displayMessages[idx + 1].sender_id !== msg.sender_id
+              // System messages ("X joined the trip") carry that user's sender_id, so a
+              // plain sender_id comparison would treat them as part of the same run —
+              // suppressing the name label/avatar on the next real message from that
+              // sender. Exclude system messages from the run so grouping always
+              // reflects visible chat bubbles only.
+              const isLastInGroup = idx === displayMessages.length - 1
+                || displayMessages[idx + 1].type === 'system'
+                || displayMessages[idx + 1].sender_id !== msg.sender_id
+              const isFirstInGroup = idx === 0
+                || displayMessages[idx - 1].type === 'system'
+                || displayMessages[idx - 1].sender_id !== msg.sender_id
               const seenBy = msg.id === myLastSeenMsgId ? getSeenBy(msg) : []
 
               if (isSystem) {
@@ -822,11 +837,13 @@ export default function ChatPage() {
 
                   {/* Bubble column */}
                   <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-                    {!isMe && hasRealName && (idx === 0 || displayMessages[idx - 1].sender_id !== msg.sender_id) && (
+                    {!isMe && hasRealName && isFirstInGroup && (
                       <span className="text-white/50 text-xs font-medium px-1">{resolvedName}</span>
                     )}
-                    {/* Reply-to quote */}
-                    {msg.reply_to && (
+                    {/* Reply-to quote — guard on content, not just object truthiness:
+                        the self-referencing reply_to embed can come back as a
+                        truthy-but-empty object when reply_to_id is null. */}
+                    {msg.reply_to?.content && (
                       <div
                         className={`px-3 py-1.5 rounded-xl text-xs max-w-full ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
                         style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
