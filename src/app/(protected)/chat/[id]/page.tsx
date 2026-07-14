@@ -746,6 +746,10 @@ export default function ChatPage() {
               const rosterSender = senderById.get(msg.sender_id)
               const senderName = displayName(rosterSender?.name ?? msg.sender?.name)
               const senderPhoto = rosterSender?.profile_photo ?? msg.sender?.profile_photo ?? null
+              // The name label is only rendered when a REAL name resolved — no
+              // placeholder ("Traveler") and no empty box for senders we couldn't resolve.
+              const resolvedName = (rosterSender?.name ?? msg.sender?.name ?? '').trim()
+              const hasRealName = resolvedName !== '' && resolvedName.toLowerCase() !== 'unknown'
               const reactionGroups = groupReactions(msg.reactions)
               const isLastInGroup = idx === displayMessages.length - 1 || displayMessages[idx + 1].sender_id !== msg.sender_id
               const seenBy = msg.id === myLastSeenMsgId ? getSeenBy(msg) : []
@@ -778,8 +782,8 @@ export default function ChatPage() {
 
                   {/* Bubble column */}
                   <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-                    {!isMe && (idx === 0 || displayMessages[idx - 1].sender_id !== msg.sender_id) && (
-                      <span className="text-white/50 text-xs font-medium px-1">{senderName}</span>
+                    {!isMe && hasRealName && (idx === 0 || displayMessages[idx - 1].sender_id !== msg.sender_id) && (
+                      <span className="text-white/50 text-xs font-medium px-1">{resolvedName}</span>
                     )}
                     {/* Reply-to quote */}
                     {msg.reply_to && (
