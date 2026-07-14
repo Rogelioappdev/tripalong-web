@@ -339,11 +339,14 @@ function TravelDNAContent() {
   return (
     <main className="min-h-screen bg-black flex flex-col">
       <div className="max-w-sm mx-auto w-full px-6 pb-12 flex flex-col min-h-screen" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 48px)' }}>
-        {/* Header */}
+        {/* Header — no Skip: every field here is required before a profile
+            counts as complete (see src/lib/profileCompleteness.ts), so
+            skipping would just bounce the user right back via the app-wide
+            completeness gate. */}
         <div className="flex items-center justify-between mb-6">
           <button onClick={goBack} className="text-white/30 text-sm">← Back</button>
           <span className="text-white/30 text-sm">{step + 1} of {STEPS.length}</span>
-          <button onClick={() => router.replace(returnTo)} className="text-white/30 text-sm">Skip</button>
+          <span className="text-transparent text-sm select-none" aria-hidden>← Back</span>
         </div>
 
         {/* Progress bar */}

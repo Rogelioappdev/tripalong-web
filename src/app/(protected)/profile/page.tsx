@@ -13,6 +13,7 @@ import { haptic } from '@/lib/haptics'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { CountryPicker } from '@/components/CountryPicker'
+import { getMissingProfileFields, PROFILE_FIELD_LABELS, MIN_PROFILE_PHOTOS } from '@/lib/profileCompleteness'
 
 // ── DNA field definitions (single source of truth on this page) ───────────
 const DNA_FIELDS = [
@@ -338,9 +339,21 @@ export default function ProfilePage() {
     )
   }
 
+  const missingFields = getMissingProfileFields(profile)
+
   return (
     <>
       <NavBar />
+      {missingFields.length > 0 && (
+        <div className="fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top)+16px)] z-50 w-[92%] max-w-md"
+          style={{ backgroundColor: 'rgba(240,235,227,0.1)', border: '1px solid rgba(240,235,227,0.3)', borderRadius: 16, padding: '12px 16px' }}
+        >
+          <p className="text-sm font-semibold" style={{ color: '#F0EBE3' }}>Finish your profile to unlock TripAlong</p>
+          <p className="text-white/50 text-xs mt-1">
+            Still needed: {missingFields.map(f => PROFILE_FIELD_LABELS[f]).join(', ')}
+          </p>
+        </div>
+      )}
       {photoError && (
         <div className="fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top)+16px)] z-50 max-w-[90%] bg-red-500/95 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg text-center">
           {photoError}
@@ -613,7 +626,11 @@ export default function ProfilePage() {
 
           {/* Photos grid */}
           <Section title="Photos">
-            <p className="text-white/25 text-xs mb-2">Drag to reorder · your first photo is your main.</p>
+            <p className="text-xs mb-2" style={{ color: (profile?.photos?.length ?? 0) < MIN_PROFILE_PHOTOS ? '#F0EBE3' : 'rgba(255,255,255,0.25)' }}>
+              {(profile?.photos?.length ?? 0) < MIN_PROFILE_PHOTOS
+                ? `Add at least ${MIN_PROFILE_PHOTOS} photos (${profile?.photos?.length ?? 0}/${MIN_PROFILE_PHOTOS}) · your first photo is your main.`
+                : 'Drag to reorder · your first photo is your main.'}
+            </p>
             <Reorder.Group as="div" axis="y" values={profile?.photos ?? []} onReorder={reorderPhotos} className="grid grid-cols-3 gap-1.5">
               {(profile?.photos ?? []).map((url) => (
                 <Reorder.Item

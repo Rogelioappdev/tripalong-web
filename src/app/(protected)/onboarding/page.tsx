@@ -10,6 +10,7 @@ import { createProfile, updateProfile } from '@/lib/queries'
 import { normalizeImageToJpeg } from '@/lib/image'
 import { haptic } from '@/lib/haptics'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
+import { MIN_PROFILE_PHOTOS } from '@/lib/profileCompleteness'
 
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
@@ -25,7 +26,7 @@ export default function OnboardingPage() {
   const [birthYear, setBirthYear] = useState('')
   const [birthMonth, setBirthMonth] = useState('')
   const [birthDay, setBirthDay] = useState('')
-  const [photoUrl, setPhotoUrl] = useState('')
+  const [photos, setPhotos] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -50,21 +51,25 @@ export default function OnboardingPage() {
     : null
   const ageValid = age !== null && age >= 16
 
-  const handlePhotoUpload = async (file: File) => {
+  const handlePhotoUpload = async (files: File[]) => {
+    if (!files.length) return
     setUploading(true)
     setError('')
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setError('Please sign in again.'); return }
-      // Normalize to a web-safe JPEG first (fixes HEIC/odd-format black photos).
-      const jpeg = await normalizeImageToJpeg(file)
-      const path = `${user.id}/profile.jpg`
-      const { error: uploadError } = await supabase.storage.from('avatars')
-        .upload(path, jpeg, { upsert: true, contentType: 'image/jpeg' })
-      if (uploadError) throw uploadError
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
-      // Cache-bust so the new upload replaces any cached image at the same path.
-      setPhotoUrl(`${publicUrl}?t=${Date.now()}`)
+      const uploaded: string[] = []
+      for (const file of files.slice(0, MIN_PROFILE_PHOTOS + 3 - photos.length)) {
+        // Normalize to a web-safe JPEG first (fixes HEIC/odd-format black photos).
+        const jpeg = await normalizeImageToJpeg(file)
+        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`
+        const { error: uploadError } = await supabase.storage.from('avatars')
+          .upload(path, jpeg, { upsert: true, contentType: 'image/jpeg' })
+        if (uploadError) throw uploadError
+        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+        uploaded.push(`${publicUrl}?t=${Date.now()}`)
+      }
+      setPhotos(prev => [...prev, ...uploaded])
     } catch (e: any) {
       setError(e?.message ?? 'Photo upload failed. Try again.')
     } finally {
@@ -72,16 +77,17 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleComplete = async (skipPhoto = false) => {
+  const removePhoto = (url: string) => setPhotos(prev => prev.filter(p => p !== url))
+
+  const handleComplete = async () => {
+    if (photos.length < MIN_PROFILE_PHOTOS) return
     setLoading(true)
     setError('')
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
       await createProfile(user.id, user.email ?? '', name.trim(), age!)
-      if (!skipPhoto && photoUrl) {
-        await updateProfile(user.id, { profile_photo: photoUrl })
-      }
+      await updateProfile(user.id, { profile_photo: photos[0], photos })
       setUserId(user.id)
       setShowNotificationPrompt(true)
     } catch {
@@ -165,62 +171,73 @@ export default function OnboardingPage() {
       </button>
     </div>,
 
-    // Step 1: Photo
+    // Step 1: Photos
     <div key="step1" className="flex flex-col gap-6">
       <div>
         <p className="text-white/40 text-sm font-medium mb-2">Step 2 of 2</p>
         <h1 className="text-white font-extrabold text-3xl leading-tight mb-1">
           Put a face to<br />your adventure.
         </h1>
-        <p className="text-white/38 text-sm">Profiles with photos get 3× more connections.</p>
+        <p className="text-white/38 text-sm">
+          Add at least {MIN_PROFILE_PHOTOS} photos — profiles with photos get 3× more connections.
+        </p>
       </div>
 
-      {/* Photo picker */}
-      <button
-        onClick={() => fileRef.current?.click()}
-        className="mx-auto w-44 aspect-[3/4] rounded-3xl border-2 border-dashed overflow-hidden flex flex-col items-center justify-center gap-3 relative active:scale-[0.97] transition-transform"
-        style={{ borderColor: photoUrl ? 'rgba(240,235,227,0.4)' : 'rgba(255,255,255,0.15)' }}
-      >
-        {photoUrl ? (
-          <>
-            <img src={photoUrl} alt="" className="w-full h-full object-cover" />
-            <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ backgroundColor: '#30D158' }}>✓</div>
-          </>
-        ) : uploading ? (
-          <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-        ) : (
-          <>
-            <span className="text-3xl">📷</span>
-            <span className="text-white/35 text-sm">Add your photo</span>
-          </>
+      {/* Photo grid */}
+      <div className="grid grid-cols-3 gap-2">
+        {photos.map(url => (
+          <div key={url} className="aspect-[3/4] rounded-2xl overflow-hidden relative">
+            <img src={url} alt="" className="w-full h-full object-cover" />
+            <button
+              type="button"
+              onClick={() => { haptic(6); removePhoto(url) }}
+              className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 12, lineHeight: 1 }}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        {photos.length < MIN_PROFILE_PHOTOS + 3 && (
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="aspect-[3/4] rounded-2xl border-2 border-dashed flex items-center justify-center active:scale-[0.97] transition-transform"
+            style={{ borderColor: 'rgba(255,255,255,0.15)' }}
+          >
+            {uploading ? (
+              <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+            ) : (
+              <span className="text-2xl text-white/35">+</span>
+            )}
+          </button>
         )}
-      </button>
+      </div>
       <input
         ref={fileRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }}
+        onChange={e => { const fs = Array.from(e.target.files ?? []); e.currentTarget.value = ''; handlePhotoUpload(fs) }}
       />
+
+      <p className="text-xs text-center" style={{ color: photos.length < MIN_PROFILE_PHOTOS ? '#F0EBE3' : 'rgba(48,209,88,0.8)' }}>
+        {photos.length < MIN_PROFILE_PHOTOS
+          ? `Add ${MIN_PROFILE_PHOTOS - photos.length} more photo${MIN_PROFILE_PHOTOS - photos.length === 1 ? '' : 's'} to continue (${photos.length}/${MIN_PROFILE_PHOTOS})`
+          : `✓ ${photos.length} photos added`}
+      </p>
 
       {error && <p className="text-red-400 text-sm text-center">{error}</p>}
 
       <div className="flex flex-col gap-3 mt-auto">
         <button
-          onClick={() => { haptic(10); handleComplete(false) }}
-          disabled={!photoUrl || loading}
+          onClick={() => { haptic(10); handleComplete() }}
+          disabled={photos.length < MIN_PROFILE_PHOTOS || loading}
           className="w-full py-4 rounded-2xl font-bold text-sm disabled:opacity-30 active:scale-[0.98] transition-transform"
           style={{ backgroundColor: '#F0EBE3', color: '#000' }}
         >
           {loading ? 'Setting up...' : "Let's go →"}
-        </button>
-        <button
-          onClick={() => { haptic(4); handleComplete(true) }}
-          disabled={loading}
-          className="w-full py-3 text-sm font-medium active:opacity-60 transition-opacity"
-          style={{ color: 'rgba(255,255,255,0.25)' }}
-        >
-          Skip for now
         </button>
       </div>
     </div>,
@@ -263,7 +280,9 @@ export default function OnboardingPage() {
       </div>
 
       {showNotificationPrompt && userId && (
-        <NotificationPrompt userId={userId} onDone={() => router.replace('/feed')} />
+        // Travel DNA (gender, travel style, etc.) is still required before the
+        // profile counts as complete — send them there next, not straight to feed.
+        <NotificationPrompt userId={userId} onDone={() => router.replace('/travel-dna')} />
       )}
     </main>
   )
