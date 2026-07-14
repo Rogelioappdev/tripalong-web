@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
@@ -19,6 +19,7 @@ import { displayName } from '@/lib/displayName'
 import {
   getChatMessages,
   getUsersByIds,
+  getProfile,
   getOlderChatMessages,
   sendMessage,
   uploadChatImage,
@@ -517,19 +518,33 @@ export default function ChatPage() {
     })
     return Array.from(ids).sort()
   }, [allMessages])
+  const referencedUserIdsKey = referencedUserIds.join(',')
 
   const { data: fetchedProfiles = [] } = useQuery({
-    queryKey: ['chatSenderProfiles', chatId, referencedUserIds.join(',')],
+    queryKey: ['chatSenderProfiles', chatId, referencedUserIdsKey],
     queryFn: () => getUsersByIds(referencedUserIds),
     enabled: referencedUserIds.length > 0,
     staleTime: 60_000,
+    // Older pages loading / realtime inserts add new ids, which changes the
+    // key above and would otherwise reset `data` to [] mid-fetch — flashing
+    // previously-resolved names off. Keep last-known data until the refetch
+    // for the new id set lands.
+    placeholderData: keepPreviousData,
   })
+
+  // Per-id fallback for any sender the batched read above still misses (e.g.
+  // a transient error on that request). Not the common path — getUsersByIds
+  // is the source of truth — but this guarantees no sender is ever stuck
+  // unresolved.
+  const [fallbackProfiles, setFallbackProfiles] = useState<Map<string, { name: string | null; profile_photo: string | null }>>(new Map())
+  const pendingFallbackIds = useRef<Set<string>>(new Set())
 
   // Authoritative sender lookup. Direct profile reads (fetchedProfiles) are the
   // reliable source — the same mechanism the public profile modal uses — with
-  // the trip/hangout roster as a secondary source. Resolving by sender_id here
-  // avoids depending on the flaky per-message `sender` embed, so names never
-  // fall back to "Unknown"/"Traveler" when the name is actually known.
+  // the trip/hangout roster and the per-id fallback fetch as secondary sources.
+  // Resolving by sender_id here avoids depending on the flaky per-message
+  // `sender` embed, so names never fall back to "Unknown"/"Traveler" when the
+  // name is actually known.
   const senderById = useMemo(() => {
     const map = new Map<string, { name: string | null; profile_photo: string | null }>()
     const add = (u: any) => {
@@ -540,8 +555,33 @@ export default function ChatPage() {
     if (tripInfo?.creator) add(tripInfo.creator)
     hangInfo?.members?.forEach((m: any) => add(m.user))
     if (hangInfo?.creator) add(hangInfo.creator)
+    fallbackProfiles.forEach((v, id) => { if (!map.has(id)) map.set(id, v) })
     return map
-  }, [fetchedProfiles, tripInfo, hangInfo])
+  }, [fetchedProfiles, tripInfo, hangInfo, fallbackProfiles])
+
+  useEffect(() => {
+    const missing = referencedUserIds.filter(id => !senderById.has(id) && !pendingFallbackIds.current.has(id))
+    if (missing.length === 0) return
+    missing.forEach(id => pendingFallbackIds.current.add(id))
+    let cancelled = false
+    Promise.all(missing.map(id => getProfile(id))).then(results => {
+      missing.forEach(id => pendingFallbackIds.current.delete(id))
+      if (cancelled) return
+      setFallbackProfiles(prev => {
+        let changed = false
+        const next = new Map(prev)
+        results.forEach(p => {
+          if (p?.id && !next.has(p.id)) {
+            next.set(p.id, { name: p.name ?? null, profile_photo: p.profile_photo ?? null })
+            changed = true
+          }
+        })
+        return changed ? next : prev
+      })
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [referencedUserIdsKey, senderById])
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
