@@ -184,16 +184,6 @@ export async function getTripChat(tripId: string) {
   return data
 }
 
-// Adds the current user to a trip's group chat without needing to be a trip member.
-// Uses a SECURITY DEFINER RPC to bypass the trip_chats RLS (which only allows
-// members to read the chat ID) — mirrors how the iOS app handles this.
-export async function joinTripChat(tripId: string): Promise<string> {
-  const { data, error } = await supabase.rpc('join_trip_chat_as_guest', { p_trip_id: tripId })
-  if (error) throw error
-  if (!data.success) throw new Error(data.error)
-  return data.chat_id as string
-}
-
 const MSG_SELECT = `
   *,
   sender:users(id, name, profile_photo),
@@ -720,6 +710,15 @@ export async function updateTripMemberStatus(tripId: string, userId: string, sta
     .eq('trip_id', tripId)
     .eq('user_id', userId)
   if (error) throw error
+
+  // Chat membership only auto-adds on INSERT (DB trigger), not on this UPDATE
+  // path — so flipping an existing row to 'in' (e.g. Maybe → I'm In) used to
+  // silently leave the user out of trip_chat_members and their group chat
+  // would never appear in Messages. ensure_trip_chat_member is idempotent and
+  // ON CONFLICT DO NOTHING under the hood, so this is safe to call every time.
+  if (status === 'in') {
+    await supabase.rpc('ensure_trip_chat_member', { p_trip_id: tripId }).catch(() => {})
+  }
 }
 
 export async function saveTrip(tripId: string, userId: string) {

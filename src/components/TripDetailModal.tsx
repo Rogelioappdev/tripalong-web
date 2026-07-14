@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { joinTrip, getTripMembership, getTrip, joinTripChat, saveTrip, getProfile } from '@/lib/queries'
+import { joinTrip, getTripMembership, getTrip, getTripChat, getProfile } from '@/lib/queries'
 import { getTripMatchBreakdown, getMatchingVibes, memberCompatibility } from '@/lib/matching'
 import { hasPlus } from '@/lib/trial'
 import { track } from '@/lib/analytics'
@@ -92,6 +92,11 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
       haptic([15, 30, 15, 30, 60])
       queryClient.invalidateQueries({ queryKey: ['membership', trip.id, userId] })
       queryClient.invalidateQueries({ queryKey: ['trips'] })
+      // Joining creates/updates the trip's group chat membership — refresh the
+      // Messages inbox so it shows up immediately instead of waiting out the
+      // cached list's staleTime.
+      queryClient.invalidateQueries({ queryKey: ['tripChats'] })
+      queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
       const profile = userId ? await getProfile(userId) : null
       if (!profile?.profile_photo) {
         setShowPhotoNudge(true)
@@ -114,16 +119,14 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
     } catch {}
   }
 
+  // "Open Group Chat" only ever shows once isJoined is true, so joinTrip has
+  // already added chat membership — this is a pure read, never a mutation.
+  // Viewing a chat must never silently join someone to it.
   const openChat = async () => {
     if (!userId) return
     try {
-      // Auto-save the trip and join the chat (SECURITY DEFINER bypasses RLS)
-      await Promise.all([
-        saveTrip(trip.id, userId).catch(() => {}),
-        joinTripChat(trip.id).then(chatId => {
-          router.push(`/chat/${chatId}`)
-        }),
-      ])
+      const chat = await getTripChat(trip.id)
+      router.push(`/chat/${chat.id}`)
     } catch (e) {
       console.error('openChat error', e)
     }

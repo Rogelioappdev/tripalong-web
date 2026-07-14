@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat, updateTripMemberStatus } from '@/lib/queries'
+import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, getTripChat, updateTripMemberStatus } from '@/lib/queries'
 import { TripDetailModal } from '@/components/TripDetailModal'
 import { JoinCelebration } from '@/components/JoinCelebration'
 import { haptic } from '@/lib/haptics'
@@ -66,17 +66,22 @@ export function SavedTripsModal({ userId, onClose }: Props) {
   const invalidate = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
     qc.invalidateQueries({ queryKey: ['my-trips', userId] })
+    // Joining/leaving changes trip_chat_members — refresh the Messages inbox
+    // so the chat appears/disappears immediately instead of waiting out its
+    // cached staleTime.
+    qc.invalidateQueries({ queryKey: ['tripChats'] })
+    qc.invalidateQueries({ queryKey: ['unreadCount'] })
   }, [qc, userId])
 
-  // Mirrors iOS handleGroupChat: ensure user is in the trip chat (idempotent),
-  // then navigate straight to that chat. Works for both saved-but-not-joined
-  // (join chat to learn more) and already-joined (open chat) trips.
+  // Only ever called for trips the user has already joined (My Trips tab) —
+  // joinTrip already added chat membership, so this is a pure read. Opening
+  // a group chat must never itself mutate membership.
   const handleOpenChat = async (trip: TripWithDetails) => {
     setChatLoading(trip.id)
     try {
-      const chatId = await joinTripChat(trip.id)
+      const chat = await getTripChat(trip.id)
       onClose()
-      router.push(`/chat/${chatId}`)
+      router.push(`/chat/${chat.id}`)
     } catch (e) {
       console.error('Failed to open chat:', e)
     } finally {
@@ -469,25 +474,27 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
           </div>
         </div>
 
-        {/* Chat button */}
-        <button
-          onClick={chatLoading ? undefined : () => { haptic(10); onOpenChat() }}
-          disabled={chatLoading}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
-          style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.12)' }}
-        >
-          {chatLoading ? (
-            <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-          ) : (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          )}
-          <span className="text-white/55 text-sm font-semibold">
-            {joined ? 'Open Chat' : 'Join Group Chat to learn more'}
-          </span>
-        </button>
+        {/* Chat button — only shown once actually joined. Saved-but-not-joined
+            trips have no group chat to preview: viewing a chat must never be
+            the thing that silently joins you to it. */}
+        {joined && (
+          <button
+            onClick={chatLoading ? undefined : () => { haptic(10); onOpenChat() }}
+            disabled={chatLoading}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
+            style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+          >
+            {chatLoading ? (
+              <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                  stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            <span className="text-white/55 text-sm font-semibold">Open Chat</span>
+          </button>
+        )}
       </div>
     </div>
   )

@@ -9,8 +9,12 @@ export async function POST(req: NextRequest) {
   const token = authHeader.replace('Bearer ', '').trim()
   if (!token) return NextResponse.json({ ok: true })
 
-  const { chatId, senderId, senderName, content, type, url } = await req.json()
-  if (!chatId || !senderId) return NextResponse.json({ ok: true })
+  const { chatId, conversationId, senderId, senderName, content, type, url } = await req.json()
+  // Group chats key off chatId (trip_chat_id); DMs key off conversationId —
+  // exactly one of the two identifies the thread to notify.
+  const targetId = chatId ?? conversationId
+  const isDM = !chatId && !!conversationId
+  if (!targetId || !senderId) return NextResponse.json({ ok: true })
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,6 +24,9 @@ export async function POST(req: NextRequest) {
 
   const title = type === 'join' ? 'New trip member' : (senderName ?? 'TripAlong')
   const body = type === 'image' ? '📷 Photo' : (content ?? '')
+  const subsRpc = isDM ? 'get_dm_push_subscriptions' : 'get_chat_push_subscriptions'
+  const tokensRpc = isDM ? 'get_dm_native_push_tokens' : 'get_chat_native_push_tokens'
+  const rpcIdParam = isDM ? 'p_conversation_id' : 'p_chat_id'
 
   // Web push (VAPID) — independent of the native push path below
   const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
@@ -27,12 +34,12 @@ export async function POST(req: NextRequest) {
   const vapidEmail = process.env.VAPID_EMAIL
   if (vapidPublic && vapidPrivate && vapidEmail) {
     webpush.setVapidDetails(`mailto:${vapidEmail}`, vapidPublic, vapidPrivate)
-    const { data: subs } = await supabase.rpc('get_chat_push_subscriptions', {
-      p_chat_id: chatId,
+    const { data: subs } = await supabase.rpc(subsRpc, {
+      [rpcIdParam]: targetId,
       p_exclude_user_id: senderId,
     })
     if (subs?.length) {
-      const payload = JSON.stringify({ title, body, url: url ?? '/messages', tag: chatId })
+      const payload = JSON.stringify({ title, body, url: url ?? '/messages', tag: targetId })
       await Promise.allSettled(
         subs.map((sub: any) =>
           webpush.sendNotification(
@@ -45,8 +52,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Native push (Expo push service) — independent of the web push path above
-  const { data: nativeTokens } = await supabase.rpc('get_chat_native_push_tokens', {
-    p_chat_id: chatId,
+  const { data: nativeTokens } = await supabase.rpc(tokensRpc, {
+    [rpcIdParam]: targetId,
     p_exclude_user_id: senderId,
   })
   if (nativeTokens?.length) {
@@ -57,7 +64,7 @@ export async function POST(req: NextRequest) {
         to: t.expo_push_token,
         title,
         body,
-        data: { url: url ?? '/messages', tag: chatId },
+        data: { url: url ?? '/messages', tag: targetId },
       }))),
     }).catch(() => {})
   }

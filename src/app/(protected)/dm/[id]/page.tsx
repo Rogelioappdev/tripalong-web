@@ -11,6 +11,7 @@ import { ReportMessageSheet } from '@/components/ReportMessageSheet'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { BlockReportSheet } from '@/components/BlockReportSheet'
 import { supabase } from '@/lib/supabase'
+import { sendDMPushNotification } from '@/lib/push'
 import {
   getDMMessages,
   getOlderDMMessages,
@@ -27,6 +28,7 @@ import {
 } from '@/lib/queries'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 import { displayName } from '@/lib/displayName'
+import { useSwipeBack } from '@/lib/useSwipeBack'
 import type { DMMessage, TripMessage } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
 
@@ -333,6 +335,7 @@ export default function DMPage() {
     try {
       await sendDMMessage(conversationId, userId, content, replyId)
       queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] })
+      sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content, type: 'text', url: `/dm/${conversationId}` })
     } catch {
       queryClient.setQueryData<DMMessage[]>(['dmMessages', conversationId], old =>
         (old ?? []).filter(m => m.id !== optimistic.id)
@@ -372,6 +375,7 @@ export default function DMPage() {
       await sendDMMessage(conversationId, userId, publicUrl, null, 'image')
       await queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] })
       URL.revokeObjectURL(localUrl)
+      sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/dm/${conversationId}` })
     } catch {
       queryClient.setQueryData<DMMessage[]>(['dmMessages', conversationId], old =>
         (old ?? []).filter(m => m.id !== optimisticId)
@@ -430,6 +434,14 @@ export default function DMPage() {
   const myMessages = allMessages.filter(m => m.sender_id === userId)
   const lastMyMsg = myMessages[myMessages.length - 1]
   const lastMyMsgIsRead = !!(lastMyMsg && otherLastRead && otherLastRead >= lastMyMsg.created_at)
+
+  // ── Swipe-back ────────────────────────────────────────────────────────────
+  // Disabled while any sheet/overlay is on top so the gesture doesn't
+  // navigate the whole screen away underneath it.
+  useSwipeBack(
+    () => router.back(),
+    !searchOpen && !actionMsg && !reportMsg && !showUserInfo && !showBlockReport && !viewingImage
+  )
 
   return (
     <>
@@ -529,7 +541,7 @@ export default function DMPage() {
           </div>
 
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-4 flex flex-col gap-1.5" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
 
             {/* Safety notice — shown once per conversation until dismissed */}
             {!searchOpen && !safetyDismissed && otherUser && (
@@ -658,9 +670,9 @@ export default function DMPage() {
                       )}
                     </div>
                   )}
-                  <div className={`max-w-[70%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+                  <div className={`max-w-[70%] min-w-0 flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
                     {/* Reply quote */}
-                    {msg.reply_to && (
+                    {msg.reply_to?.content && (
                       <div
                         className={`px-3 py-1.5 rounded-xl text-xs mb-0.5 max-w-full ${isMe ? 'text-right' : 'text-left'}`}
                         style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderLeft: isMe ? 'none' : '2px solid rgba(255,255,255,0.2)', borderRight: isMe ? '2px solid rgba(255,255,255,0.2)' : 'none' }}
@@ -675,7 +687,8 @@ export default function DMPage() {
                       onPointerUp={handlePointerUp}
                       onPointerCancel={handlePointerUp}
                       onClick={() => { /* tap does nothing for text */ }}
-                      className={`px-4 py-2.5 rounded-2xl text-sm text-left transition-opacity active:opacity-75 ${isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'}`}
+                      className={`px-4 py-2.5 rounded-2xl text-sm text-left max-w-full transition-opacity active:opacity-75 ${isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'}`}
+                      style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     >
                       {searchOpen && debouncedQuery.length >= 2 ? highlightText(msg.content, debouncedQuery) : msg.content}
                     </button>

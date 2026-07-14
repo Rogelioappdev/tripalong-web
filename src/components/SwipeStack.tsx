@@ -12,7 +12,7 @@ import { PublicProfileModal } from './PublicProfileModal'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
-import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen, getSwipesToday, incrementSwipesToday } from '@/lib/queries'
+import { joinTrip, saveTrip, getTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen, getSwipesToday, incrementSwipesToday } from '@/lib/queries'
 import { JoinCelebration } from './JoinCelebration'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { track } from '@/lib/analytics'
@@ -462,6 +462,10 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   const topCardRef = useRef<SwipeCardHandle | HangCardHandle>(null)
   const cardAreaRef = useRef<HTMLDivElement>(null)
   const qc = useQueryClient()
+  // The Save button reuses the card's swipe-right animation for its exit —
+  // this flag tells handleSwipeRight the resulting call is a bookmark, not a
+  // real user swipe, so it saves instead of joining. Cleared as soon as it's read.
+  const saveIntentRef = useRef(false)
   const hintWasSeenBeforeMount = useRef(false)
   const dnaNudgeTriggered = useRef(false)
 
@@ -660,21 +664,48 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     return () => clearTimeout(t)
   }, [isCurrentAd])
 
+  // Swipe-right on a trip is the single commit action: it joins the trip AND
+  // its group chat, which then appears in Messages immediately (joinTrip adds
+  // both the trip_members row and the trip_chat_members row in one call).
+  // There is no separate post-swipe "join" step anymore. The Save button
+  // below reuses this same card-exit animation for its own bookmark action —
+  // saveIntentRef tells the two apart.
   const handleSwipeRight = async (trip: TripWithDetails) => {
+    const isSaveIntent = saveIntentRef.current
+    saveIntentRef.current = false
     if (isGuest) {
       localStorage.setItem('ta_pending_save', trip.id)
       onAuthRequired?.(trip.destination)
       return
     }
     advance()
-    if (userId && !savedIds.has(trip.id)) {
-      setSavedIds(s => new Set([...s, trip.id]))
-      onSave?.(trip)
-      track('trip_saved', { trip_id: trip.id })
-      try {
-        await saveTrip(trip.id, userId)
-        qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
-      } catch {}
+    if (!userId) return
+
+    if (isSaveIntent) {
+      if (!savedIds.has(trip.id)) {
+        setSavedIds(s => new Set([...s, trip.id]))
+        onSave?.(trip)
+        track('trip_saved', { trip_id: trip.id })
+        try {
+          await saveTrip(trip.id, userId)
+          qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
+        } catch {}
+      }
+      return
+    }
+
+    if (joinedIds.has(trip.id)) return
+    setJoinedIds(s => new Set([...s, trip.id]))
+    track('trip_joined', { trip_id: trip.id, source: 'swipe' })
+    try {
+      await joinTrip(trip.id, userId)
+      haptic([15, 30, 15, 30, 60])
+      qc.invalidateQueries({ queryKey: ['tripChats'] })
+      qc.invalidateQueries({ queryKey: ['unreadCount'] })
+      qc.invalidateQueries({ queryKey: ['trips'] })
+      setCelebrationTrip(trip)
+    } catch {
+      setJoinedIds(s => { const n = new Set(s); n.delete(trip.id); return n })
     }
   }
 
@@ -730,6 +761,9 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     // Actually save the trip — route through the same right-swipe path so it
     // runs saveTrip + shows the "Trip saved" toast + advances, instead of just
     // opening the detail modal (which is what the Join button is for).
+    // saveIntentRef marks this as a bookmark, not a real swipe, so
+    // handleSwipeRight saves instead of joining.
+    saveIntentRef.current = true
     await topCardRef.current?.swipeRight()
   }
 
@@ -1013,15 +1047,21 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
         )}
       </AnimatePresence>
 
-      {/* Join celebration — full screen, shown after tapping Join */}
+      {/* Join celebration — full screen, shown after swiping right joins the trip */}
       <AnimatePresence>
         {celebrationTrip && (
           <JoinCelebration
             trip={celebrationTrip}
             onOpenChat={async () => {
-              const chatId = await joinTripChat(celebrationTrip.id)
-              setCelebrationTrip(null)
-              router.push(`/chat/${chatId}`)
+              // joinTrip (fired on swipe) already added chat membership —
+              // opening the chat here is a pure read, never a mutation.
+              try {
+                const chat = await getTripChat(celebrationTrip.id)
+                setCelebrationTrip(null)
+                router.push(`/chat/${chat.id}`)
+              } catch {
+                setCelebrationTrip(null)
+              }
             }}
             onClose={() => setCelebrationTrip(null)}
           />

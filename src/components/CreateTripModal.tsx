@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createTrip, getDestinationPhotos, joinTripChat } from '@/lib/queries'
+import { createTrip, getDestinationPhotos, getTripChat } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
 import { track } from '@/lib/analytics'
 
@@ -185,8 +185,8 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       // Open the trip's actual group chat (the creator is auto-joined in
       // createTrip). Fall back to the trip page if the chat lookup hiccups.
       if (createdTripId) {
-        joinTripChat(createdTripId)
-          .then(chatId => router.push(`/chat/${chatId}`))
+        getTripChat(createdTripId)
+          .then(chat => router.push(`/chat/${chat.id}`))
           .catch(() => router.push(`/trip/${createdTripId}`))
       }
     }

@@ -11,11 +11,13 @@ import { HangGroupInfoSheet } from '@/components/HangGroupInfoSheet'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
 import { ReportMessageSheet } from '@/components/ReportMessageSheet'
 import { JoinCelebration } from '@/components/JoinCelebration'
+import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { supabase } from '@/lib/supabase'
 import { registerPush, sendPushNotification } from '@/lib/push'
 import { initPresence, useOnlineUsers } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
 import { displayName } from '@/lib/displayName'
+import { useSwipeBack } from '@/lib/useSwipeBack'
 import {
   getChatMessages,
   getUsersByIds,
@@ -149,6 +151,9 @@ export default function ChatPage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [viewingImage, setViewingImage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Sender profile (tap avatar/name to view)
+  const [profileUserId, setProfileUserId] = useState<string | null>(null)
 
   // Join from chat
   const [showCelebration, setShowCelebration] = useState(false)
@@ -588,6 +593,14 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [referencedUserIdsKey, senderById, profilesFetching])
 
+  // ── Swipe-back ────────────────────────────────────────────────────────────
+  // Disabled while any sheet/overlay is on top so the gesture doesn't
+  // navigate the whole screen away underneath it.
+  useSwipeBack(
+    () => router.back(),
+    !searchOpen && !showGroupInfo && !actionMsg && !reportMsg && !viewingImage && !showCelebration && !profileUserId
+  )
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
@@ -707,7 +720,7 @@ export default function ChatPage() {
           </div>
 
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-4 flex flex-col gap-1.5" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
 
             {/* Search results count */}
             {searchOpen && (
@@ -825,20 +838,30 @@ export default function ChatPage() {
                   onPointerCancel={handlePointerUp}
                   onContextMenu={e => { e.preventDefault(); setActionMsg(msg) }}
                 >
-                  {/* Avatar */}
+                  {/* Avatar — tap to view sender's full profile */}
                   {!isMe && isLastInGroup && (
-                    <div className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs">
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); haptic(6); setProfileUserId(msg.sender_id) }}
+                      className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs active:opacity-70 transition-opacity"
+                    >
                       {senderPhoto
                         ? <img src={senderPhoto} alt="" className="w-full h-full object-cover" />
                         : senderName[0].toUpperCase()}
-                    </div>
+                    </button>
                   )}
                   {!isMe && !isLastInGroup && <div className="w-7 shrink-0" />}
 
                   {/* Bubble column */}
-                  <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+                  <div className={`max-w-[72%] min-w-0 flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
                     {!isMe && hasRealName && isFirstInGroup && (
-                      <span className="text-white/50 text-xs font-medium px-1">{resolvedName}</span>
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); haptic(6); setProfileUserId(msg.sender_id) }}
+                        className="text-white/50 text-xs font-medium px-1 active:opacity-70 transition-opacity"
+                      >
+                        {resolvedName}
+                      </button>
                     )}
                     {/* Reply-to quote — guard on content, not just object truthiness:
                         the self-referencing reply_to embed can come back as a
@@ -868,9 +891,12 @@ export default function ChatPage() {
                         />
                       </button>
                     ) : (
-                      <div className={`px-4 py-2.5 rounded-2xl text-sm ${
-                        isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'
-                      }`}>
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl text-sm max-w-full ${
+                          isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'
+                        }`}
+                        style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                      >
                         {isSearchMode ? highlightText(msg.content, debouncedQuery) : msg.content}
                       </div>
                     )}
@@ -1172,6 +1198,10 @@ export default function ChatPage() {
           />
         )}
       </AnimatePresence>
+
+      {profileUserId && (
+        <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      )}
     </>
   )
 }
