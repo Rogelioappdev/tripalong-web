@@ -154,6 +154,7 @@ export default function MessagesPage() {
     queryFn: () => getDMConversations(userId!),
     enabled: !!userId,
     staleTime: 30_000,
+    refetchInterval: 5000,
   })
 
   // Pin/unpin — optimistically re-sort the cached list (pinned first, each

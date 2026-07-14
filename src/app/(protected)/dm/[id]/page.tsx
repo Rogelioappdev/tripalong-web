@@ -225,6 +225,7 @@ export default function DMPage() {
     },
     enabled: !!conversationId,
     staleTime: 30_000,
+    refetchInterval: 3000,
   })
 
   // ── Search query ──────────────────────────────────────────────────────────
