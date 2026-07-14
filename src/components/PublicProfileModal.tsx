@@ -254,6 +254,11 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
       .then(({ data }) => setSavedTrips((data ?? []).map((r: any) => r.trip).filter(Boolean)))
   }, [userId])
 
+  // Swipe down on the hero to dismiss — disabled while a nested overlay
+  // (lightbox, block/report sheet, trip detail) is on top. Must run before the
+  // `!mounted` early return below so hook order stays stable across renders.
+  useSwipeDownDismiss(heroRef, onClose, !lightboxOpen && !showBlockReport && !selectedTrip)
+
   if (!mounted) return null
 
   const navigatePhoto = (next: number, dir: number) => {
@@ -270,10 +275,6 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
       if (photoIndex > 0) navigatePhoto(photoIndex - 1, -1)
     }
   }
-
-  // Swipe down on the hero to dismiss — disabled while a nested overlay
-  // (lightbox, block/report sheet, trip detail) is on top.
-  useSwipeDownDismiss(heroRef, onClose, !lightboxOpen && !showBlockReport && !selectedTrip)
 
   const content = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
