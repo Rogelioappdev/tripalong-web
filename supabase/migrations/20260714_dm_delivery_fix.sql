@@ -180,6 +180,39 @@ CREATE POLICY "messages_delete_own" ON messages
   USING (sender_id = auth.uid());
 
 
+-- ── 3b. Defense-in-depth: block inserts into a lopsided direct conversation ──
+-- RLS above only checks the SENDER is a member — that's what let messages get
+-- inserted into DM conversations the recipient was never added to. This
+-- trigger is a hard guarantee that doesn't depend on get_or_create_dm (or any
+-- future code path) staying correct: no message can land in a `direct`
+-- conversation unless it already has exactly 2 members, full stop.
+CREATE OR REPLACE FUNCTION public.enforce_direct_conversation_has_two_members()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  conv_type text;
+  member_count int;
+BEGIN
+  SELECT type INTO conv_type FROM conversations WHERE id = NEW.conversation_id;
+  IF conv_type = 'direct' THEN
+    SELECT COUNT(*) INTO member_count FROM conversation_members WHERE conversation_id = NEW.conversation_id;
+    IF member_count < 2 THEN
+      RAISE EXCEPTION 'conversation_not_ready: direct conversation % has % member(s), needs 2', NEW.conversation_id, member_count;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS messages_require_two_members ON messages;
+CREATE TRIGGER messages_require_two_members
+  BEFORE INSERT ON messages
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_direct_conversation_has_two_members();
+
+
 -- ── 4. RPCs — lock in the correct definitions ───────────────────────────
 -- Re-asserting these (rather than assuming the live dashboard copy stays
 -- correct) is the actual point of this migration: this is the version that
