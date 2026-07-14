@@ -717,7 +717,9 @@ export async function updateTripMemberStatus(tripId: string, userId: string, sta
   // would never appear in Messages. ensure_trip_chat_member is idempotent and
   // ON CONFLICT DO NOTHING under the hood, so this is safe to call every time.
   if (status === 'in') {
-    await supabase.rpc('ensure_trip_chat_member', { p_trip_id: tripId }).catch(() => {})
+    try {
+      await supabase.rpc('ensure_trip_chat_member', { p_trip_id: tripId })
+    } catch {}
   }
 }
 
