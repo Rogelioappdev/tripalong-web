@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { startCheckout } from '@/lib/subscription'
 import { track } from '@/lib/analytics'
 import { isNativeApp } from '@/lib/purchase'
+import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
 
 interface Props {
   onClose?: () => void
@@ -32,11 +33,15 @@ const FEATURES = [
 export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }: Props) {
   const [billing, setBilling] = useState<'annual' | 'monthly'>('annual')
   const [loading, setLoading] = useState(false)
+  const topBarRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     track('paywall_viewed', { surface: 'founding_member', rail: isNativeApp() ? 'native' : 'web' })
   }, [])
   const [error, setError] = useState<string | null>(null)
+
+  // Swipe down on the top bar to dismiss — only when dismissal is allowed at all.
+  useSwipeDownDismiss(topBarRef, () => onClose?.(), allowDismiss && !!onClose)
 
   const handleUpgrade = async () => {
     haptic(12)
@@ -60,6 +65,14 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }
         position: 'absolute', inset: 0, pointerEvents: 'none',
         background: 'radial-gradient(ellipse 110% 55% at 50% -5%, rgba(240,220,160,0.05) 0%, transparent 65%)',
       }} />
+
+      {/* Top bar — swipe-down-to-dismiss zone, invisible; the actual close
+          button/vignette render on top of it */}
+      <div
+        ref={topBarRef}
+        className="absolute top-0 left-0 right-0"
+        style={{ height: 'calc(env(safe-area-inset-top) + 56px)', zIndex: 1 }}
+      />
 
       {/* Close */}
       {allowDismiss && onClose && (

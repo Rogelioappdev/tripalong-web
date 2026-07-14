@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, getTripChat, getProfile } from '@/lib/queries'
-import { getTripMatchBreakdown, getMatchingVibes, memberCompatibility } from '@/lib/matching'
+import { getTripMatchBreakdown, getMatchingVibes, memberCompatibility, isTripGenderEligible } from '@/lib/matching'
 import { hasPlus } from '@/lib/trial'
 import { track } from '@/lib/analytics'
 import { PublicProfileModal } from './PublicProfileModal'
@@ -16,6 +16,7 @@ import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { getTrialStatus } from '@/lib/trial'
 import { haptic } from '@/lib/haptics'
+import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 interface TripDetailModalProps {
@@ -56,6 +57,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   const [showCompatPaywall, setShowCompatPaywall] = useState(false)
   const [compatPaywallContext, setCompatPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
   const [showCompatTrialOffer, setShowCompatTrialOffer] = useState(false)
+  const heroRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
@@ -151,8 +153,12 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   const rawMembers = displayTrip.members ?? []
   const creatorId = (displayTrip as any).creator_id
   const creatorInMembers = rawMembers.some((m: any) => m.user_id === creatorId)
-  const memberCount = rawMembers.length + (creatorInMembers ? 0 : 1)
+  // Capacity only counts committed ('in') members — 'maybe' doesn't take a spot.
+  const inMemberCount = rawMembers.filter((m: any) => m.status === 'in').length
+  const creatorCountedIn = rawMembers.some((m: any) => m.user_id === creatorId && m.status === 'in')
+  const memberCount = inMemberCount + (creatorCountedIn ? 0 : 1)
   const spotsLeft = displayTrip.max_group_size - memberCount
+  const isGenderEligible = !userProfile || isTripGenderEligible(displayTrip, userProfile)
   const dates = formatDates(displayTrip.start_date, displayTrip.end_date, displayTrip.is_flexible_dates)
 
   const members = [
@@ -169,6 +175,13 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
       isCreator: m.user_id === creatorId,
     })),
   ]
+
+  // Swipe down on the hero to dismiss — disabled while a nested overlay is on top.
+  useSwipeDownDismiss(
+    heroRef,
+    onClose,
+    !profileUserId && !showPhotoNudge && !showCelebration && !showCompatPaywall && !showCompatTrialOffer,
+  )
 
   return (
     <>
@@ -204,7 +217,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
         }}
       >
         {/* ── Hero — overflow-hidden scoped here for the rounded-corner image clip ── */}
-        <div className="relative shrink-0 overflow-hidden" style={{ height: '44dvh', borderRadius: '28px 28px 0 0' }}>
+        <div ref={heroRef} className="relative shrink-0 overflow-hidden" style={{ height: '44dvh', borderRadius: '28px 28px 0 0' }}>
           {displayTrip.cover_image ? (
             <img
               src={displayTrip.cover_image}
@@ -281,7 +294,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
           <div className="flex gap-2 px-4 pt-5">
             {[
               { label: 'Dates', value: dates },
-              { label: 'Budget', value: displayTrip.budget_level ?? '—' },
+              { label: 'Budget', value: displayTrip.budget_level ? displayTrip.budget_level.charAt(0).toUpperCase() + displayTrip.budget_level.slice(1) : '—' },
               { label: 'Group', value: `Up to ${displayTrip.max_group_size}` },
             ].map(item => (
               <div
@@ -555,15 +568,27 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
           ) : (
             <button
               onClick={() => { haptic(10); isGuest ? onAuthRequired?.(displayTrip.destination) : joinMutation.mutate() }}
-              disabled={joinMutation.isPending || spotsLeft <= 0}
+              disabled={joinMutation.isPending || spotsLeft <= 0 || (!isGuest && !isGenderEligible)}
               className="w-full font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-40"
               style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: '#000', padding: '16px' }}
             >
-              {joinMutation.isPending ? 'Joining...' : spotsLeft <= 0 ? 'Trip Full' : 'Join Trip'}
+              {joinMutation.isPending
+                ? 'Joining...'
+                : spotsLeft <= 0
+                ? 'Trip Full'
+                : !isGuest && !isGenderEligible
+                ? displayTrip.group_preference === 'female' ? 'Women Only' : 'Men Only'
+                : 'Join Trip'}
             </button>
           )}
           {joinMutation.isError && (
-            <p className="text-red-400 text-xs text-center mt-2">Something went wrong. Try again.</p>
+            <p className="text-red-400 text-xs text-center mt-2">
+              {(joinMutation.error as any)?.message?.includes('TRIP_FULL')
+                ? 'This trip just filled up.'
+                : (joinMutation.error as any)?.message?.includes('GENDER_RESTRICTED')
+                ? "You're not eligible to join this trip."
+                : 'Something went wrong. Try again.'}
+            </p>
           )}
         </div>
       </motion.div>

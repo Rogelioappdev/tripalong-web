@@ -3,6 +3,7 @@ import type { TripWithDetails, TripMessage, UserProfile, ChatMemberReadPosition,
 import { sortTrips, sortHangalongs } from './feedScoring'
 import { displayName } from './displayName'
 import { sendPushNotification } from './push'
+import { isTripGenderEligible } from './matching'
 
 // Best-effort "X joined" push to existing members — never blocks the join
 // flow itself, so a push failure can't break joining a trip/hangout.
@@ -65,6 +66,7 @@ export async function getTrips(): Promise<TripWithDetails[]> {
         creator:users!creator_id(id, name, profile_photo),
         members:trip_members(
           user_id,
+          status,
           user:users(id, name, profile_photo, travel_styles, travel_pace, social_energy, planning_style, experience_level)
         )
       `)
@@ -95,17 +97,27 @@ export async function getTrips(): Promise<TripWithDetails[]> {
   const saveCounts: Record<string, number> = {}
   ;(savesResult.data ?? []).forEach((s: any) => { saveCounts[s.trip_id] = (saveCounts[s.trip_id] ?? 0) + 1 })
 
+  const joinedMemberCount = (trip: any) => {
+    const inCount = (trip.members ?? []).filter((m: any) => m.status === 'in').length
+    const creatorCounted = (trip.members ?? []).some((m: any) => m.user_id === trip.creator_id && m.status === 'in')
+    return inCount + (creatorCounted ? 0 : 1)
+  }
+
   const trips = (tripsResult.data ?? [])
     .filter((trip: any) => {
       if (blockedSet.has(trip.creator_id)) return false
       if (seenSet.has(trip.id)) return false
       // Exclude trips the user already joined
       if (userId && trip.members?.some((m: any) => m.user_id === userId)) return false
+      // Gender-restricted trips must never surface to an ineligible viewer
+      if (!isTripGenderEligible(trip, profile)) return false
+      // Full trips (capacity already reached) shouldn't be recommended
+      if (joinedMemberCount(trip) >= trip.max_group_size) return false
       return true
     })
     .map((trip: any) => ({
       ...trip,
-      member_count: (trip.members?.length ?? 0) + (trip.members?.some((m: any) => m.user_id === trip.creator_id) ? 0 : 1),
+      member_count: joinedMemberCount(trip),
       save_count: saveCounts[trip.id] ?? 0,
     })) as TripWithDetails[]
 
@@ -120,6 +132,7 @@ export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
       creator:users!creator_id(id, name, profile_photo),
       members:trip_members(
         user_id,
+        status,
         user:users(id, name, profile_photo, travel_styles, travel_pace, social_energy, planning_style, experience_level)
       )
     `)
@@ -127,9 +140,12 @@ export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
     .single()
 
   if (error) throw error
+  const trip = data as any
+  const inCount = (trip.members ?? []).filter((m: any) => m.status === 'in').length
+  const creatorCounted = (trip.members ?? []).some((m: any) => m.user_id === trip.creator_id && m.status === 'in')
   return {
-    ...(data as any),
-    member_count: ((data as any).members?.length ?? 0) + ((data as any).members?.some((m: any) => m.user_id === (data as any).creator_id) ? 0 : 1),
+    ...trip,
+    member_count: inCount + (creatorCounted ? 0 : 1),
     save_count: 0,
   } as TripWithDetails
 }

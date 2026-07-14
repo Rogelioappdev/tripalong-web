@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { purchasePlus, restorePurchases, getNativePlusPricing, isNativeApp, type PlusPricing } from '@/lib/purchase'
 import { track } from '@/lib/analytics'
 import { haptic } from '@/lib/haptics'
+import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
 import { PlusWelcomeFlow } from './PlusWelcomeFlow'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
@@ -70,12 +71,16 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
   const [nativePricing, setNativePricing] = useState<PlusPricing | null>(null)
   const [restoring, setRestoring] = useState(false)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
+  const handleRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [])
+
+  // Swipe down on the top bar/handle to dismiss.
+  useSwipeDownDismiss(handleRef, onClose, !showWelcome)
 
   // Top of the conversion funnel: which wall the user hit, and via which trigger.
   useEffect(() => {
@@ -199,7 +204,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
         onTouchStart={stop}
       >
         {/* Handle — fixed */}
-        <div className="flex justify-center pt-3 pb-1 shrink-0">
+        <div ref={handleRef} className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-8 h-[3px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
         </div>
 

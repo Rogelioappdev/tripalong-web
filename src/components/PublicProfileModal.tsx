@@ -11,6 +11,7 @@ import { getFlag } from '@/lib/countries'
 import { TripDetailModal } from './TripDetailModal'
 import { haptic } from '@/lib/haptics'
 import { hasPlus } from '@/lib/trial'
+import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
 interface PublicProfileModalProps {
@@ -195,6 +196,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   const [showBlockReport, setShowBlockReport] = useState(false)
   const router = useRouter()
   const heroPtrRef = useRef({ x: 0, y: 0 })
+  const heroRef = useRef<HTMLDivElement>(null)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [dmLoading, setDmLoading] = useState(false)
   const [revealed, setRevealed] = useState(!locked)
@@ -269,6 +271,10 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
     }
   }
 
+  // Swipe down on the hero to dismiss — disabled while a nested overlay
+  // (lightbox, block/report sheet, trip detail) is on top.
+  useSwipeDownDismiss(heroRef, onClose, !lightboxOpen && !showBlockReport && !selectedTrip)
+
   const content = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
@@ -297,7 +303,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
           return (
             <>
               {/* ── Hero ── */}
-              <div className="relative shrink-0" style={{ height: '45dvh' }}>
+              <div ref={heroRef} className="relative shrink-0" style={{ height: '45dvh' }}>
 
                 {/* Photo with slide animation */}
                 <AnimatePresence initial={false} custom={photoDirection} mode="popLayout">

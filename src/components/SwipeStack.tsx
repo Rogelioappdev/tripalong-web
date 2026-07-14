@@ -457,6 +457,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
   const [celebrationTrip, setCelebrationTrip] = useState<TripWithDetails | null>(null)
   const [showProfileNudge, setShowProfileNudge] = useState(false)
+  const [joinErrorMsg, setJoinErrorMsg] = useState<string | null>(null)
   const profileNudgeTriggered = useRef(false)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle | HangCardHandle>(null)
@@ -704,8 +705,19 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
       qc.invalidateQueries({ queryKey: ['unreadCount'] })
       qc.invalidateQueries({ queryKey: ['trips'] })
       setCelebrationTrip(trip)
-    } catch {
+    } catch (e: any) {
       setJoinedIds(s => { const n = new Set(s); n.delete(trip.id); return n })
+      // The feed already excludes full/gender-ineligible trips, so this only
+      // fires on a race (trip filled or its restriction changed between fetch
+      // and swipe) — surface it instead of silently doing nothing.
+      const msg: string = e?.message ?? ''
+      haptic([8, 20, 8])
+      setJoinErrorMsg(
+        msg.includes('TRIP_FULL') ? 'This trip just filled up' :
+        msg.includes('GENDER_RESTRICTED') ? "You're not eligible to join this trip" :
+        "Couldn't join this trip — try again"
+      )
+      setTimeout(() => setJoinErrorMsg(null), 3200)
     }
   }
 
@@ -1065,6 +1077,32 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
             }}
             onClose={() => setCelebrationTrip(null)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Join failed toast — only fires on a race (trip filled up or its
+          gender restriction changed between fetch and swipe) */}
+      <AnimatePresence>
+        {joinErrorMsg && (
+          <motion.div
+            initial={{ y: 20, opacity: 0, scale: 0.94 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 12, opacity: 0, scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            className="fixed left-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl"
+            style={{
+              bottom: 'calc(env(safe-area-inset-bottom) + 90px)',
+              backgroundColor: 'rgba(18,18,18,0.97)',
+              border: '0.5px solid rgba(255,69,58,0.3)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              maxWidth: 400,
+              margin: '0 auto',
+            } as React.CSSProperties}
+          >
+            <span className="text-lg shrink-0">⚠️</span>
+            <p className="text-white text-sm font-medium flex-1">{joinErrorMsg}</p>
+          </motion.div>
         )}
       </AnimatePresence>
 

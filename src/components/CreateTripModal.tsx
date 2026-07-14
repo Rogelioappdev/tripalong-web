@@ -118,7 +118,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
     )
   }
 
-  const isValid = !!(destination.trim() && country.trim() && vibes.length > 0 && pace && (season || flexDates || startDate))
+  const isValid = !!(destination.trim() && country.trim() && vibes.length > 0 && pace && budget && (season || flexDates || startDate))
 
   const handleCreate = async () => {
     if (!userId || !isValid) return
@@ -831,14 +831,12 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
 
             {/* BUDGET */}
             <div>
-              <p className={label} style={{ marginBottom: '12px' }}>
-                Budget <span className="normal-case text-white/25 tracking-normal font-medium"> — optional</span>
-              </p>
+              <p className={label} style={{ marginBottom: '12px' }}>Budget</p>
               <div className="grid grid-cols-3 gap-2">
                 {BUDGETS.map(b => (
                   <button
                     key={b.value}
-                    onClick={() => { haptic(8); setBudget(budget === b.value ? '' : b.value) }}
+                    onClick={() => { haptic(8); setBudget(b.value) }}
                     className="flex flex-col items-center gap-2 py-4 rounded-2xl transition-colors active:scale-95"
                     style={budget === b.value
                       ? { backgroundColor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)' }

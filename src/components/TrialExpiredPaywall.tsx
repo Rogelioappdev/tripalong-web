@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
@@ -8,6 +8,7 @@ import { startCheckout } from '@/lib/subscription'
 import { track } from '@/lib/analytics'
 import { isNativeApp } from '@/lib/purchase'
 import { getTravelImages } from '@/lib/queries'
+import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
 
 interface Props {
   onClose: () => void
@@ -21,6 +22,7 @@ export function TrialExpiredPaywall({ onClose, viewerCount, topMatch }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [canDismiss, setCanDismiss] = useState(false)
   const [bgImage, setBgImage] = useState<string | null>(null)
+  const topBarRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     track('paywall_viewed', { surface: 'trial_expired', rail: isNativeApp() ? 'native' : 'web' })
@@ -28,6 +30,9 @@ export function TrialExpiredPaywall({ onClose, viewerCount, topMatch }: Props) {
     const t = setTimeout(() => setCanDismiss(true), 2500)
     return () => clearTimeout(t)
   }, [])
+
+  // Swipe down on the top bar to dismiss — only once the dismiss button itself unlocks.
+  useSwipeDownDismiss(topBarRef, onClose, canDismiss)
 
   const handleUpgrade = async () => {
     haptic(12)
@@ -68,6 +73,13 @@ export function TrialExpiredPaywall({ onClose, viewerCount, topMatch }: Props) {
         animate={{ opacity: 0 }}
         transition={{ duration: 4, ease: 'easeInOut' }}
         style={{ position: 'absolute', inset: 0, backgroundColor: '#000', pointerEvents: 'none' }}
+      />
+
+      {/* Top bar — swipe-down-to-dismiss zone (only active once canDismiss) */}
+      <div
+        ref={topBarRef}
+        className="absolute top-0 left-0 right-0"
+        style={{ height: 'calc(env(safe-area-inset-top) + 56px)', zIndex: 9 }}
       />
 
       {/* Dismiss button — appears after 2.5s */}

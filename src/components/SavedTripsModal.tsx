@@ -37,6 +37,14 @@ export function SavedTripsModal({ userId, onClose }: Props) {
   const [localJoined, setLocalJoined] = useState<Set<string>>(new Set())
   const [localStatuses, setLocalStatuses] = useState<Record<string, 'in' | 'maybe'>>({})
   const [chatLoading, setChatLoading] = useState<string | null>(null)
+  const [joinErrorMsg, setJoinErrorMsg] = useState<string | null>(null)
+
+  const describeJoinError = (e: any) => {
+    const msg: string = e?.message ?? ''
+    if (msg.includes('TRIP_FULL')) return 'This trip just filled up'
+    if (msg.includes('GENDER_RESTRICTED')) return "You're not eligible to join this trip"
+    return "Couldn't join this trip — try again"
+  }
   const qc = useQueryClient()
 
   const { data: savedTrips = [], isLoading: savedLoading } = useQuery({
@@ -96,7 +104,12 @@ export function SavedTripsModal({ userId, onClose }: Props) {
       haptic([15, 30, 15, 30, 60])
       invalidate()
       setCelebrationTrip(trip)
-    } catch {}
+    } catch (e) {
+      setLocalJoined(s => { const n = new Set(s); n.delete(trip.id); return n })
+      haptic([8, 20, 8])
+      setJoinErrorMsg(describeJoinError(e))
+      setTimeout(() => setJoinErrorMsg(null), 3200)
+    }
   }
 
   const handleUnsave = async (trip: TripWithDetails) => {
@@ -120,9 +133,14 @@ export function SavedTripsModal({ userId, onClose }: Props) {
     try {
       await updateTripMemberStatus(trip.id, userId, status)
       invalidate()
-    } catch {
+    } catch (e) {
       // revert on failure
       setLocalStatuses(s => ({ ...s, [trip.id]: status === 'in' ? 'maybe' : 'in' }))
+      if (status === 'in') {
+        haptic([8, 20, 8])
+        setJoinErrorMsg(describeJoinError(e))
+        setTimeout(() => setJoinErrorMsg(null), 3200)
+      }
     }
   }
 
@@ -340,6 +358,31 @@ export function SavedTripsModal({ userId, onClose }: Props) {
           />
         )}
       </AnimatePresence>
+
+      {/* Join failed toast */}
+      <AnimatePresence>
+        {joinErrorMsg && (
+          <motion.div
+            initial={{ y: 20, opacity: 0, scale: 0.94 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 12, opacity: 0, scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            className="fixed left-4 right-4 z-[80] flex items-center gap-3 px-4 py-3 rounded-2xl"
+            style={{
+              bottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+              backgroundColor: 'rgba(18,18,18,0.97)',
+              border: '0.5px solid rgba(255,69,58,0.3)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              maxWidth: 400,
+              margin: '0 auto',
+            } as React.CSSProperties}
+          >
+            <span className="text-lg shrink-0">⚠️</span>
+            <p className="text-white text-sm font-medium flex-1">{joinErrorMsg}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }
@@ -355,6 +398,7 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
   chatLoading?: boolean
 }) {
   const memberCount = trip.members?.filter(m => m.status === 'in').length ?? 0
+  const isFull = !joined && memberCount >= trip.max_group_size
   const dates = formatDates(trip)
 
   return (
@@ -438,23 +482,26 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
             <span className="text-white/40 text-[11px]">Pass</span>
           </div>
 
-          {/* Join / Joined */}
+          {/* Join / Joined / Full */}
           <div className="flex flex-col items-center gap-1.5">
             <button
-              onClick={joined ? undefined : () => { haptic(18); onJoin() }}
-              className="w-16 h-16 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+              onClick={joined || isFull ? undefined : () => { haptic(18); onJoin() }}
+              disabled={isFull}
+              className="w-16 h-16 rounded-full flex items-center justify-center active:scale-95 transition-transform disabled:opacity-40"
               style={joined
                 ? { backgroundColor: '#ffffff' }
+                : isFull
+                ? { backgroundColor: 'rgba(255,255,255,0.06)', border: '2px solid rgba(255,255,255,0.15)' }
                 : { backgroundColor: '#1a3d25', border: '2px solid #30D158' }}
             >
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
                 <path d="M20 6L9 17l-5-5"
-                  stroke={joined ? '#000000' : '#30D158'}
+                  stroke={joined ? '#000000' : isFull ? 'rgba(255,255,255,0.3)' : '#30D158'}
                   strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
             <span className="text-[11px]" style={{ color: joined ? '#ffffff' : 'rgba(255,255,255,0.4)' }}>
-              {joined ? 'Joined' : 'Join'}
+              {joined ? 'Joined' : isFull ? 'Full' : 'Join'}
             </span>
           </div>
 
