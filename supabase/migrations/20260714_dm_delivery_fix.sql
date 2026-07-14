@@ -189,6 +189,7 @@ CREATE POLICY "messages_delete_own" ON messages
 CREATE OR REPLACE FUNCTION public.enforce_direct_conversation_has_two_members()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
 DECLARE
