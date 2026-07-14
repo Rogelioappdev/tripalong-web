@@ -373,6 +373,7 @@ export async function getUserTripChats(_userId: string) {
     others_read: row.others_read ?? false,
     unread_count: Number(row.unread_count ?? 0),
     is_muted: row.is_muted ?? false,
+    is_pinned: row.is_pinned ?? false,
   }))
 }
 
@@ -386,6 +387,26 @@ export async function getTripChatMuted(chatId: string): Promise<boolean> {
     .eq('user_id', uid)
     .single()
   return (data as any)?.is_muted ?? false
+}
+
+export async function setTripChatPinned(chatId: string, pinned: boolean): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase
+    .from('trip_chat_members')
+    .update({ is_pinned: pinned })
+    .eq('trip_chat_id', chatId)
+    .eq('user_id', uid)
+}
+
+export async function setDMPinned(conversationId: string, pinned: boolean): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase
+    .from('conversation_members')
+    .update({ is_pinned: pinned })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', uid)
 }
 
 export async function setTripChatMuted(chatId: string, muted: boolean) {
@@ -438,6 +459,7 @@ export async function getDMConversations(_userId: string) {
       last_message_sender_id: row.last_message_sender_id ?? null,
       other_last_read_at: row.other_last_read_at ?? null,
       unread_count: Number(row.unread_count ?? 0),
+      is_pinned: row.is_pinned ?? false,
       other_user: {
         id: row.other_user_id,
         name: row.other_user_name,

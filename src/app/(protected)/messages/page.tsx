@@ -4,11 +4,11 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getUserTripChats, getDMConversations, getProfileViewers, getProfile } from '@/lib/queries'
+import { getUserTripChats, getDMConversations, getProfileViewers, getProfile, setTripChatPinned, setDMPinned } from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
 import { hasPlus } from '@/lib/trial'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
@@ -74,6 +74,20 @@ function MessagesSkeleton() {
   )
 }
 
+function PinIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"
+        fill={filled ? '#F0EBE3' : 'none'}
+        stroke={filled ? '#F0EBE3' : 'rgba(255,255,255,0.4)'}
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function UnreadBadge({ count }: { count: number }) {
   if (count <= 0) return null
   return (
@@ -94,6 +108,7 @@ function UnreadBadge({ count }: { count: number }) {
 
 export default function MessagesPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [pageLoading, setPageLoading] = useState(true)
   const [pushState, setPushState] = useState<'unsupported' | 'granted' | 'denied' | 'default' | null>(null)
@@ -140,6 +155,37 @@ export default function MessagesPage() {
     enabled: !!userId,
     staleTime: 30_000,
   })
+
+  // Pin/unpin — optimistically re-sort the cached list (pinned first, each
+  // group otherwise in its existing order) so the row jumps to the top
+  // immediately instead of waiting on a refetch.
+  const handleTogglePinChat = (chatId: string, currentlyPinned: boolean) => {
+    haptic(8)
+    queryClient.setQueryData<any[]>(['tripChats', userId], old => {
+      if (!old) return old
+      const next = old.map(item =>
+        item.trip_chat?.id === chatId ? { ...item, is_pinned: !currentlyPinned } : item
+      )
+      return [...next].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
+    })
+    setTripChatPinned(chatId, !currentlyPinned).catch(() => {
+      queryClient.invalidateQueries({ queryKey: ['tripChats', userId] })
+    })
+  }
+
+  const handleTogglePinDM = (dmId: string, currentlyPinned: boolean) => {
+    haptic(8)
+    queryClient.setQueryData<any[]>(['dms', userId], old => {
+      if (!old) return old
+      const next = old.map(item =>
+        item.id === dmId ? { ...item, is_pinned: !currentlyPinned } : item
+      )
+      return [...next].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
+    })
+    setDMPinned(dmId, !currentlyPinned).catch(() => {
+      queryClient.invalidateQueries({ queryKey: ['dms', userId] })
+    })
+  }
 
   // Fetch last_seen_at for all DM contacts
   useEffect(() => {
@@ -255,10 +301,13 @@ export default function MessagesPage() {
                 const hasUnread = item.unread_count > 0 && !item.is_muted
                 const iMySentLast = item.last_message_sender_id === userId
                 return (
-                  <button
+                  <div
                     key={chat.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => { haptic(8); router.push(`/chat/${chat.id}`) }}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6"
+                    onKeyDown={e => { if (e.key === 'Enter') router.push(`/chat/${chat.id}`) }}
+                    className={`w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6 cursor-pointer ${item.is_pinned ? 'bg-white/[0.03]' : ''}`}
                   >
                     <div className="w-12 h-12 rounded-2xl bg-white/8 overflow-hidden shrink-0">
                       {avatarPhoto ? (
@@ -284,6 +333,14 @@ export default function MessagesPage() {
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); handleTogglePinChat(chat.id, item.is_pinned) }}
+                        className="p-1 -m-1 active:opacity-60 transition-opacity"
+                        aria-label={item.is_pinned ? 'Unpin chat' : 'Pin chat'}
+                      >
+                        <PinIcon filled={!!item.is_pinned} />
+                      </button>
                       {item.last_message_at && (
                         <span className={`text-xs ${hasUnread && !item.is_muted ? 'text-white/50' : 'text-white/20'}`}>
                           {timeAgo(item.last_message_at)}
@@ -295,7 +352,7 @@ export default function MessagesPage() {
                         <UnreadBadge count={item.unread_count} />
                       )}
                     </div>
-                  </button>
+                  </div>
                 )
               })
             )}
@@ -325,10 +382,13 @@ export default function MessagesPage() {
                 const iMySentLast = dm.last_message_sender_id === userId
                 const dmSeen = iMySentLast && !!dm.other_last_read_at && dm.other_last_read_at >= dm.last_message_at
                 return (
-                  <button
+                  <div
                     key={dm.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => { haptic(8); router.push(`/dm/${dm.id}`) }}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6"
+                    onKeyDown={e => { if (e.key === 'Enter') router.push(`/dm/${dm.id}`) }}
+                    className={`w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6 cursor-pointer ${dm.is_pinned ? 'bg-white/[0.03]' : ''}`}
                   >
                     <div className="relative shrink-0">
                       <div className="w-12 h-12 rounded-full bg-white/8 overflow-hidden">
@@ -361,6 +421,14 @@ export default function MessagesPage() {
                       ) : null}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); handleTogglePinDM(dm.id, dm.is_pinned) }}
+                        className="p-1 -m-1 active:opacity-60 transition-opacity"
+                        aria-label={dm.is_pinned ? 'Unpin chat' : 'Pin chat'}
+                      >
+                        <PinIcon filled={!!dm.is_pinned} />
+                      </button>
                       {dm.last_message_at && (
                         <span className={`text-xs ${hasUnread ? 'text-white/50' : 'text-white/20'}`}>
                           {timeAgo(dm.last_message_at)}
@@ -368,7 +436,7 @@ export default function MessagesPage() {
                       )}
                       <UnreadBadge count={dm.unread_count} />
                     </div>
-                  </button>
+                  </div>
                 )
               })
             )}
