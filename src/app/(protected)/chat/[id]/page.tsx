@@ -778,20 +778,12 @@ export default function ChatPage() {
 
                   {/* Bubble column */}
                   <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-                    {!isMe && idx > 0 && displayMessages[idx - 1].sender_id !== msg.sender_id && (
-                      <span className="text-white/30 text-xs px-1">{senderName}</span>
-                    )}
-                    {!isMe && idx === 0 && (
-                      <span className="text-white/30 text-xs px-1">{senderName}</span>
-                    )}
-
                     {/* Reply-to quote */}
                     {msg.reply_to && (
                       <div
                         className={`px-3 py-1.5 rounded-xl text-xs max-w-full ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
                         style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
                       >
-                        <p className="text-white/50 font-medium truncate">{displayName(senderById.get(msg.reply_to.sender_id ?? '')?.name ?? msg.reply_to.sender?.name)}</p>
                         <p className="text-white/35 truncate">{msg.reply_to.content?.startsWith('https://') ? '📷 Photo' : msg.reply_to.content}</p>
                       </div>
                     )}
