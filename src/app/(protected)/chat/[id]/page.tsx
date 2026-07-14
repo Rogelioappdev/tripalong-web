@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -505,6 +505,23 @@ export default function ChatPage() {
   const isSearchMode = searchOpen && debouncedQuery.length >= 2
   const displayMessages = isSearchMode ? searchResults : allMessages
 
+  // Authoritative sender lookup built from the trip/hangout roster (which
+  // reliably carries every member's name + photo). The per-message `sender`
+  // embed can come back empty, which used to render "Unknown"/"Traveler" even
+  // though the name is known — so resolve by sender_id from the roster first.
+  const senderById = useMemo(() => {
+    const map = new Map<string, { name: string | null; profile_photo: string | null }>()
+    const add = (u: any) => {
+      if (u?.id && !map.has(u.id)) map.set(u.id, { name: u.name ?? null, profile_photo: u.profile_photo ?? null })
+    }
+    tripInfo?.members?.forEach((m: any) => add(m.user))
+    if (tripInfo?.creator) add(tripInfo.creator)
+    hangInfo?.members?.forEach((m: any) => add(m.user))
+    if (hangInfo?.creator) add(hangInfo.creator)
+    if (userId) map.set(userId, { name: userName || null, profile_photo: null })
+    return map
+  }, [tripInfo, hangInfo, userId, userName])
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
@@ -705,6 +722,9 @@ export default function ChatPage() {
             {!isLoading && !!userId && displayMessages.map((msg, idx) => {
               const isMe = msg.sender_id === userId
               const isSystem = msg.type === 'system'
+              const rosterSender = senderById.get(msg.sender_id)
+              const senderName = displayName(rosterSender?.name ?? msg.sender?.name)
+              const senderPhoto = rosterSender?.profile_photo ?? msg.sender?.profile_photo ?? null
               const reactionGroups = groupReactions(msg.reactions)
               const isLastInGroup = idx === displayMessages.length - 1 || displayMessages[idx + 1].sender_id !== msg.sender_id
               const seenBy = msg.id === myLastSeenMsgId ? getSeenBy(msg) : []
@@ -728,9 +748,9 @@ export default function ChatPage() {
                   {/* Avatar */}
                   {!isMe && isLastInGroup && (
                     <div className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs">
-                      {msg.sender?.profile_photo
-                        ? <img src={msg.sender.profile_photo} alt="" className="w-full h-full object-cover" />
-                        : displayName(msg.sender?.name)[0].toUpperCase()}
+                      {senderPhoto
+                        ? <img src={senderPhoto} alt="" className="w-full h-full object-cover" />
+                        : senderName[0].toUpperCase()}
                     </div>
                   )}
                   {!isMe && !isLastInGroup && <div className="w-7 shrink-0" />}
@@ -738,10 +758,10 @@ export default function ChatPage() {
                   {/* Bubble column */}
                   <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
                     {!isMe && idx > 0 && displayMessages[idx - 1].sender_id !== msg.sender_id && (
-                      <span className="text-white/30 text-xs px-1">{displayName(msg.sender?.name)}</span>
+                      <span className="text-white/30 text-xs px-1">{senderName}</span>
                     )}
                     {!isMe && idx === 0 && (
-                      <span className="text-white/30 text-xs px-1">{displayName(msg.sender?.name)}</span>
+                      <span className="text-white/30 text-xs px-1">{senderName}</span>
                     )}
 
                     {/* Reply-to quote */}
