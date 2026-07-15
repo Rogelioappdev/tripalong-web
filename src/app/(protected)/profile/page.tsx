@@ -178,6 +178,7 @@ export default function ProfilePage() {
     return () => clearTimeout(t)
   }, [photoError])
   const [showPreview, setShowPreview] = useState(false)
+  const [editingPhotos, setEditingPhotos] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [myTrips, setMyTrips] = useState<TripWithDetails[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
@@ -646,7 +647,21 @@ export default function ProfilePage() {
 
           {/* Photos grid */}
           <Section title="Photos">
-            <p className="text-white/25 text-xs mb-2">Use the arrows to reorder · your first photo is your main.</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-white/25 text-xs">
+                {editingPhotos ? 'Tap ✕ to remove · tap ‹ › to move · first photo is your main.' : `${orderedPhotos.length} photo${orderedPhotos.length === 1 ? '' : 's'}`}
+              </p>
+              <button
+                type="button"
+                onClick={() => { haptic(8); setEditingPhotos(v => !v) }}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full active:scale-95 transition-transform"
+                style={editingPhotos
+                  ? { backgroundColor: '#F0EBE3', color: '#000' }
+                  : { backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)' }}
+              >
+                {editingPhotos ? 'Done' : '✏️ Change order'}
+              </button>
+            </div>
             <div className="grid grid-cols-3 gap-1.5">
               {orderedPhotos.map((url, i) => (
                 <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
@@ -657,28 +672,33 @@ export default function ProfilePage() {
                       style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff' }}
                     >Main</div>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(url)}
-                    className="absolute top-1 right-1 z-10 w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 13, lineHeight: 1 }}
-                  >✕</button>
-                  <div className="absolute bottom-1 left-1 right-1 z-10 flex items-center justify-between gap-1">
-                    <button
-                      type="button"
-                      onClick={() => movePhoto(i, -1)}
-                      disabled={i === 0}
-                      className="w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-30"
-                      style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 15, lineHeight: 1 }}
-                    >‹</button>
-                    <button
-                      type="button"
-                      onClick={() => movePhoto(i, 1)}
-                      disabled={i === orderedPhotos.length - 1}
-                      className="w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-30"
-                      style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 15, lineHeight: 1 }}
-                    >›</button>
-                  </div>
+                  {editingPhotos && (
+                    <>
+                      <div className="absolute inset-0 z-[5]" style={{ backgroundColor: 'rgba(0,0,0,0.35)' }} />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(url)}
+                        className="absolute top-1 right-1 z-10 w-9 h-9 rounded-full flex items-center justify-center"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 14, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
+                      >✕</button>
+                      <div className="absolute bottom-1 left-1 right-1 z-10 flex items-center justify-between gap-1">
+                        <button
+                          type="button"
+                          onClick={() => movePhoto(i, -1)}
+                          disabled={i === 0}
+                          className="flex-1 h-9 rounded-full flex items-center justify-center disabled:opacity-20"
+                          style={{ backgroundColor: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 17, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
+                        >‹</button>
+                        <button
+                          type="button"
+                          onClick={() => movePhoto(i, 1)}
+                          disabled={i === orderedPhotos.length - 1}
+                          className="flex-1 h-9 rounded-full flex items-center justify-center disabled:opacity-20"
+                          style={{ backgroundColor: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 17, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
+                        >›</button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
               {orderedPhotos.length < 10 && (
