@@ -868,6 +868,13 @@ export async function recordProfileView(viewedUserId: string): Promise<void> {
   )
 }
 
+export async function getMyViewerCount(): Promise<number> {
+  // Real COUNT(*) — unlike getProfileViewers, never capped at a page-size limit.
+  const { data, error } = await supabase.rpc('get_my_viewer_count')
+  if (error) return 0
+  return data ?? 0
+}
+
 export async function getProfileViewers(limit = 50): Promise<{ id: string; name: string; profile_photo: string | null; travel_styles: string[]; country: string | null; viewed_at: string }[]> {
   // Uses server-side RPC that checks Plus status in the DB — cannot be bypassed client-side
   const { data, error } = await supabase.rpc('get_my_viewers', { p_limit: limit })

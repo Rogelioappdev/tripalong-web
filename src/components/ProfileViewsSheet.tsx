@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getProfileViewers } from '@/lib/queries'
+import { getProfileViewers, getMyViewerCount } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
 import { purchasePlus, restorePurchases, isNativeApp, getNativePlusPricing, type PlusPricing } from '@/lib/purchase'
 import { hasPlus } from '@/lib/trial'
@@ -437,7 +437,8 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
     addRevealedId(id)
     setRevealedIds(prev => new Set(prev).add(id))
   }
-  const displayCount = useCountUp(viewers.length)
+  const [viewerCount, setViewerCount] = useState(0)
+  const displayCount = useCountUp(viewerCount)
 
   useEffect(() => {
     setMounted(true)
@@ -453,6 +454,7 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
   }, [])
   useEffect(() => {
     getProfileViewers().then(v => { setViewers(v as Viewer[]); setLoading(false) })
+    getMyViewerCount().then(setViewerCount)
   }, [])
 
   const handleViewerTap = (viewer: Viewer) => {
@@ -510,7 +512,7 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
             <div className="flex items-center justify-center h-full">
               <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
             </div>
-          ) : viewers.length === 0 ? (
+          ) : viewerCount === 0 ? (
             <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-4">
               <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
@@ -558,11 +560,28 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
                   className="font-medium mt-4"
                   style={{ color: 'rgba(255,255,255,0.38)', fontSize: 16 }}
                 >
-                  {viewers.length === 1 ? 'person viewed your profile' : 'people viewed your profile'}
+                  {viewerCount === 1 ? 'person viewed your profile' : 'people viewed your profile'}
                 </motion.p>
               </div>
 
               <div style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.07)' }} />
+
+              {/* Gated: real views exist but the identity list is Plus-only */}
+              {viewers.length === 0 && (
+                <div className="flex flex-col items-center px-8 pt-8 pb-2 text-center gap-3">
+                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Upgrade to see who's been checking you out
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { haptic(8); setShowPaywall(true) }}
+                    className="font-semibold text-sm px-5 py-2.5 rounded-2xl active:scale-95 transition-transform"
+                    style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+                  >
+                    See who viewed you
+                  </button>
+                </div>
+              )}
 
               {/* ── Profile grid ── */}
               <div className="grid grid-cols-3 gap-x-3 gap-y-7 px-5 pt-7 pb-10">
@@ -652,7 +671,7 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
       {/* Paywall */}
       <AnimatePresence>
         {showPaywall && (
-          <Paywall count={viewers.length} viewers={viewers} onClose={() => setShowPaywall(false)} onSuccess={onUnlocked} userId={userId} onWelcomeDone={onWelcomeDone} />
+          <Paywall count={viewerCount} viewers={viewers} onClose={() => setShowPaywall(false)} onSuccess={onUnlocked} userId={userId} onWelcomeDone={onWelcomeDone} />
         )}
       </AnimatePresence>
     </>,

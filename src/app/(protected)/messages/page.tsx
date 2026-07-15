@@ -8,7 +8,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getUserTripChats, getDMConversations, getProfileViewers, getProfile, setTripChatPinned, setDMPinned } from '@/lib/queries'
+import { getUserTripChats, getDMConversations, getMyViewerCount, getProfile, setTripChatPinned, setDMPinned } from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
 import { hasPlus } from '@/lib/trial'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
@@ -116,7 +116,6 @@ export default function MessagesPage() {
   const [pushLoading, setPushLoading] = useState(false)
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string | null>>({})
   const [showViews, setShowViews] = useState(false)
-  const [viewerCount, setViewerCount] = useState(0)
   const [isPlus, setIsPlus] = useState(false)
   const onlineUsers = useOnlineUsers()
 
@@ -138,16 +137,25 @@ export default function MessagesPage() {
       setUserId(session.user.id)
       setPageLoading(false)
       initPresence(session.user.id)
-      getProfileViewers(50).then(v => setViewerCount(v.length))
       getProfile(session.user.id).then(p => setIsPlus(hasPlus(p)))
     })
   }, [router])
+
+  // Real COUNT(*), not capped at 50 like getProfileViewers, and polled so a
+  // new view shows up without needing to reload the tab.
+  const { data: viewerCount = 0 } = useQuery({
+    queryKey: ['viewerCount', userId],
+    queryFn: getMyViewerCount,
+    enabled: !!userId,
+    refetchInterval: 15_000,
+  })
 
   const { data: tripChats = [], isLoading: chatsLoading, isError: chatsError, refetch: refetchChats } = useQuery({
     queryKey: ['tripChats', userId],
     queryFn: () => getUserTripChats(userId!),
     enabled: !!userId,
     staleTime: 30_000,
+    refetchInterval: 5000,
   })
 
   const { data: dms = [], isLoading: dmsLoading, isError: dmsError, refetch: refetchDms } = useQuery({

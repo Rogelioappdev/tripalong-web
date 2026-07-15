@@ -259,6 +259,7 @@ export default function ChatPage() {
     },
     enabled: !!chatId,
     staleTime: 30_000,
+    refetchInterval: 3000,
   })
 
   // ── Read positions ────────────────────────────────────────────────────────
