@@ -13,6 +13,7 @@ import { haptic } from '@/lib/haptics'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { CountryPicker } from '@/components/CountryPicker'
+import { resizedImage } from '@/lib/imageUrl'
 
 // ── DNA field definitions (single source of truth on this page) ───────────
 const DNA_FIELDS = [
@@ -254,9 +255,30 @@ export default function ProfilePage() {
     }
   }
 
+  // The hero (profile_photo) and grid (photos) are stored as separate fields,
+  // but the UI treats them as one ordered list — position 0 is always
+  // whichever photo is currently profile_photo. Reordering/removing operates
+  // on this combined view, then splits back into the two fields on save, so
+  // dragging a photo into slot 0 actually makes it the main photo everywhere
+  // else in the app (PublicProfileModal etc. already read profile_photo as
+  // the first photo — this just lets editing agree with viewing).
+  const orderedPhotos = (() => {
+    if (!profile) return [] as string[]
+    const base = profile.profile_photo?.split('?')[0]
+    return [
+      ...(profile.profile_photo ? [profile.profile_photo] : []),
+      ...(profile.photos ?? []).filter(p => p.split('?')[0] !== base),
+    ]
+  })()
+
+  const saveOrderedPhotos = (next: string[]) => {
+    const [main, ...rest] = next
+    return save({ profile_photo: main ?? null, photos: rest })
+  }
+
   const handleGridPhotosUpload = async (files: File[]) => {
     if (!profile || files.length === 0) return
-    const remaining = 10 - (profile.photos?.length ?? 0)
+    const remaining = 10 - orderedPhotos.length
     const toUpload = files.slice(0, Math.max(0, remaining))
     if (toUpload.length === 0) return
     setUploadingGrid(true)
@@ -272,7 +294,7 @@ export default function ProfilePage() {
         if (uploadError) throw uploadError
         urls.push(supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl)
       }
-      if (urls.length) await save({ photos: [...(profile.photos ?? []), ...urls] })
+      if (urls.length) await saveOrderedPhotos([...orderedPhotos, ...urls])
     } catch (e: any) {
       setPhotoError(e?.message ?? 'Photo upload failed. Try again.')
     } finally {
@@ -282,13 +304,14 @@ export default function ProfilePage() {
 
   const reorderPhotos = (next: string[]) => {
     if (!profile) return
-    setProfile({ ...profile, photos: next }) // optimistic so the drag feels instant
-    save({ photos: next })
+    const [main, ...rest] = next
+    setProfile({ ...profile, profile_photo: main ?? null, photos: rest }) // optimistic so the drag feels instant
+    saveOrderedPhotos(next)
   }
 
   const removePhoto = (url: string) => {
     if (!profile) return
-    save({ photos: (profile.photos ?? []).filter(p => p !== url) })
+    saveOrderedPhotos(orderedPhotos.filter(p => p !== url))
   }
 
   // DNA per-field helpers
@@ -369,7 +392,7 @@ export default function ProfilePage() {
           {/* Hero photo */}
           <div className="relative w-full aspect-[3/2] rounded-3xl overflow-hidden bg-white/6">
             {profile?.profile_photo ? (
-              <img key={profile.profile_photo} src={profile.profile_photo} alt="" className="w-full h-full object-cover" />
+              <img key={profile.profile_photo} src={resizedImage(profile.profile_photo, 800, 80)} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-5xl">👤</div>
             )}
@@ -614,15 +637,21 @@ export default function ProfilePage() {
           {/* Photos grid */}
           <Section title="Photos">
             <p className="text-white/25 text-xs mb-2">Drag to reorder · your first photo is your main.</p>
-            <Reorder.Group as="div" axis="y" values={profile?.photos ?? []} onReorder={reorderPhotos} className="grid grid-cols-3 gap-1.5">
-              {(profile?.photos ?? []).map((url) => (
+            <Reorder.Group as="div" axis="y" values={orderedPhotos} onReorder={reorderPhotos} className="grid grid-cols-3 gap-1.5">
+              {orderedPhotos.map((url, i) => (
                 <Reorder.Item
                   as="div"
                   key={url}
                   value={url}
                   className="aspect-square rounded-2xl overflow-hidden relative cursor-grab active:cursor-grabbing"
                 >
-                  <img src={url} alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
+                  <img src={resizedImage(url, 400)} alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
+                  {i === 0 && (
+                    <div
+                      className="absolute top-1 left-1 z-10 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff' }}
+                    >Main</div>
+                  )}
                   <button
                     type="button"
                     onPointerDown={e => e.stopPropagation()}
@@ -632,7 +661,7 @@ export default function ProfilePage() {
                   >✕</button>
                 </Reorder.Item>
               ))}
-              {(profile?.photos?.length ?? 0) < 10 && (
+              {orderedPhotos.length < 10 && (
                 <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer active:border-white/30 transition-colors">
                   <input type="file" accept="image/*" multiple className="hidden"
                     onChange={e => { const fs = Array.from(e.target.files ?? []); e.currentTarget.value = ''; handleGridPhotosUpload(fs) }} />
