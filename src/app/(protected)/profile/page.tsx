@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Reorder } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getProfile, updateProfile, getMyTrips } from '@/lib/queries'
@@ -307,6 +306,17 @@ export default function ProfilePage() {
     const [main, ...rest] = next
     setProfile({ ...profile, profile_photo: main ?? null, photos: rest }) // optimistic so the drag feels instant
     saveOrderedPhotos(next)
+  }
+
+  // Explicit move buttons — a guaranteed-to-work fallback to drag-to-reorder,
+  // which depends on pointer-gesture detection that doesn't behave reliably
+  // on every device/browser combination.
+  const movePhoto = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= orderedPhotos.length) return
+    const next = [...orderedPhotos]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    reorderPhotos(next)
   }
 
   const removePhoto = (url: string) => {
@@ -636,16 +646,11 @@ export default function ProfilePage() {
 
           {/* Photos grid */}
           <Section title="Photos">
-            <p className="text-white/25 text-xs mb-2">Drag to reorder · your first photo is your main.</p>
-            <Reorder.Group as="div" axis="y" values={orderedPhotos} onReorder={reorderPhotos} className="grid grid-cols-3 gap-1.5">
+            <p className="text-white/25 text-xs mb-2">Use the arrows to reorder · your first photo is your main.</p>
+            <div className="grid grid-cols-3 gap-1.5">
               {orderedPhotos.map((url, i) => (
-                <Reorder.Item
-                  as="div"
-                  key={url}
-                  value={url}
-                  className="aspect-square rounded-2xl overflow-hidden relative cursor-grab active:cursor-grabbing"
-                >
-                  <img src={resizedImage(url, 400)} alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
+                <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
+                  <img src={resizedImage(url, 400)} alt="" className="w-full h-full object-cover" />
                   {i === 0 && (
                     <div
                       className="absolute top-1 left-1 z-10 px-2 py-0.5 rounded-full text-[10px] font-semibold"
@@ -654,12 +659,27 @@ export default function ProfilePage() {
                   )}
                   <button
                     type="button"
-                    onPointerDown={e => e.stopPropagation()}
                     onClick={() => removePhoto(url)}
                     className="absolute top-1 right-1 z-10 w-8 h-8 rounded-full flex items-center justify-center"
                     style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 13, lineHeight: 1 }}
                   >✕</button>
-                </Reorder.Item>
+                  <div className="absolute bottom-1 left-1 right-1 z-10 flex items-center justify-between gap-1">
+                    <button
+                      type="button"
+                      onClick={() => movePhoto(i, -1)}
+                      disabled={i === 0}
+                      className="w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-30"
+                      style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 15, lineHeight: 1 }}
+                    >‹</button>
+                    <button
+                      type="button"
+                      onClick={() => movePhoto(i, 1)}
+                      disabled={i === orderedPhotos.length - 1}
+                      className="w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-30"
+                      style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 15, lineHeight: 1 }}
+                    >›</button>
+                  </div>
+                </div>
               ))}
               {orderedPhotos.length < 10 && (
                 <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer active:border-white/30 transition-colors">
@@ -675,7 +695,7 @@ export default function ProfilePage() {
                   )}
                 </label>
               )}
-            </Reorder.Group>
+            </div>
           </Section>
 
           {/* Languages */}
