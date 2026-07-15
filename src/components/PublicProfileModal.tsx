@@ -88,6 +88,16 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
     setIndex(next)
   }
 
+  // Same preload-adjacent-photos fix as the hero swipe above.
+  useEffect(() => {
+    if (photos.length < 2) return
+    ;[index - 1, index + 1].forEach(i => {
+      if (i < 0 || i >= photos.length) return
+      const img = new window.Image()
+      img.src = resizedImage(photos[i], 1200, 80)
+    })
+  }, [index, photos])
+
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
       if (index < photos.length - 1) navigate(index + 1, 1)
@@ -128,7 +138,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.15}
         onDragEnd={handleDragEnd}
-        style={{ touchAction: 'pan-y' } as React.CSSProperties}
+        style={{ touchAction: 'none' } as React.CSSProperties}
       >
         <AnimatePresence initial={false} custom={direction} mode="popLayout">
           <motion.div
@@ -260,6 +270,18 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   // `!mounted` early return below so hook order stays stable across renders.
   useSwipeDownDismiss(heroRef, onClose, !lightboxOpen && !showBlockReport && !selectedTrip)
 
+  // Preload the neighboring photos so swiping to them is instant instead of
+  // waiting on a fresh network fetch mid-gesture — this was the actual cause
+  // of "photos take so long to load" while sliding.
+  useEffect(() => {
+    if (allPhotos.length < 2) return
+    ;[photoIndex - 1, photoIndex + 1].forEach(i => {
+      if (i < 0 || i >= allPhotos.length) return
+      const img = new window.Image()
+      img.src = resizedImage(allPhotos[i], 800, 75)
+    })
+  }, [photoIndex, allPhotos])
+
   if (!mounted) return null
 
   const navigatePhoto = (next: number, dir: number) => {
@@ -368,7 +390,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                       const dy = Math.abs(e.clientY - heroPtrRef.current.y)
                       if (dx < 6 && dy < 6 && !isLocked) setLightboxOpen(true)
                     }}
-                    style={{ touchAction: 'pan-y', cursor: 'pointer' } as React.CSSProperties}
+                    style={{ touchAction: 'none', cursor: 'pointer' } as React.CSSProperties}
                   />
                 )}
 
