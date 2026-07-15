@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
+import { MessageInfoSheet, type MessageReceipt } from '@/components/MessageInfoSheet'
 import { ReportMessageSheet } from '@/components/ReportMessageSheet'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { BlockReportSheet } from '@/components/BlockReportSheet'
@@ -123,6 +124,7 @@ export default function DMPage() {
 
   // Action sheet
   const [actionMsg, setActionMsg] = useState<DMMessage | null>(null)
+  const [infoMsg, setInfoMsg] = useState<DMMessage | null>(null)
   const [reportMsg, setReportMsg] = useState<DMMessage | null>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdFired = useRef(false)
@@ -238,8 +240,22 @@ export default function DMPage() {
   })
 
   // ── Scroll to bottom ──────────────────────────────────────────────────────
+  // Same fix as the group chat page: the first scroll on opening a
+  // conversation must be instant (plus a delayed re-snap to catch images
+  // loading late), or a long history can animate-scroll to a position short
+  // of the true bottom. Later updates keep the keyboard-aware smooth/instant
+  // behavior.
+  const initialScrollDoneRef = useRef(false)
+  useEffect(() => { initialScrollDoneRef.current = false }, [conversationId])
   useEffect(() => {
-    if (!searchOpen) bottomRef.current?.scrollIntoView({
+    if (searchOpen || messages.length === 0) return
+    if (!initialScrollDoneRef.current) {
+      initialScrollDoneRef.current = true
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior })
+      const t = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior }), 300)
+      return () => clearTimeout(t)
+    }
+    bottomRef.current?.scrollIntoView({
       behavior: keyboardOpenRef.current ? 'instant' : 'smooth',
     } as ScrollIntoViewOptions)
   }, [messages, searchOpen])
@@ -437,12 +453,23 @@ export default function DMPage() {
   const lastMyMsg = myMessages[myMessages.length - 1]
   const lastMyMsgIsRead = !!(lastMyMsg && otherLastRead && otherLastRead >= lastMyMsg.created_at)
 
+  // Only one other person in a DM, so the "Info" sheet just reports their
+  // single read state relative to the selected message.
+  const infoReceipts: MessageReceipt[] = infoMsg && otherUser
+    ? [{
+        id: otherUser.id,
+        name: otherUser.name,
+        photo: otherUser.profile_photo,
+        seenAt: otherLastRead && otherLastRead >= infoMsg.created_at ? otherLastRead : null,
+      }]
+    : []
+
   // ── Swipe-back ────────────────────────────────────────────────────────────
   // Disabled while any sheet/overlay is on top so the gesture doesn't
   // navigate the whole screen away underneath it.
   useSwipeBack(
     () => router.back(),
-    !searchOpen && !actionMsg && !reportMsg && !showUserInfo && !showBlockReport && !viewingImage
+    !searchOpen && !actionMsg && !infoMsg && !reportMsg && !showUserInfo && !showBlockReport && !viewingImage
   )
 
   return (
@@ -861,6 +888,21 @@ export default function DMPage() {
               setActionMsg(null)
               if (actionMsg.sender_id !== userId) setReportMsg(actionMsg)
             }}
+            onInfo={() => { setInfoMsg(actionMsg); setActionMsg(null) }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Message info (read receipt) */}
+      <AnimatePresence>
+        {infoMsg && (
+          <MessageInfoSheet
+            key="info"
+            content={infoMsg.content}
+            isImage={infoMsg.type === 'image'}
+            sentAt={infoMsg.created_at}
+            receipts={infoReceipts}
+            onClose={() => setInfoMsg(null)}
           />
         )}
       </AnimatePresence>

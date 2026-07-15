@@ -9,6 +9,7 @@ import { NavBar } from '@/components/NavBar'
 import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
 import { HangGroupInfoSheet } from '@/components/HangGroupInfoSheet'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
+import { MessageInfoSheet, type MessageReceipt } from '@/components/MessageInfoSheet'
 import { ReportMessageSheet } from '@/components/ReportMessageSheet'
 import { JoinCelebration } from '@/components/JoinCelebration'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
@@ -144,6 +145,7 @@ export default function ChatPage() {
 
   // Long-press / action sheet
   const [actionMsg, setActionMsg] = useState<TripMessage | null>(null)
+  const [infoMsg, setInfoMsg] = useState<TripMessage | null>(null)
   const [reportMsg, setReportMsg] = useState<TripMessage | null>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdFired = useRef(false)
@@ -280,8 +282,23 @@ export default function ChatPage() {
   })
 
   // ── Scroll to bottom on new messages ─────────────────────────────────────
+  // The very first scroll (on opening the chat) must be instant, not smooth —
+  // an animated scroll from the top over a long history, combined with
+  // images still loading and pushing the content taller mid-animation, was
+  // landing partway up instead of at the bottom. A second instant snap
+  // shortly after catches any late image-driven layout shift. Only later
+  // updates (new incoming messages) get the smooth animation.
+  const initialScrollDoneRef = useRef(false)
+  useEffect(() => { initialScrollDoneRef.current = false }, [chatId])
   useEffect(() => {
-    if (!searchOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (searchOpen || messages.length === 0) return
+    if (!initialScrollDoneRef.current) {
+      initialScrollDoneRef.current = true
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior })
+      const t = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior }), 300)
+      return () => clearTimeout(t)
+    }
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, searchOpen])
 
   // ── Realtime channel ──────────────────────────────────────────────────────
@@ -493,6 +510,17 @@ export default function ChatPage() {
   const allMessages = [...olderMessages, ...messages]
   const otherReadPositions = readPositions.filter(r => r.user_id !== userId)
 
+  // Full per-member breakdown for the "Info" sheet — everyone else in the
+  // chat, split into read (with when) vs delivered-but-not-read-yet.
+  const infoReceipts: MessageReceipt[] = infoMsg
+    ? otherReadPositions.map(r => ({
+        id: r.user_id,
+        name: r.user?.name ?? 'Someone',
+        photo: r.user?.profile_photo ?? null,
+        seenAt: r.last_read_at && new Date(r.last_read_at) >= new Date(infoMsg.created_at) ? r.last_read_at : null,
+      }))
+    : []
+
   // For each message I sent, find who has seen it
   const getSeenBy = (msg: TripMessage) => {
     if (msg.sender_id !== userId) return []
@@ -600,7 +628,7 @@ export default function ChatPage() {
   // navigate the whole screen away underneath it.
   useSwipeBack(
     () => router.back(),
-    !searchOpen && !showGroupInfo && !actionMsg && !reportMsg && !viewingImage && !showCelebration && !profileUserId
+    !searchOpen && !showGroupInfo && !actionMsg && !infoMsg && !reportMsg && !viewingImage && !showCelebration && !profileUserId
   )
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1134,6 +1162,21 @@ export default function ChatPage() {
             onCopy={() => handleCopy(actionMsg)}
             onDelete={() => handleDelete(actionMsg)}
             onReport={() => { setActionMsg(null); handleReport(actionMsg) }}
+            onInfo={() => { setInfoMsg(actionMsg); setActionMsg(null) }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Message info (read receipts) */}
+      <AnimatePresence>
+        {infoMsg && (
+          <MessageInfoSheet
+            key="info"
+            content={infoMsg.content}
+            isImage={infoMsg.type === 'image'}
+            sentAt={infoMsg.created_at}
+            receipts={infoReceipts}
+            onClose={() => setInfoMsg(null)}
           />
         )}
       </AnimatePresence>

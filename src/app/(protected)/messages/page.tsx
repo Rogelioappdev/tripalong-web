@@ -418,16 +418,21 @@ export default function MessagesPage() {
                       <p className={`text-sm truncate ${hasUnread ? 'text-white font-semibold' : 'text-white/70 font-medium'}`}>
                         {displayName(other?.name)}
                       </p>
-                      {/* Presence line — always shown when available; falls back to last message */}
-                      {presenceText ? (
+                      {/* Last message + delivery status, matching group chat previews.
+                          Presence used to take priority here and hid the message/
+                          checkmark entirely for almost every contact (anyone with a
+                          last_seen_at at all), which was the bug. */}
+                      {dm.last_message ? (
+                        <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
+                          {iMySentLast && <CheckTick seen={dmSeen} />}
+                          <p className="text-xs truncate">
+                            {dm.last_message.startsWith('https://') ? '📷 Photo' : dm.last_message}
+                          </p>
+                        </div>
+                      ) : presenceText ? (
                         <p className="text-xs mt-0.5 truncate" style={{ color: isOnline ? '#30D158' : 'rgba(255,255,255,0.28)' }}>
                           {presenceText}
                         </p>
-                      ) : dm.last_message ? (
-                        <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
-                          {iMySentLast && <CheckTick seen={dmSeen} />}
-                          <p className="text-xs truncate">{dm.last_message}</p>
-                        </div>
                       ) : null}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
