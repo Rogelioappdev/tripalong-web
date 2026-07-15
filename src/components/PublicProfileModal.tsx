@@ -12,6 +12,7 @@ import { TripDetailModal } from './TripDetailModal'
 import { haptic } from '@/lib/haptics'
 import { hasPlus } from '@/lib/trial'
 import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
+import { resizedImage } from '@/lib/imageUrl'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
 interface PublicProfileModalProps {
@@ -140,7 +141,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
             transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.8 }}
           >
             <img
-              src={photos[index]}
+              src={resizedImage(photos[index], 1200, 80)}
               alt=""
               className="w-full h-full object-contain"
               draggable={false}
@@ -311,7 +312,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   {mainPhoto ? (
                     <motion.img
                       key={photoIndex}
-                      src={mainPhoto}
+                      src={resizedImage(mainPhoto, 800, 75)}
                       alt={profile.name}
                       className="absolute inset-0 w-full h-full object-cover"
                       custom={photoDirection}
@@ -582,7 +583,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                             className="relative rounded-2xl overflow-hidden shrink-0 flex items-end active:scale-[0.97] transition-transform"
                             style={{ width: 110, height: 150, backgroundColor: '#111' }}
                           >
-                            {t.cover_image && <img src={t.cover_image} alt={t.destination} className="absolute inset-0 w-full h-full object-cover" />}
+                            {t.cover_image && <img src={resizedImage(t.cover_image, 400, 70)} alt={t.destination} className="absolute inset-0 w-full h-full object-cover" />}
                             <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.85) 100%)' }} />
                             <p className="relative text-white font-bold text-xs p-2.5 leading-tight" style={{ letterSpacing: -0.2 }}>{t.destination}</p>
                           </button>

@@ -2,6 +2,7 @@
 
 import { forwardRef, useImperativeHandle, useRef } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation, type PanInfo } from 'framer-motion'
+import { resizedImage } from '@/lib/imageUrl'
 import type { TripWithDetails } from '@/lib/types'
 
 export interface SwipeCardHandle {
@@ -150,7 +151,7 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
       {/* Cover image */}
       <div className="absolute inset-0">
         {trip.cover_image ? (
-          <img src={trip.cover_image} alt={trip.destination} className="w-full h-full object-cover" draggable={false} />
+          <img src={resizedImage(trip.cover_image, 800, 75)} alt={trip.destination} className="w-full h-full object-cover" draggable={false} />
         ) : (
           <div className="w-full h-full bg-[#1a1a1a] flex items-center justify-center text-6xl">🌍</div>
         )}
@@ -243,7 +244,7 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
                 className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0 z-10"
               >
                 {trip.creator.profile_photo ? (
-                  <img src={trip.creator.profile_photo} alt="" className="w-full h-full object-cover" draggable={false} />
+                  <img src={resizedImage(trip.creator.profile_photo, 100)} alt="" className="w-full h-full object-cover" draggable={false} />
                 ) : (
                   <div className="w-full h-full bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">
                     {trip.creator.name?.[0]?.toUpperCase() ?? '?'}
@@ -254,7 +255,7 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
               {otherMembers.slice(0, 2).map((m, i) => (
                 <div key={m.user_id} className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0" style={{ zIndex: 9 - i }}>
                   {m.user?.profile_photo ? (
-                    <img src={m.user.profile_photo} alt="" className="w-full h-full object-cover" draggable={false} />
+                    <img src={resizedImage(m.user.profile_photo, 100)} alt="" className="w-full h-full object-cover" draggable={false} />
                   ) : (
                     <div className="w-full h-full bg-white/15 flex items-center justify-center text-[10px] font-bold text-white">
                       {m.user?.name?.[0]?.toUpperCase() ?? '?'}

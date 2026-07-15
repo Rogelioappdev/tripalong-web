@@ -1,5 +1,6 @@
 'use client'
 
+import { resizedImage } from '@/lib/imageUrl'
 import type { TripWithDetails } from '@/lib/types'
 
 interface TripCardProps {
@@ -36,7 +37,7 @@ export function TripCard({ trip, onClick }: TripCardProps) {
       <div className="aspect-[4/3] bg-white/6 overflow-hidden relative">
         {trip.cover_image ? (
           <img
-            src={trip.cover_image}
+            src={resizedImage(trip.cover_image, 400, 70)}
             alt={trip.destination}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
@@ -78,7 +79,7 @@ export function TripCard({ trip, onClick }: TripCardProps) {
         <div className="flex items-center gap-2">
           {trip.creator.profile_photo ? (
             <img
-              src={trip.creator.profile_photo}
+              src={resizedImage(trip.creator.profile_photo, 100)}
               alt={trip.creator.name}
               className="w-5 h-5 rounded-full object-cover"
             />

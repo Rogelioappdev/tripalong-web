@@ -16,6 +16,7 @@ import { haptic } from '@/lib/haptics'
 import { displayName } from '@/lib/displayName'
 import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 import { isNativeApp } from '@/lib/native-app'
+import { resizedImage } from '@/lib/imageUrl'
 
 function CheckTick({ seen }: { seen: boolean }) {
   const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.55)'
@@ -312,7 +313,7 @@ export default function MessagesPage() {
                   >
                     <div className="w-12 h-12 rounded-2xl bg-white/8 overflow-hidden shrink-0">
                       {avatarPhoto ? (
-                        <img src={avatarPhoto} alt="" className="w-full h-full object-cover" />
+                        <img src={resizedImage(avatarPhoto, 100)} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xl">{avatarFallback}</div>
                       )}
@@ -394,7 +395,7 @@ export default function MessagesPage() {
                     <div className="relative shrink-0">
                       <div className="w-12 h-12 rounded-full bg-white/8 overflow-hidden">
                         {other?.profile_photo ? (
-                          <img src={other.profile_photo} alt="" className="w-full h-full object-cover" />
+                          <img src={resizedImage(other.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/50">
                             {displayName(other?.name)[0].toUpperCase()}

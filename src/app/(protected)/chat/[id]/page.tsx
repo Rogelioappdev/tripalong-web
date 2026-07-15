@@ -37,6 +37,7 @@ import {
 } from '@/lib/queries'
 import type { TripMessage, TripWithDetails, HangalongWithDetails } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
+import { resizedImage } from '@/lib/imageUrl'
 
 const HANG_ACTIVITY_EMOJI: Record<string, string> = {
   hike: '🥾', road_trip: '🚗', beach: '🏖️', climbing: '🧗',
@@ -641,7 +642,7 @@ export default function ChatPage() {
               <button type="button" onClick={() => setShowGroupInfo(true)} className="flex-1 flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-white/10 overflow-hidden shrink-0">
                   {tripInfo.cover_image
-                    ? <img src={tripInfo.cover_image} alt="" className="w-full h-full object-cover" />
+                    ? <img src={resizedImage(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center text-sm">🌍</div>}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
@@ -675,7 +676,7 @@ export default function ChatPage() {
                   style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
                 >
                   {hangInfo.photo_url
-                    ? <img src={hangInfo.photo_url} alt="" className="w-full h-full object-cover" />
+                    ? <img src={resizedImage(hangInfo.photo_url, 100)} alt="" className="w-full h-full object-cover" />
                     : <span style={{ fontSize: 18 }}>{HANG_ACTIVITY_EMOJI[hangInfo.activity_type] ?? '✨'}</span>}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
@@ -747,7 +748,7 @@ export default function ChatPage() {
                   style={{ height: 110 }}
                 >
                   {tripInfo.cover_image
-                    ? <img src={tripInfo.cover_image} alt="" className="w-full h-full object-cover" />
+                    ? <img src={resizedImage(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center text-4xl" style={{ backgroundColor: '#111' }}>🌍</div>}
                   <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.88) 100%)' }} />
                   <div className="absolute bottom-0 left-0 px-4 pb-3">
@@ -846,7 +847,7 @@ export default function ChatPage() {
                       className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs active:opacity-70 transition-opacity"
                     >
                       {senderPhoto
-                        ? <img src={senderPhoto} alt="" className="w-full h-full object-cover" />
+                        ? <img src={resizedImage(senderPhoto, 100)} alt="" className="w-full h-full object-cover" />
                         : senderName[0].toUpperCase()}
                     </button>
                   )}
@@ -935,7 +936,7 @@ export default function ChatPage() {
                           {seenBy.slice(0, 3).map(r => (
                             <div key={r.user_id} className="w-4 h-4 rounded-full bg-white/20 overflow-hidden">
                               {r.user?.profile_photo
-                                ? <img src={r.user.profile_photo} alt="" className="w-full h-full object-cover" />
+                                ? <img src={resizedImage(r.user.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
                                 : <div className="w-full h-full flex items-center justify-center" style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)' }}>
                                     {r.user?.name?.[0]?.toUpperCase()}
                                   </div>}

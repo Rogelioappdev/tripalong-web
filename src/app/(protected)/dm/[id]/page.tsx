@@ -31,6 +31,7 @@ import { displayName } from '@/lib/displayName'
 import { useSwipeBack } from '@/lib/useSwipeBack'
 import type { DMMessage, TripMessage } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
+import { resizedImage } from '@/lib/imageUrl'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function highlightText(text: string, query: string) {
@@ -488,7 +489,7 @@ export default function DMPage() {
                 <div className="relative shrink-0">
                   <div className="w-9 h-9 rounded-full bg-white/10 overflow-hidden">
                     {otherUser.profile_photo
-                      ? <img src={otherUser.profile_photo} alt="" className="w-full h-full object-cover" />
+                      ? <img src={resizedImage(otherUser.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
                       : <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white/50">{otherUser.name?.[0]?.toUpperCase()}</div>
                     }
                   </div>
@@ -614,7 +615,7 @@ export default function DMPage() {
                     {!isMe && (
                       <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden flex items-center justify-center text-xs shrink-0">
                         {msg.sender?.profile_photo
-                          ? <img src={msg.sender.profile_photo} alt="" className="w-full h-full object-cover" />
+                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
                           : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                     )}
@@ -663,7 +664,7 @@ export default function DMPage() {
                     <div className="relative shrink-0">
                       <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden flex items-center justify-center text-xs">
                         {msg.sender?.profile_photo
-                          ? <img src={msg.sender.profile_photo} alt="" className="w-full h-full object-cover" />
+                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
                           : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                       {isOtherOnline && (

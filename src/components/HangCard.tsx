@@ -3,6 +3,7 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation, type PanInfo, type TapInfo } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
+import { resizedImage } from '@/lib/imageUrl'
 import type { HangalongWithDetails, ActivityType, WhenLabel } from '@/lib/types'
 
 export interface HangCardHandle {
@@ -137,7 +138,7 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
         {/* Photo if provided */}
         {hang.photo_url && (
           <>
-            <img src={hang.photo_url} alt={hang.title} className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+            <img src={resizedImage(hang.photo_url, 800, 75)} alt={hang.title} className="absolute inset-0 w-full h-full object-cover" draggable={false} />
             <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 35%, rgba(0,0,0,0.75) 65%, rgba(0,0,0,0.97) 100%)' }} />
           </>
         )}
@@ -208,7 +209,7 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
             <div className="flex items-center gap-2">
               {/* Creator avatar — display only, tap to profile available inside detail modal */}
               {hang.creator?.profile_photo ? (
-                <img src={hang.creator.profile_photo} alt={hang.creator.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/20 shrink-0" />
+                <img src={resizedImage(hang.creator.profile_photo, 100)} alt={hang.creator.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/20 shrink-0" />
               ) : (
                 <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center text-xs font-bold text-white shrink-0">
                   {hang.creator?.name?.[0]?.toUpperCase() ?? '?'}
@@ -219,7 +220,7 @@ export const HangCard = forwardRef<HangCardHandle, HangCardProps>(function HangC
                 m.user?.profile_photo ? (
                   <img
                     key={m.user_id}
-                    src={m.user.profile_photo}
+                    src={resizedImage(m.user.profile_photo, 100)}
                     alt={m.user.name}
                     className="w-6 h-6 rounded-full object-cover ring-1 ring-white/20"
                     style={{ marginLeft: -8, zIndex: i }}
