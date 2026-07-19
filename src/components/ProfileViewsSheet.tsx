@@ -78,6 +78,32 @@ function useCountUp(target: number, duration = 900) {
   return count
 }
 
+// ── Loading skeleton ─────────────────────────────────────────────────────────
+function Bone({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={`bg-white/8 rounded-2xl animate-pulse ${className}`} style={style} />
+}
+
+function ProfileViewsSkeleton() {
+  return (
+    <>
+      <div className="flex flex-col items-center px-5 pt-6 pb-5 gap-3">
+        <Bone style={{ width: 120, height: 54, borderRadius: 16 }} />
+        <Bone style={{ width: 190, height: 14 }} />
+      </div>
+      <div className="mt-4" style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.07)' }} />
+      <div className="grid grid-cols-3 gap-x-3 gap-y-7 px-5 pt-7 pb-10">
+        {[...Array(9)].map((_, i) => (
+          <div key={i} className="flex flex-col items-center gap-2">
+            <Bone className="rounded-full" style={{ width: 80, height: 80 }} />
+            <Bone style={{ width: 56, height: 10 }} />
+            <Bone style={{ width: 34, height: 8 }} />
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
 // ── Paywall ─────────────────────────────────────────────────────────────────
 function Paywall({ count, viewers, onClose, onSuccess, userId, onWelcomeDone }: { count: number; viewers: Viewer[]; onClose: () => void; onSuccess?: () => void; userId?: string; onWelcomeDone?: (isPlus: boolean) => void }) {
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual')
@@ -469,8 +495,11 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
 
   const handleViewerTap = (viewer: Viewer) => {
     haptic(8)
-    // Plus users open unlocked; everyone else opens the blurred/locked profile.
-    setSelectedViewer({ id: viewer.id, locked: !isPlus && !revealedIds.has(viewer.id) })
+    // Free users never get a profile modal (locked or otherwise) from this
+    // list — tapping a blurred face goes straight to the conversion paywall.
+    // Only Plus users open the real, unlocked profile.
+    if (!isPlus) { setShowPaywall(true); return }
+    setSelectedViewer({ id: viewer.id, locked: false })
   }
 
   const handleRevealRequest = (): boolean => {
@@ -516,9 +545,7 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
         {/* Body */}
         <div className="flex-1 min-h-0 overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-            </div>
+            <ProfileViewsSkeleton />
           ) : viewerCount === 0 ? (
             <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-4">
               <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
