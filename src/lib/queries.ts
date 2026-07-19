@@ -111,8 +111,8 @@ export async function getTrips(): Promise<TripWithDetails[]> {
       if (userId && trip.members?.some((m: any) => m.user_id === userId)) return false
       // Gender-restricted trips must never surface to an ineligible viewer
       if (!isTripGenderEligible(trip, profile)) return false
-      // Full trips (capacity already reached) shouldn't be recommended
-      if (joinedMemberCount(trip) >= trip.max_group_size) return false
+      // Full trips still surface and stay joinable — max_group_size is a soft
+      // target, not a hard cap. feedScoring only ranks them slightly lower.
       return true
     })
     .map((trip: any) => ({
@@ -122,6 +122,71 @@ export async function getTrips(): Promise<TripWithDetails[]> {
     })) as TripWithDetails[]
 
   return sortTrips(trips, profile)
+}
+
+// Trips for the TripAlong World globe (/world). Unlike the swipe feed this is
+// "browse everything": it does NOT hide already-seen or already-joined trips,
+// so the whole world of active trips stays visible. It still respects blocking
+// and gender eligibility. Full trips DO show (joinable — soft capacity). Only
+// trips with coordinates appear.
+export async function getTripsForMap(): Promise<TripWithDetails[]> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+
+  const [tripsResult, savesResult, blockedIds, profile] = await Promise.all([
+    supabase
+      .from('trips')
+      .select(`
+        *,
+        creator:users!creator_id(id, name, profile_photo),
+        members:trip_members(
+          user_id,
+          status,
+          user:users(id, name, profile_photo, travel_styles, travel_pace, social_energy, planning_style, experience_level)
+        )
+      `)
+      .eq('status', 'planning')
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1000),
+
+    (async () => { try { return await supabase.from('saved_trips').select('trip_id').limit(500) } catch { return { data: [] } } })(),
+
+    userId ? getBlockedUserIds() : Promise.resolve([]),
+
+    userId
+      ? supabase.from('users').select('age, country, gender, travel_styles, travel_with').eq('id', userId).maybeSingle().then(r => r.data as UserProfile | null)
+      : Promise.resolve(null),
+  ])
+
+  if (tripsResult.error) {
+    console.error('getTripsForMap error:', tripsResult.error)
+    throw tripsResult.error
+  }
+
+  const blockedSet = new Set(blockedIds)
+  const saveCounts: Record<string, number> = {}
+  ;(savesResult.data ?? []).forEach((s: any) => { saveCounts[s.trip_id] = (saveCounts[s.trip_id] ?? 0) + 1 })
+
+  const joinedMemberCount = (trip: any) => {
+    const inCount = (trip.members ?? []).filter((m: any) => m.status === 'in').length
+    const creatorCounted = (trip.members ?? []).some((m: any) => m.user_id === trip.creator_id && m.status === 'in')
+    return inCount + (creatorCounted ? 0 : 1)
+  }
+
+  return (tripsResult.data ?? [])
+    .filter((trip: any) => {
+      if (blockedSet.has(trip.creator_id)) return false
+      if (!isTripGenderEligible(trip, profile)) return false
+      // Full trips still show and stay joinable (soft capacity).
+      return true
+    })
+    .map((trip: any) => ({
+      ...trip,
+      member_count: joinedMemberCount(trip),
+      save_count: saveCounts[trip.id] ?? 0,
+    })) as TripWithDetails[]
 }
 
 export async function getTrip(tripId: string): Promise<TripWithDetails | null> {
@@ -279,15 +344,17 @@ export async function toggleReaction(messageId: string, emoji: string): Promise<
 }
 
 export async function getChatMemberReadPositions(chatId: string): Promise<ChatMemberReadPosition[]> {
-  const { data, error } = await supabase
-    .from('trip_chat_members')
-    .select('user_id, last_read_at, user:users(name, profile_photo)')
-    .eq('trip_chat_id', chatId)
+  // Goes through a SECURITY DEFINER RPC (get_trip_chat_read_positions) rather
+  // than a direct table select: RLS on trip_chat_members only exposes the
+  // caller's own row, so a REST select returns no co-members and the "who
+  // viewed" receipts come back empty. The RPC checks membership then returns
+  // every member's last_read_at. See 20260718_chat_read_positions_and_receipts.sql.
+  const { data, error } = await supabase.rpc('get_trip_chat_read_positions', { p_chat_id: chatId })
   if (error) return []
   return (data ?? []).map((row: any) => ({
     user_id: row.user_id,
     last_read_at: row.last_read_at,
-    user: row.user,
+    user: { name: row.name, profile_photo: row.profile_photo },
   })) as ChatMemberReadPosition[]
 }
 
@@ -326,6 +393,27 @@ export async function updateProfile(userId: string, updates: Partial<UserProfile
   if (error) throw error
 }
 
+// Resolve a destination name → { lat, lng } via the keyless /api/geocode proxy.
+// Best-effort: returns null on any failure so trip creation is never blocked.
+export async function geocodeDestination(
+  destination: string,
+  country?: string,
+): Promise<{ lat: number; lng: number } | null> {
+  const q = destination.trim()
+  if (!q) return null
+  try {
+    const params = new URLSearchParams({ q })
+    if (country?.trim()) params.set('country', country.trim())
+    const res = await fetch(`/api/geocode?${params.toString()}`)
+    if (!res.ok) return null
+    const { result } = await res.json()
+    if (!result || typeof result.lat !== 'number' || typeof result.lng !== 'number') return null
+    return { lat: result.lat, lng: result.lng }
+  } catch {
+    return null
+  }
+}
+
 export async function createTrip(data: {
   creator_id: string
   destination: string
@@ -345,6 +433,8 @@ export async function createTrip(data: {
   age_min: number | null
   age_max: number | null
   status: 'planning'
+  latitude?: number | null
+  longitude?: number | null
 }): Promise<string> {
   const { data: inserted, error } = await supabase.from('trips').insert(data).select('id').single()
   if (error) throw error
@@ -435,6 +525,30 @@ export async function setTripChatMuted(chatId: string, muted: boolean) {
     .eq('user_id', uid)
 }
 
+// DM mute — mirrors trip-chat mute but on conversation_members. Muting only
+// silences push (the DM push RPCs filter is_muted); messages still arrive.
+export async function getDMMuted(conversationId: string): Promise<boolean> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return false
+  const { data } = await supabase
+    .from('conversation_members')
+    .select('is_muted')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', uid)
+    .single()
+  return (data as any)?.is_muted ?? false
+}
+
+export async function setDMMuted(conversationId: string, muted: boolean) {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  await supabase
+    .from('conversation_members')
+    .update({ is_muted: muted })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', uid)
+}
+
 export async function markTripChatRead(chatId: string) {
   await supabase
     .from('trip_chat_members')
@@ -464,24 +578,53 @@ export async function getDMConversations(_userId: string) {
   ])
   if (dmsResult.error) return []
   const blockedSet = new Set(blockedIds)
-  return (dmsResult.data ?? [])
-    .filter((row: any) => !blockedSet.has(row.other_user_id))
-    .map((row: any) => ({
-      id: row.id,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      last_message: row.last_message ?? null,
-      last_message_at: row.last_message_at ?? null,
-      last_message_sender_id: row.last_message_sender_id ?? null,
-      other_last_read_at: row.other_last_read_at ?? null,
-      unread_count: Number(row.unread_count ?? 0),
-      is_pinned: row.is_pinned ?? false,
-      other_user: {
-        id: row.other_user_id,
-        name: row.other_user_name,
-        profile_photo: row.other_user_photo,
-      },
-    }))
+  const rows = (dmsResult.data ?? []).filter((row: any) => !blockedSet.has(row.other_user_id))
+
+  // get_my_dms is a hand-made RPC (not in this repo) and predates is_muted, so
+  // it isn't guaranteed to return it. Fetch mute state directly from
+  // conversation_members instead of relying on the RPC to expose it.
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  const mutedMap: Record<string, boolean> = {}
+  if (uid && rows.length) {
+    const { data: cm } = await supabase
+      .from('conversation_members')
+      .select('conversation_id, is_muted')
+      .eq('user_id', uid)
+      .in('conversation_id', rows.map((r: any) => r.id))
+    ;(cm ?? []).forEach((r: any) => { mutedMap[r.conversation_id] = !!r.is_muted })
+  }
+
+  return rows.map((row: any) => ({
+    id: row.id,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    last_message: row.last_message ?? null,
+    last_message_at: row.last_message_at ?? null,
+    last_message_sender_id: row.last_message_sender_id ?? null,
+    other_last_read_at: row.other_last_read_at ?? null,
+    unread_count: Number(row.unread_count ?? 0),
+    is_pinned: row.is_pinned ?? false,
+    is_muted: mutedMap[row.id] ?? false,
+    other_user: {
+      id: row.other_user_id,
+      name: row.other_user_name,
+      profile_photo: row.other_user_photo,
+    },
+  }))
+}
+
+// Removes the DM from the current user's own list only — deletes their
+// conversation_members row (ON DELETE CASCADE, no effect on the conversation,
+// messages, or the other participant's membership row).
+export async function deleteDMConversation(conversationId: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  const { error } = await supabase
+    .from('conversation_members')
+    .delete()
+    .eq('conversation_id', conversationId)
+    .eq('user_id', uid)
+  if (error) throw error
 }
 
 export async function getOrCreateDM(otherUserId: string): Promise<string> {
@@ -493,7 +636,6 @@ export async function getOrCreateDM(otherUserId: string): Promise<string> {
 const DM_MSG_SELECT = `
   *,
   sender:users(id, name, profile_photo),
-  reactions:message_reactions(id, user_id, emoji),
   reply_to:messages!reply_to_id(id, content, sender:users(name))
 `
 
@@ -869,6 +1011,13 @@ export async function recordProfileView(viewedUserId: string): Promise<void> {
   )
 }
 
+export async function getMyViewerCount(): Promise<number> {
+  // Real COUNT(*) — unlike getProfileViewers, never capped at a page-size limit.
+  const { data, error } = await supabase.rpc('get_my_viewer_count')
+  if (error) return 0
+  return data ?? 0
+}
+
 export async function getProfileViewers(limit = 50): Promise<{ id: string; name: string; profile_photo: string | null; travel_styles: string[]; country: string | null; viewed_at: string }[]> {
   // Uses server-side RPC that checks Plus status in the DB — cannot be bypassed client-side
   const { data, error } = await supabase.rpc('get_my_viewers', { p_limit: limit })
@@ -881,6 +1030,24 @@ export async function getProfileViewers(limit = 50): Promise<{ id: string; name:
     country: row.country ?? null,
     viewed_at: row.viewed_at,
   }))
+}
+
+// Join counts for the TripAlong World daily join cap: how many trips the user
+// has joined total (lifetime, for the free-join grace) and today (for the cap).
+// Counts confirmed memberships only ('in'). Head-only count queries — cheap.
+export async function getJoinStats(): Promise<{ today: number; lifetime: number }> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const uid = session?.user?.id
+  if (!uid) return { today: 0, lifetime: 0 }
+  const dayStart = new Date()
+  dayStart.setHours(0, 0, 0, 0)
+  const [lifetimeRes, todayRes] = await Promise.all([
+    supabase.from('trip_members').select('id', { count: 'exact', head: true })
+      .eq('user_id', uid).eq('status', 'in'),
+    supabase.from('trip_members').select('id', { count: 'exact', head: true })
+      .eq('user_id', uid).eq('status', 'in').gte('joined_at', dayStart.toISOString()),
+  ])
+  return { lifetime: lifetimeRes.count ?? 0, today: todayRes.count ?? 0 }
 }
 
 // ── HangAlong ─────────────────────────────────────────────────────────────

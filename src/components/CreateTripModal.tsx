@@ -4,9 +4,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createTrip, getDestinationPhotos, getTripChat } from '@/lib/queries'
+import { createTrip, geocodeDestination, getDestinationPhotos, getTripChat } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
 import { track } from '@/lib/analytics'
+import { VIBES, SEASONS, GROUP_PREFS } from '@/lib/tripOptions'
+import { remindNotifications } from '@/lib/notifReminder'
 
 interface CreateTripModalProps {
   onClose: () => void
@@ -21,32 +23,10 @@ const QUICK_DESTINATIONS = [
   { city: 'Marrakech', country: 'Morocco' },
 ]
 
-const VIBES = [
-  { value: 'adventure', label: 'Adventure', emoji: '🏕️' },
-  { value: 'chill', label: 'Chill', emoji: '😊' },
-  { value: 'nature', label: 'Nature', emoji: '🌿' },
-  { value: 'cultural', label: 'Culture', emoji: '🏛️' },
-  { value: 'foodie', label: 'Food', emoji: '🍜' },
-  { value: 'party', label: 'Party', emoji: '🎉' },
-  { value: 'beach', label: 'Beach', emoji: '🏖️' },
-  { value: 'spiritual', label: 'Spiritual', emoji: '🙏' },
-  { value: 'road trip', label: 'Road Trip', emoji: '🚗' },
-  { value: 'backpacking', label: 'Backpacking', emoji: '🎒' },
-]
-
-const SEASONS = ['Summer 2026', 'Fall 2026', 'Winter 2026', 'Spring 2027']
-
 const PACES = [
   { value: 'slow', label: 'Relaxed', emoji: '☕' },
   { value: 'balanced', label: 'Balanced', emoji: '⚖️' },
   { value: 'fast', label: 'Fast-paced', emoji: '⚡' },
-]
-
-const GROUP_PREFS = [
-  { value: 'everyone', label: 'Any', emoji: '🌍' },
-  { value: 'female', label: 'Women only', emoji: '👩' },
-  { value: 'male', label: 'Men only', emoji: '👨' },
-  { value: 'mixed', label: 'Mixed', emoji: '🤝' },
 ]
 
 const BUDGETS = [
@@ -126,10 +106,15 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
     setError('')
     try {
       const dbGroupPref = groupPref === 'mixed' ? 'everyone' : groupPref
+      // Best-effort geocode so the trip shows up on the TripAlong World globe.
+      // Never blocks creation — a null result just means it isn't plotted yet.
+      const coords = await geocodeDestination(destination.trim(), country.trim())
       const tripId = await createTrip({
         creator_id: userId,
         destination: destination.trim(),
         country: country.trim(),
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lng ?? null,
         vibes,
         pace: pace as 'slow' | 'balanced' | 'fast',
         budget_level: budget || null,
@@ -147,6 +132,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
         cover_image: coverImage,
       })
       track('trip_created', { destination: destination.trim(), vibes_count: vibes.length })
+      remindNotifications('create-trip')
       queryClient.invalidateQueries({ queryKey: ['trips'] })
       haptic(18)
       setCreatedTripId(tripId)
@@ -264,10 +250,12 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
               </div>
             </motion.div>
 
-            {/* Destination — bottom, editorial large type */}
+            {/* Destination — bottom, editorial large type. Extra bottom padding
+                keeps "Your trip is live" clear of the "Tap anywhere to continue"
+                hint below (they used to overlap on the same line). */}
             <div style={{
               position: 'absolute', bottom: 0, left: 0, right: 0,
-              padding: '0 28px calc(env(safe-area-inset-bottom) + 36px)',
+              padding: '0 28px calc(env(safe-area-inset-bottom) + 84px)',
             }}>
               {/* Country */}
               <motion.p

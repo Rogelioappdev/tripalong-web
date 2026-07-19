@@ -22,8 +22,28 @@ export async function POST(req: NextRequest) {
     { global: { headers: { Authorization: `Bearer ${token}` } } },
   )
 
-  const title = type === 'join' ? 'New trip member' : (senderName ?? 'TripAlong')
-  const body = type === 'image' ? '📷 Photo' : (content ?? '')
+  let groupName: string | null = null
+  if (!isDM && type !== 'join') {
+    const { data: chat } = await supabase
+      .from('trip_chats')
+      .select('name, trips(destination), hangalongs(title)')
+      .eq('id', targetId)
+      .single()
+    groupName = (chat as any)?.trips?.destination ?? (chat as any)?.hangalongs?.title ?? chat?.name ?? null
+  }
+
+  // Group chat notifications must show which group they're from, and never
+  // leak the message body — full content requires opening the app.
+  const title = type === 'join'
+    ? 'New trip member'
+    : isDM
+      ? (senderName ?? 'TripAlong')
+      : `${groupName ?? 'Trip chat'} - ${senderName ?? 'Someone'}`
+  const body = type === 'join'
+    ? (content ?? '')
+    : isDM
+      ? (type === 'image' ? '📷 Photo' : (content ?? ''))
+      : (type === 'image' ? 'sent a photo 📷' : 'sent a message')
   const subsRpc = isDM ? 'get_dm_push_subscriptions' : 'get_chat_push_subscriptions'
   const tokensRpc = isDM ? 'get_dm_native_push_tokens' : 'get_chat_native_push_tokens'
   const rpcIdParam = isDM ? 'p_conversation_id' : 'p_chat_id'

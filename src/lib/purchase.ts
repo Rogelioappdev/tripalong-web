@@ -1,8 +1,27 @@
 import { startCheckout } from './subscription'
-import { track } from './analytics'
+import { track, type PaywallTrigger } from './analytics'
+import { supabase } from './supabase'
 import type { PlanKey } from './stripe'
 
 export type BillingInterval = 'monthly' | 'annual'
+
+// Persist which wall drove the sale, first-write-wins (never overwrite an
+// existing attribution). Used for the native rail, where the purchase completes
+// in-app so there's no Stripe webhook to carry the trigger. Analytics-only —
+// wrapped so it can never block or fail a real purchase.
+async function recordConversionTrigger(trigger?: PaywallTrigger): Promise<void> {
+  if (!trigger) return
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('users')
+      .update({ conversion_trigger: trigger })
+      .eq('id', user.id)
+      .is('conversion_trigger', null)
+  } catch {
+    // swallow — attribution must never surface to the buyer
+  }
+}
 
 interface NativePurchaseResult {
   success: boolean
@@ -13,7 +32,7 @@ interface NativePurchaseResult {
 // Native app (iOS/Android) must use in-app purchase per App Store Review
 // Guideline 3.1.1 — routes through RevenueCat via the WebView bridge instead
 // of Stripe. Web-only users keep the existing Stripe checkout.
-export async function purchasePlus(billing: BillingInterval): Promise<void> {
+export async function purchasePlus(billing: BillingInterval, trigger?: PaywallTrigger): Promise<void> {
   const bridge = typeof window !== 'undefined' && (window as any).ReactNativeWebView
   if (bridge) {
     track('checkout_started', { rail: 'native', billing })
@@ -25,12 +44,15 @@ export async function purchasePlus(billing: BillingInterval): Promise<void> {
       throw err
     }
     track('purchase_completed', { rail: 'native', billing })
+    // Native completes in-app (no Stripe webhook), so attribute it here.
+    await recordConversionTrigger(trigger)
     return
   }
   // Web (Stripe) rail — startCheckout fires 'checkout_started'; the purchase
-  // itself completes after the redirect back to /feed?upgrade=success.
+  // itself completes after the redirect back to /feed?upgrade=success, so the
+  // trigger is carried in the checkout metadata and persisted by the webhook.
   const planKey: PlanKey = billing === 'annual' ? 'plus_annual' : 'plus_monthly'
-  await startCheckout(planKey)
+  await startCheckout(planKey, trigger)
 }
 
 // 60s covers a slow App Store sheet (Face ID prompt, family-approval wait,

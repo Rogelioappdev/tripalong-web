@@ -49,7 +49,7 @@ export function PlusDetailsSheet({ profile, userId, onClose }: Props) {
         onClose()
         router.push('/feed')
       } else {
-        await startCheckout(billing === 'annual' ? 'plus_annual' : 'plus_monthly')
+        await startCheckout(billing === 'annual' ? 'plus_annual' : 'plus_monthly', 'upgrade')
       }
     } catch (err: any) {
       setError(err?.message ?? 'Something went wrong.')

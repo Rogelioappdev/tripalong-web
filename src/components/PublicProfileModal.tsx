@@ -12,6 +12,7 @@ import { TripDetailModal } from './TripDetailModal'
 import { haptic } from '@/lib/haptics'
 import { hasPlus } from '@/lib/trial'
 import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
+import { resizedImage } from '@/lib/imageUrl'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
 interface PublicProfileModalProps {
@@ -87,6 +88,16 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
     setIndex(next)
   }
 
+  // Same preload-adjacent-photos fix as the hero swipe above.
+  useEffect(() => {
+    if (photos.length < 2) return
+    ;[index - 1, index + 1].forEach(i => {
+      if (i < 0 || i >= photos.length) return
+      const img = new window.Image()
+      img.src = resizedImage(photos[i], 1200, 80)
+    })
+  }, [index, photos])
+
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
       if (index < photos.length - 1) navigate(index + 1, 1)
@@ -127,7 +138,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.15}
         onDragEnd={handleDragEnd}
-        style={{ touchAction: 'pan-y' } as React.CSSProperties}
+        style={{ touchAction: 'none' } as React.CSSProperties}
       >
         <AnimatePresence initial={false} custom={direction} mode="popLayout">
           <motion.div
@@ -140,7 +151,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
             transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.8 }}
           >
             <img
-              src={photos[index]}
+              src={resizedImage(photos[index], 1200, 80)}
               alt=""
               className="w-full h-full object-contain"
               draggable={false}
@@ -259,6 +270,18 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   // `!mounted` early return below so hook order stays stable across renders.
   useSwipeDownDismiss(heroRef, onClose, !lightboxOpen && !showBlockReport && !selectedTrip)
 
+  // Preload the neighboring photos so swiping to them is instant instead of
+  // waiting on a fresh network fetch mid-gesture — this was the actual cause
+  // of "photos take so long to load" while sliding.
+  useEffect(() => {
+    if (allPhotos.length < 2) return
+    ;[photoIndex - 1, photoIndex + 1].forEach(i => {
+      if (i < 0 || i >= allPhotos.length) return
+      const img = new window.Image()
+      img.src = resizedImage(allPhotos[i], 800, 75)
+    })
+  }, [photoIndex, allPhotos])
+
   if (!mounted) return null
 
   const navigatePhoto = (next: number, dir: number) => {
@@ -311,7 +334,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   {mainPhoto ? (
                     <motion.img
                       key={photoIndex}
-                      src={mainPhoto}
+                      src={resizedImage(mainPhoto, 800, 75)}
                       alt={profile.name}
                       className="absolute inset-0 w-full h-full object-cover"
                       custom={photoDirection}
@@ -367,7 +390,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                       const dy = Math.abs(e.clientY - heroPtrRef.current.y)
                       if (dx < 6 && dy < 6 && !isLocked) setLightboxOpen(true)
                     }}
-                    style={{ touchAction: 'pan-y', cursor: 'pointer' } as React.CSSProperties}
+                    style={{ touchAction: 'none', cursor: 'pointer' } as React.CSSProperties}
                   />
                 )}
 
@@ -582,7 +605,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                             className="relative rounded-2xl overflow-hidden shrink-0 flex items-end active:scale-[0.97] transition-transform"
                             style={{ width: 110, height: 150, backgroundColor: '#111' }}
                           >
-                            {t.cover_image && <img src={t.cover_image} alt={t.destination} className="absolute inset-0 w-full h-full object-cover" />}
+                            {t.cover_image && <img src={resizedImage(t.cover_image, 400, 70)} alt={t.destination} className="absolute inset-0 w-full h-full object-cover" />}
                             <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.85) 100%)' }} />
                             <p className="relative text-white font-bold text-xs p-2.5 leading-tight" style={{ letterSpacing: -0.2 }}>{t.destination}</p>
                           </button>

@@ -48,7 +48,7 @@ export function FoundingMemberPaywall({ onClose, allowDismiss = false, context }
     setLoading(true)
     setError(null)
     try {
-      await startCheckout(billing === 'annual' ? 'plus_annual' : 'plus_monthly')
+      await startCheckout(billing === 'annual' ? 'plus_annual' : 'plus_monthly', 'founding-member')
     } catch (err: any) {
       setLoading(false)
       setError(err?.message ?? 'Something went wrong. Try again.')

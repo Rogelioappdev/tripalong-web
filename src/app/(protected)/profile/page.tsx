@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Reorder } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import { getProfile, updateProfile, getMyTrips } from '@/lib/queries'
@@ -13,6 +12,7 @@ import { haptic } from '@/lib/haptics'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { CountryPicker } from '@/components/CountryPicker'
+import { resizedImage } from '@/lib/imageUrl'
 
 // ── DNA field definitions (single source of truth on this page) ───────────
 const DNA_FIELDS = [
@@ -178,6 +178,7 @@ export default function ProfilePage() {
     return () => clearTimeout(t)
   }, [photoError])
   const [showPreview, setShowPreview] = useState(false)
+  const [editingPhotos, setEditingPhotos] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [myTrips, setMyTrips] = useState<TripWithDetails[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
@@ -254,9 +255,30 @@ export default function ProfilePage() {
     }
   }
 
+  // The hero (profile_photo) and grid (photos) are stored as separate fields,
+  // but the UI treats them as one ordered list — position 0 is always
+  // whichever photo is currently profile_photo. Reordering/removing operates
+  // on this combined view, then splits back into the two fields on save, so
+  // dragging a photo into slot 0 actually makes it the main photo everywhere
+  // else in the app (PublicProfileModal etc. already read profile_photo as
+  // the first photo — this just lets editing agree with viewing).
+  const orderedPhotos = (() => {
+    if (!profile) return [] as string[]
+    const base = profile.profile_photo?.split('?')[0]
+    return [
+      ...(profile.profile_photo ? [profile.profile_photo] : []),
+      ...(profile.photos ?? []).filter(p => p.split('?')[0] !== base),
+    ]
+  })()
+
+  const saveOrderedPhotos = (next: string[]) => {
+    const [main, ...rest] = next
+    return save({ profile_photo: main ?? null, photos: rest })
+  }
+
   const handleGridPhotosUpload = async (files: File[]) => {
     if (!profile || files.length === 0) return
-    const remaining = 10 - (profile.photos?.length ?? 0)
+    const remaining = 10 - orderedPhotos.length
     const toUpload = files.slice(0, Math.max(0, remaining))
     if (toUpload.length === 0) return
     setUploadingGrid(true)
@@ -272,7 +294,7 @@ export default function ProfilePage() {
         if (uploadError) throw uploadError
         urls.push(supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl)
       }
-      if (urls.length) await save({ photos: [...(profile.photos ?? []), ...urls] })
+      if (urls.length) await saveOrderedPhotos([...orderedPhotos, ...urls])
     } catch (e: any) {
       setPhotoError(e?.message ?? 'Photo upload failed. Try again.')
     } finally {
@@ -282,13 +304,25 @@ export default function ProfilePage() {
 
   const reorderPhotos = (next: string[]) => {
     if (!profile) return
-    setProfile({ ...profile, photos: next }) // optimistic so the drag feels instant
-    save({ photos: next })
+    const [main, ...rest] = next
+    setProfile({ ...profile, profile_photo: main ?? null, photos: rest }) // optimistic so the drag feels instant
+    saveOrderedPhotos(next)
+  }
+
+  // Explicit move buttons — a guaranteed-to-work fallback to drag-to-reorder,
+  // which depends on pointer-gesture detection that doesn't behave reliably
+  // on every device/browser combination.
+  const movePhoto = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= orderedPhotos.length) return
+    const next = [...orderedPhotos]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    reorderPhotos(next)
   }
 
   const removePhoto = (url: string) => {
     if (!profile) return
-    save({ photos: (profile.photos ?? []).filter(p => p !== url) })
+    saveOrderedPhotos(orderedPhotos.filter(p => p !== url))
   }
 
   // DNA per-field helpers
@@ -369,7 +403,7 @@ export default function ProfilePage() {
           {/* Hero photo */}
           <div className="relative w-full aspect-[3/2] rounded-3xl overflow-hidden bg-white/6">
             {profile?.profile_photo ? (
-              <img key={profile.profile_photo} src={profile.profile_photo} alt="" className="w-full h-full object-cover" />
+              <img key={profile.profile_photo} src={resizedImage(profile.profile_photo, 800, 80)} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-5xl">👤</div>
             )}
@@ -613,26 +647,61 @@ export default function ProfilePage() {
 
           {/* Photos grid */}
           <Section title="Photos">
-            <p className="text-white/25 text-xs mb-2">Drag to reorder · your first photo is your main.</p>
-            <Reorder.Group as="div" axis="y" values={profile?.photos ?? []} onReorder={reorderPhotos} className="grid grid-cols-3 gap-1.5">
-              {(profile?.photos ?? []).map((url) => (
-                <Reorder.Item
-                  as="div"
-                  key={url}
-                  value={url}
-                  className="aspect-square rounded-2xl overflow-hidden relative cursor-grab active:cursor-grabbing"
-                >
-                  <img src={url} alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
-                  <button
-                    type="button"
-                    onPointerDown={e => e.stopPropagation()}
-                    onClick={() => removePhoto(url)}
-                    className="absolute top-1 right-1 z-10 w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 13, lineHeight: 1 }}
-                  >✕</button>
-                </Reorder.Item>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-white/25 text-xs">
+                {editingPhotos ? 'Tap ✕ to remove · tap ‹ › to move · first photo is your main.' : `${orderedPhotos.length} photo${orderedPhotos.length === 1 ? '' : 's'}`}
+              </p>
+              <button
+                type="button"
+                onClick={() => { haptic(8); setEditingPhotos(v => !v) }}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full active:scale-95 transition-transform"
+                style={editingPhotos
+                  ? { backgroundColor: '#F0EBE3', color: '#000' }
+                  : { backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)' }}
+              >
+                {editingPhotos ? 'Done' : '✏️ Change order'}
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {orderedPhotos.map((url, i) => (
+                <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
+                  <img src={resizedImage(url, 400)} alt="" className="w-full h-full object-cover" />
+                  {i === 0 && (
+                    <div
+                      className="absolute top-1 left-1 z-10 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff' }}
+                    >Main</div>
+                  )}
+                  {editingPhotos && (
+                    <>
+                      <div className="absolute inset-0 z-[5]" style={{ backgroundColor: 'rgba(0,0,0,0.35)' }} />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(url)}
+                        className="absolute top-1 right-1 z-10 w-9 h-9 rounded-full flex items-center justify-center"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 14, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
+                      >✕</button>
+                      <div className="absolute bottom-1 left-1 right-1 z-10 flex items-center justify-between gap-1">
+                        <button
+                          type="button"
+                          onClick={() => movePhoto(i, -1)}
+                          disabled={i === 0}
+                          className="flex-1 h-9 rounded-full flex items-center justify-center disabled:opacity-20"
+                          style={{ backgroundColor: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 17, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
+                        >‹</button>
+                        <button
+                          type="button"
+                          onClick={() => movePhoto(i, 1)}
+                          disabled={i === orderedPhotos.length - 1}
+                          className="flex-1 h-9 rounded-full flex items-center justify-center disabled:opacity-20"
+                          style={{ backgroundColor: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 17, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
+                        >›</button>
+                      </div>
+                    </>
+                  )}
+                </div>
               ))}
-              {(profile?.photos?.length ?? 0) < 10 && (
+              {orderedPhotos.length < 10 && (
                 <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer active:border-white/30 transition-colors">
                   <input type="file" accept="image/*" multiple className="hidden"
                     onChange={e => { const fs = Array.from(e.target.files ?? []); e.currentTarget.value = ''; handleGridPhotosUpload(fs) }} />
@@ -646,7 +715,7 @@ export default function ProfilePage() {
                   )}
                 </label>
               )}
-            </Reorder.Group>
+            </div>
           </Section>
 
           {/* Languages */}

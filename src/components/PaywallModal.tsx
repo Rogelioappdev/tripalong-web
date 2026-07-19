@@ -11,7 +11,7 @@ import { PlusWelcomeFlow } from './PlusWelcomeFlow'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 interface Props {
-  trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade'
+  trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins'
   context?: string
   matchPct?: number
   trips?: TripWithDetails[]
@@ -102,6 +102,8 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     trigger === 'swipes' && context ? `${context} is waiting` :
     trigger === 'swipes' ? 'More trips are waiting' :
     trigger === 'rewind' ? 'Want that trip back?' :
+    trigger === 'joins' && context ? `Join ${context} too` :
+    trigger === 'joins' ? 'Join more trips' :
     trigger === 'upgrade' ? 'Go further with TripAlong+' :
     'See who checked you out'
 
@@ -111,6 +113,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
         ? `You're a ${matchPct >= 80 ? 'strong' : 'good'} match — unlock to see the exact number.`
         : 'Unlock to see exactly how much you match.' :
     trigger === 'rewind' ? 'Unlock rewind and never lose a great trip again.' :
+    trigger === 'joins' ? "You've joined today's trip — go Plus to join as many as you want." :
     trigger === 'upgrade' ? 'Unlimited swipes, no ads, and your compatibility % on every trip.' :
     "You've hit today's limit. Upgrade for unlimited."
 
@@ -119,7 +122,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     setLoading(true)
     setError(null)
     try {
-      await purchasePlus(billing)
+      await purchasePlus(billing, trigger)
       // Native: the RevenueCat SDK already confirmed the entitlement against
       // Apple's receipt at this point — no need to wait on the webhook that
       // syncs it to Supabase. Flip the caller's local profile state right away
