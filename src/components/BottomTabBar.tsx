@@ -51,9 +51,13 @@ export function BottomTabBar() {
         <img
           src="/tagalong-icon.png"
           alt="TripAlong"
-          width={34}
-          height={34}
-          style={{ opacity: active ? 1 : 0.38, objectFit: 'contain' }}
+          // Tailwind's preflight resets `img { max-width: 100%; height: auto }`,
+          // which — being a stylesheet rule — beats the plain width/height HTML
+          // attributes (just presentational hints). That let this icon scale up
+          // to fill its flex cell instead of staying 34x34, throwing off
+          // alignment with the other tabs' inline <svg> icons (untouched by that
+          // reset). Setting the size via `style` wins against the stylesheet.
+          style={{ width: 34, height: 34, maxWidth: 34, opacity: active ? 1 : 0.38, objectFit: 'contain' }}
         />
       ),
     },
