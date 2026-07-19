@@ -696,7 +696,9 @@ export default function DMPage() {
                     {!isMe && (
                       <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden flex items-center justify-center text-xs shrink-0">
                         {msg.sender?.profile_photo
-                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
+                          // Plain center-crop, matching the Group Info member rows — .ta-avatar's
+                          // top-biased crop is too tight on the face at this tiny 28px size.
+                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                           : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                     )}
@@ -749,7 +751,9 @@ export default function DMPage() {
                     <div className="relative shrink-0">
                       <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden flex items-center justify-center text-xs">
                         {msg.sender?.profile_photo
-                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
+                          // Plain center-crop, matching the Group Info member rows — .ta-avatar's
+                          // top-biased crop is too tight on the face at this tiny 28px size.
+                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                           : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                       {isOtherOnline && (

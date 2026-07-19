@@ -959,7 +959,10 @@ export default function ChatPage() {
                       className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs active:opacity-70 transition-opacity"
                     >
                       {senderPhoto
-                        ? <img src={resizedImage(senderPhoto, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
+                        // Plain center-crop, not .ta-avatar's top-biased crop — at this tiny
+                        // 28px size the top bias crops in too tight on the face, unlike the
+                        // Group Info member rows (44px, plain object-cover) it should match.
+                        ? <img src={resizedImage(senderPhoto, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                         : senderName[0].toUpperCase()}
                     </button>
                   )}
