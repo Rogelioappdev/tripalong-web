@@ -53,11 +53,12 @@ export function BottomTabBar() {
           alt="TripAlong"
           // Tailwind's preflight resets `img { max-width: 100%; height: auto }`,
           // which — being a stylesheet rule — beats the plain width/height HTML
-          // attributes (just presentational hints). That let this icon scale up
-          // to fill its flex cell instead of staying 34x34, throwing off
-          // alignment with the other tabs' inline <svg> icons (untouched by that
-          // reset). Setting the size via `style` wins against the stylesheet.
-          style={{ width: 34, height: 34, maxWidth: 34, opacity: active ? 1 : 0.38, objectFit: 'contain' }}
+          // attributes (just presentational hints). Setting the size via `style`
+          // wins against the stylesheet. Sized larger than the other tabs' 20x20
+          // svg icons because the source PNG has a lot of transparent padding
+          // around the hiking-figures mark — at equal box size the visible mark
+          // reads noticeably smaller than the edge-to-edge svg icons.
+          style={{ width: 40, height: 40, maxWidth: 40, opacity: active ? 1 : 0.38, objectFit: 'contain' }}
         />
       ),
     },
