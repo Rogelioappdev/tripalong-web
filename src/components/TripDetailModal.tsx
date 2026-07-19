@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { joinTrip, getTripMembership, getTrip, getTripChat, getProfile } from '@/lib/queries'
+import { remindNotifications } from '@/lib/notifReminder'
 import { getTripMatchBreakdown, getMatchingVibes, memberCompatibility, isTripGenderEligible } from '@/lib/matching'
 import { hasPlus } from '@/lib/trial'
 import { track } from '@/lib/analytics'
@@ -27,6 +28,12 @@ interface TripDetailModalProps {
   onAuthRequired?: (destination?: string) => void
   onProfileClaimed?: (profile: UserProfile) => void
   fromFeed?: boolean
+  // Optional join gate (used by TripAlong World's daily join cap). Returns true
+  // if the join may proceed; when it returns false the join paywall opens
+  // instead. Feed passes nothing → joins are never capped there.
+  joinGate?: () => boolean
+  // Fired after a successful join so a caller (World) can update its join count.
+  onJoined?: () => void
 }
 
 const VIBE_EMOJI: Record<string, string> = {
@@ -46,7 +53,7 @@ function formatDates(start: string | null, end: string | null, flexible: boolean
   return `${s.toLocaleDateString('en-US', opts)} – ${e.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
 }
 
-export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuthRequired, onProfileClaimed, fromFeed }: TripDetailModalProps) {
+export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuthRequired, onProfileClaimed, fromFeed, joinGate, onJoined }: TripDetailModalProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
@@ -56,6 +63,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   const [userProfile, setUserProfile] = useState<UserProfile | null>(initialProfile ?? null)
   const [showCompatPaywall, setShowCompatPaywall] = useState(false)
   const [compatPaywallContext, setCompatPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
+  const [showJoinPaywall, setShowJoinPaywall] = useState(false)
   const [showCompatTrialOffer, setShowCompatTrialOffer] = useState(false)
   const heroRef = useRef<HTMLDivElement>(null)
 
@@ -91,6 +99,8 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
     mutationFn: () => joinTrip(trip.id, userId!),
     onSuccess: async () => {
       track('trip_joined', { trip_id: trip.id, source: 'detail' })
+      onJoined?.()
+      remindNotifications('join-trip')
       haptic([15, 30, 15, 30, 60])
       queryClient.invalidateQueries({ queryKey: ['membership', trip.id, userId] })
       queryClient.invalidateQueries({ queryKey: ['trips'] })
@@ -191,6 +201,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         transition={{ duration: fromFeed ? 0.18 : 0.22 }}
         onClick={onClose}
       />
@@ -205,6 +216,10 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
           ? { clipPath: 'inset(0% 0% 0% 0% round 28px 28px 0 0)', opacity: 1 }
           : { y: 0 }
         }
+        // Slide back down on dismiss — mirrors the upward open (World/globe path).
+        // Only meaningful under an <AnimatePresence> (the World page); the feed
+        // renders this modal unwrapped, so exit is a no-op there.
+        exit={fromFeed ? { opacity: 0 } : { y: '100%' }}
         transition={fromFeed
           ? { type: 'spring', stiffness: 300, damping: 28, mass: 1.0 }
           : { type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }
@@ -411,7 +426,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                               fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
                               color: groupPct >= 80 ? '#30D158' : groupPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
                               filter: 'blur(7px)', userSelect: 'none',
-                            }}>{groupPct}</span>
+                            }}>••</span>
                             <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600, filter: 'blur(5px)' }}>%</span>
                           </div>
                         </div>
@@ -426,7 +441,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                             fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
                             color: tripPct >= 80 ? '#30D158' : tripPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
                             filter: 'blur(7px)', userSelect: 'none',
-                          }}>{tripPct}</span>
+                          }}>••</span>
                           <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600, filter: 'blur(5px)' }}>%</span>
                         </div>
                       </div>
@@ -508,7 +523,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                           }}
                         >
                           {m.photo ? (
-                            <img src={m.photo} alt={m.name} className="w-full h-full object-cover" />
+                            <img src={m.photo} alt={m.name} className="w-full h-full object-cover ta-avatar" />
                           ) : (
                             <div
                               className="w-full h-full flex items-center justify-center text-sm font-semibold"
@@ -567,17 +582,24 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
             </button>
           ) : (
             <button
-              onClick={() => { haptic(10); isGuest ? onAuthRequired?.(displayTrip.destination) : joinMutation.mutate() }}
-              disabled={joinMutation.isPending || spotsLeft <= 0 || (!isGuest && !isGenderEligible)}
+              onClick={() => {
+                haptic(10)
+                if (isGuest) { onAuthRequired?.(displayTrip.destination); return }
+                // World's daily join cap: if the gate blocks, open the join paywall
+                // instead of joining. No gate passed (e.g. feed) → always joins.
+                if (joinGate && !joinGate()) { setShowJoinPaywall(true); return }
+                joinMutation.mutate()
+              }}
+              disabled={joinMutation.isPending || (!isGuest && !isGenderEligible)}
               className="w-full font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-40"
               style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: '#000', padding: '16px' }}
             >
               {joinMutation.isPending
                 ? 'Joining...'
-                : spotsLeft <= 0
-                ? 'Trip Full'
                 : !isGuest && !isGenderEligible
                 ? displayTrip.group_preference === 'female' ? 'Women Only' : 'Men Only'
+                : spotsLeft <= 0
+                ? 'Join Trip (Full)'
                 : 'Join Trip'}
             </button>
           )}
@@ -634,6 +656,28 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
           const updated: UserProfile = { ...userProfile, subscription_tier: 'plus' }
           setUserProfile(updated)
           onProfileClaimed?.(updated)
+        }}
+        onWelcomeDone={(confirmed) => {
+          if (!confirmed) return
+          setUserProfile(confirmed)
+          onProfileClaimed?.(confirmed)
+        }}
+      />
+    )}
+
+    {showJoinPaywall && (
+      <PaywallModal
+        trigger="joins"
+        context={displayTrip.destination}
+        userId={userId ?? undefined}
+        onClose={() => setShowJoinPaywall(false)}
+        onSuccess={() => {
+          if (!userProfile) return
+          const updated: UserProfile = { ...userProfile, subscription_tier: 'plus' }
+          setUserProfile(updated)
+          onProfileClaimed?.(updated)
+          // Now Plus — proceed with the join they were trying to make.
+          joinMutation.mutate()
         }}
         onWelcomeDone={(confirmed) => {
           if (!confirmed) return

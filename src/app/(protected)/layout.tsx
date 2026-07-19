@@ -5,6 +5,8 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ProfileViewToast } from '@/components/ProfileViewToast'
+import { SessionKeeper } from '@/components/SessionKeeper'
+import { NotifReminderHost } from '@/components/NotifReminderHost'
 
 // Wraps every protected page so app-wide overlays (currently: the new-profile-
 // view toast) show up regardless of which tab the user is on, instead of
@@ -25,8 +27,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   return (
     <>
+      <SessionKeeper />
       {children}
       {userId && <ProfileViewToast userId={userId} />}
+      <NotifReminderHost />
     </>
   )
 }

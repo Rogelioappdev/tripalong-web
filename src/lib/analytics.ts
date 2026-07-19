@@ -18,7 +18,7 @@ export type PaywallSurface =
   | 'profile_views'   // ProfileViewsSheet
 
 // The PaywallModal's contextual trigger (why the wall appeared).
-export type PaywallTrigger = 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade'
+export type PaywallTrigger = 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins'
 
 type EventProps = {
   // ── Conversion funnel ───────────────────────────────────────────────
@@ -27,6 +27,15 @@ type EventProps = {
   purchase_completed: { rail: Rail; billing?: Billing }
   purchase_cancelled: { rail: Rail }
   purchase_failed: { rail: Rail; reason?: string }
+  // ── Swipe cap (measures the daily-limit experiment) ─────────────────
+  // Fires the moment a user hits their daily swipe wall — the top of the
+  // cap→paywall→purchase funnel and the exposure event for retention cohorts
+  // (did hitting the wall make them churn?). Without this, users who hit the
+  // cap and bounce without tapping "Unlock" leave no trace at all.
+  swipe_limit_reached: { limit: number; variant: string; rail: Rail }
+  // Fires when a user hits the daily join cap on TripAlong World (after the
+  // lifetime free-join grace). Top of the join→paywall→purchase funnel.
+  join_limit_reached: { limit: number; lifetime: number; rail: Rail }
   // ── Activation loop (leading indicators of conversion) ──────────────
   trip_saved: { trip_id: string }
   trip_joined: { trip_id: string; source: 'swipe' | 'detail' }

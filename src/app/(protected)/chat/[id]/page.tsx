@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState, useCallback, useMemo, Fragment } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -15,6 +14,8 @@ import { JoinCelebration } from '@/components/JoinCelebration'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { supabase } from '@/lib/supabase'
 import { registerPush, sendPushNotification } from '@/lib/push'
+import { remindNotifications } from '@/lib/notifReminder'
+import { ImageViewer } from '@/components/ImageViewer'
 import { initPresence, useOnlineUsers } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
 import { displayName } from '@/lib/displayName'
@@ -63,6 +64,28 @@ function highlightText(text: string, query: string) {
 
 function formatTime(d: string) {
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
+// Day label for chat date separators: Today / Yesterday / weekday+date, with the
+// year appended once the message is from a prior year.
+function formatDateSeparator(d: string): string {
+  const date = new Date(d)
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  if (date.toDateString() === today.toDateString()) return 'Today'
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  const opts: Intl.DateTimeFormatOptions =
+    date.getFullYear() === today.getFullYear()
+      ? { weekday: 'short', month: 'short', day: 'numeric' }
+      : { month: 'short', day: 'numeric', year: 'numeric' }
+  return date.toLocaleDateString('en-US', opts)
+}
+
+// True when two ISO timestamps fall on different calendar days.
+function isNewDay(cur: string, prev: string | null): boolean {
+  if (!prev) return true
+  return new Date(cur).toDateString() !== new Date(prev).toDateString()
 }
 
 function CheckTick({ seen }: { seen: boolean }) {
@@ -152,7 +175,7 @@ export default function ChatPage() {
 
   // Image
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [viewingImage, setViewingImage] = useState<string | null>(null)
+  const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Sender profile (tap avatar/name to view)
@@ -231,6 +254,9 @@ export default function ChatPage() {
       markTripChatRead(chatId)
       queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
       queryClient.invalidateQueries({ queryKey: ['tripChats'] })
+      // Refresh read receipts on open so your own view status (and everyone
+      // else's latest) reflects immediately rather than on the next poll.
+      queryClient.invalidateQueries({ queryKey: ['chatReadPositions', chatId] })
     }
   }, [userId, chatId, queryClient])
 
@@ -334,6 +360,17 @@ export default function ChatPage() {
       }, () => {
         queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
       })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'trip_chat_members',
+        filter: `trip_chat_id=eq.${chatId}`,
+      }, () => {
+        // Another member advanced their last_read_at (opened/viewed the chat) —
+        // refresh read receipts immediately so "seen by" / the Info sheet update
+        // in realtime instead of waiting on the 30s poll.
+        queryClient.invalidateQueries({ queryKey: ['chatReadPositions', chatId] })
+      })
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
         const { userId: typerId, name: typerName } = payload as { userId: string; name: string }
         if (typerId === userIdRef.current) return
@@ -397,7 +434,14 @@ export default function ChatPage() {
     try {
       await sendMessage(chatId, userId, content, replyId)
       queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+      // Sending a message means you've seen the thread — advance last_read_at
+      // past it and clear the unread badge / Messages-tab dot immediately,
+      // rather than waiting on the realtime round-trip or the next poll.
+      markTripChatRead(chatId)
+      queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
+      queryClient.invalidateQueries({ queryKey: ['tripChats'] })
       sendPushNotification({ chatId, senderId: userId, senderName: userName, content, type: 'text', url: `/chat/${chatId}` })
+      remindNotifications('message')
     } catch {
       // Roll back optimistic on failure and restore input
       queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
@@ -411,44 +455,52 @@ export default function ChatPage() {
 
   // ── Image pick & upload ───────────────────────────────────────────────────
   const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !userId) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0 || !userId) return
     e.target.value = ''
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Image must be under 10 MB')
-      return
-    }
-
     setUploadingImage(true)
-    const localUrl = URL.createObjectURL(file)
-    const optimisticId = `optimistic-img-${Date.now()}`
-    const optimistic: TripMessage = {
-      id: optimisticId,
-      trip_chat_id: chatId,
-      sender_id: userId,
-      content: localUrl,
-      type: 'image',
-      reply_to_id: null,
-      is_edited: false,
-      created_at: new Date().toISOString(),
-      sender: { id: userId, name: userName, profile_photo: null },
-      reply_to: null,
-      reactions: [],
-    }
-    queryClient.setQueryData<TripMessage[]>(['messages', chatId], old => [...(old ?? []), optimistic])
-
+    // Send each picked photo as its own message, in order.
     try {
-      const publicUrl = await uploadChatImage(chatId, file)
-      await sendMessage(chatId, userId, publicUrl, null, 'image')
+      for (const file of files) {
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`"${file.name}" is over 10 MB and was skipped`)
+          continue
+        }
+        const localUrl = URL.createObjectURL(file)
+        const optimisticId = `optimistic-img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        const optimistic: TripMessage = {
+          id: optimisticId,
+          trip_chat_id: chatId,
+          sender_id: userId,
+          content: localUrl,
+          type: 'image',
+          reply_to_id: null,
+          is_edited: false,
+          created_at: new Date().toISOString(),
+          sender: { id: userId, name: userName, profile_photo: null },
+          reply_to: null,
+          reactions: [],
+        }
+        queryClient.setQueryData<TripMessage[]>(['messages', chatId], old => [...(old ?? []), optimistic])
+        try {
+          const publicUrl = await uploadChatImage(chatId, file)
+          await sendMessage(chatId, userId, publicUrl, null, 'image')
+          URL.revokeObjectURL(localUrl)
+          sendPushNotification({ chatId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/chat/${chatId}` })
+        } catch {
+          queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
+            (old ?? []).filter(m => m.id !== optimisticId)
+          )
+          URL.revokeObjectURL(localUrl)
+        }
+      }
       await queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
-      URL.revokeObjectURL(localUrl)
-      sendPushNotification({ chatId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/chat/${chatId}` })
-    } catch {
-      queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
-        (old ?? []).filter(m => m.id !== optimisticId)
-      )
-      URL.revokeObjectURL(localUrl)
+      // Sending a photo also counts as seeing the thread — clear unread state.
+      markTripChatRead(chatId)
+      queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
+      queryClient.invalidateQueries({ queryKey: ['tripChats'] })
+      remindNotifications('message')
     } finally {
       setUploadingImage(false)
     }
@@ -494,7 +546,18 @@ export default function ChatPage() {
   }
 
   const handleDelete = async (msg: TripMessage) => {
-    await deleteMessage(msg.id)
+    // Optimistically drop it from the local list so it disappears instantly
+    // for the sender (matches the DM page). Other participants pick it up via
+    // the realtime DELETE subscription (REPLICA IDENTITY FULL) and the 3s poll.
+    queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
+      (old ?? []).filter(m => m.id !== msg.id)
+    )
+    try {
+      await deleteMessage(msg.id)
+    } catch {
+      // Server delete failed — refetch to restore the message rather than
+      // leaving a phantom local deletion.
+    }
     queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
   }
 
@@ -541,6 +604,9 @@ export default function ChatPage() {
   const typingNames = Object.values(typingUsers)
   const isSearchMode = searchOpen && debouncedQuery.length >= 2
   const displayMessages = isSearchMode ? searchResults : allMessages
+  // Reply-quote fallback: the reply_to embed comes back empty on refetch/realtime,
+  // so resolve the quoted message from the already-loaded list by reply_to_id.
+  const messagesById = useMemo(() => new Map(allMessages.map(m => [m.id, m])), [allMessages])
 
   // Every user id referenced in the chat — message senders and reply-quote
   // senders alike. Embedded `sender:users(...)` joins come back empty on the
@@ -671,7 +737,7 @@ export default function ChatPage() {
               <button type="button" onClick={() => setShowGroupInfo(true)} className="flex-1 flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-white/10 overflow-hidden shrink-0">
                   {tripInfo.cover_image
-                    ? <img src={resizedImage(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover" />
+                    ? <img src={resizedImage(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                     : <div className="w-full h-full flex items-center justify-center text-sm">🌍</div>}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
@@ -705,7 +771,7 @@ export default function ChatPage() {
                   style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
                 >
                   {hangInfo.photo_url
-                    ? <img src={resizedImage(hangInfo.photo_url, 100)} alt="" className="w-full h-full object-cover" />
+                    ? <img src={resizedImage(hangInfo.photo_url, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                     : <span style={{ fontSize: 18 }}>{HANG_ACTIVITY_EMOJI[hangInfo.activity_type] ?? '✨'}</span>}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
@@ -777,7 +843,7 @@ export default function ChatPage() {
                   style={{ height: 110 }}
                 >
                   {tripInfo.cover_image
-                    ? <img src={resizedImage(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover" />
+                    ? <img src={resizedImage(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                     : <div className="w-full h-full flex items-center justify-center text-4xl" style={{ backgroundColor: '#111' }}>🌍</div>}
                   <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.88) 100%)' }} />
                   <div className="absolute bottom-0 left-0 px-4 pb-3">
@@ -799,7 +865,7 @@ export default function ChatPage() {
                 style={{ height: 110, backgroundColor: '#111' }}
               >
                 {hangInfo.photo_url
-                  ? <img src={hangInfo.photo_url} alt="" className="w-full h-full object-cover" />
+                  ? <img src={hangInfo.photo_url} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                   : <div className="w-full h-full flex items-center justify-center" style={{ fontSize: 60, opacity: 0.1 }}>
                       {HANG_ACTIVITY_EMOJI[hangInfo.activity_type] ?? '✨'}
                     </div>}
@@ -852,16 +918,33 @@ export default function ChatPage() {
                 || displayMessages[idx - 1].sender_id !== msg.sender_id
               const seenBy = msg.id === myLastSeenMsgId ? getSeenBy(msg) : []
 
+              // Day separator when this message starts a new calendar day.
+              const prevMsg = idx > 0 ? displayMessages[idx - 1] : null
+              const dateSep = isNewDay(msg.created_at, prevMsg?.created_at ?? null) ? (
+                <div className="flex justify-center py-2">
+                  <span
+                    className="text-[11px] font-semibold px-3 py-1 rounded-full"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}
+                  >
+                    {formatDateSeparator(msg.created_at)}
+                  </span>
+                </div>
+              ) : null
+
               if (isSystem) {
                 return (
-                  <div key={msg.id} className="text-center text-white/30 text-xs py-1">{msg.content}</div>
+                  <Fragment key={msg.id}>
+                    {dateSep}
+                    <div className="text-center text-white/30 text-xs py-1">{msg.content}</div>
+                  </Fragment>
                 )
               }
 
               return (
+                <Fragment key={msg.id}>
+                {dateSep}
                 <div
-                  key={msg.id}
-                  className={`flex items-end gap-2 select-none ${isMe ? 'flex-row-reverse' : ''}`}
+                  className={`ta-nocopy flex items-end gap-2 select-none ${isMe ? 'flex-row-reverse' : ''}`}
                   onPointerDown={() => handlePointerDown(msg)}
                   onPointerUp={handlePointerUp}
                   onPointerMove={handlePointerMove}
@@ -876,7 +959,7 @@ export default function ChatPage() {
                       className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs active:opacity-70 transition-opacity"
                     >
                       {senderPhoto
-                        ? <img src={resizedImage(senderPhoto, 100)} alt="" className="w-full h-full object-cover" />
+                        ? <img src={resizedImage(senderPhoto, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                         : senderName[0].toUpperCase()}
                     </button>
                   )}
@@ -896,20 +979,29 @@ export default function ChatPage() {
                     {/* Reply-to quote — guard on content, not just object truthiness:
                         the self-referencing reply_to embed can come back as a
                         truthy-but-empty object when reply_to_id is null. */}
-                    {msg.reply_to?.content && (
-                      <div
-                        className={`px-3 py-1.5 rounded-xl text-xs max-w-full ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
-                        style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
-                      >
-                        <p className="text-white/35 truncate">{msg.reply_to.content?.startsWith('https://') ? '📷 Photo' : msg.reply_to.content}</p>
-                      </div>
-                    )}
+                    {(() => {
+                      const rc = msg.reply_to?.content ?? (msg.reply_to_id ? messagesById.get(msg.reply_to_id)?.content : null)
+                      if (!rc) return null
+                      return (
+                        <div
+                          className={`px-3 py-1.5 rounded-xl text-xs max-w-full ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
+                          style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
+                        >
+                          <p className="text-white/35 truncate">{rc.startsWith('https://') ? '📷 Photo' : rc}</p>
+                        </div>
+                      )
+                    })()}
 
                     {/* Bubble */}
                     {msg.type === 'image' ? (
                       <button
                         type="button"
-                        onClick={e => { e.stopPropagation(); if (!holdFired.current) setViewingImage(msg.content) }}
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (holdFired.current) return
+                          const imgs = displayMessages.filter(m => m.type === 'image').map(m => m.content)
+                          setViewingImage({ images: imgs, index: Math.max(0, imgs.indexOf(msg.content)) })
+                        }}
                         className={`overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
                         style={{ maxWidth: 220, display: 'block' }}
                       >
@@ -917,12 +1009,12 @@ export default function ChatPage() {
                           src={msg.content}
                           alt="Image"
                           className="w-full h-auto block"
-                          style={{ maxHeight: 280, objectFit: 'cover' }}
+                          style={{ maxHeight: 280, objectFit: 'contain' }}
                         />
                       </button>
                     ) : (
                       <div
-                        className={`px-4 py-2.5 rounded-2xl text-sm max-w-full ${
+                        className={`ta-nocopy px-4 py-2.5 rounded-2xl text-sm max-w-full ${
                           isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'
                         }`}
                         style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
@@ -965,7 +1057,7 @@ export default function ChatPage() {
                           {seenBy.slice(0, 3).map(r => (
                             <div key={r.user_id} className="w-4 h-4 rounded-full bg-white/20 overflow-hidden">
                               {r.user?.profile_photo
-                                ? <img src={resizedImage(r.user.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
+                                ? <img src={resizedImage(r.user.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                                 : <div className="w-full h-full flex items-center justify-center" style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)' }}>
                                     {r.user?.name?.[0]?.toUpperCase()}
                                   </div>}
@@ -979,6 +1071,7 @@ export default function ChatPage() {
                     </div>
                   </div>
                 </div>
+                </Fragment>
               )
             })}
 
@@ -1081,6 +1174,7 @@ export default function ChatPage() {
               ref={fileInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
               className="hidden"
               onChange={handleImagePick}
             />
@@ -1193,31 +1287,12 @@ export default function ChatPage() {
       </AnimatePresence>
 
       {/* Full-screen image viewer */}
-      {viewingImage && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed inset-0 z-[90] flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.96)' }}
-          onClick={() => setViewingImage(null)}
-        >
-          <img
-            src={viewingImage}
-            alt=""
-            className="max-w-full max-h-full object-contain"
-            style={{ maxWidth: '100vw', maxHeight: '100dvh', padding: 16 }}
-            onClick={e => e.stopPropagation()}
-          />
-          <button
-            type="button"
-            onClick={() => setViewingImage(null)}
-            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full"
-            style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff' }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-            </svg>
-          </button>
-        </div>,
-        document.body
+      {viewingImage && (
+        <ImageViewer
+          images={viewingImage.images}
+          startIndex={viewingImage.index}
+          onClose={() => setViewingImage(null)}
+        />
       )}
 
       <style>{`

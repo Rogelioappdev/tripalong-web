@@ -25,3 +25,16 @@ body {
 /* Hide scrollbar on mobile card stack */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Chat/DM message text is intentionally non-copyable (matches the native
+   WebView's injected rule). Everything else stays selectable/copyable. */
+.ta-nocopy, .ta-nocopy * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Profile-photo avatars: bias the object-cover crop toward the top so faces
+   (usually near the top of a portrait photo) show, instead of the crop cutting
+   down to a chin/neck/skin sliver in small circular avatars. */
+.ta-avatar { object-position: 50% 28%; }

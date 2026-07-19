@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -13,6 +12,7 @@ import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { BlockReportSheet } from '@/components/BlockReportSheet'
 import { supabase } from '@/lib/supabase'
 import { sendDMPushNotification } from '@/lib/push'
+import { remindNotifications } from '@/lib/notifReminder'
 import {
   getDMMessages,
   getOlderDMMessages,
@@ -26,13 +26,17 @@ import {
   getDMOtherLastRead,
   isUserBlocked,
   unblockUser,
+  getDMMuted,
+  setDMMuted,
 } from '@/lib/queries'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 import { displayName } from '@/lib/displayName'
+import { haptic } from '@/lib/haptics'
 import { useSwipeBack } from '@/lib/useSwipeBack'
 import type { DMMessage, TripMessage } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
 import { resizedImage } from '@/lib/imageUrl'
+import { ImageViewer } from '@/components/ImageViewer'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function highlightText(text: string, query: string) {
@@ -131,7 +135,7 @@ export default function DMPage() {
 
   // Image
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [viewingImage, setViewingImage] = useState<string | null>(null)
+  const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Search
@@ -149,6 +153,16 @@ export default function DMPage() {
   // Block / report
   const [showBlockReport, setShowBlockReport] = useState(false)
   const [isBlockedByMe, setIsBlockedByMe] = useState(false)
+
+  // Mute (silences this DM's push notifications)
+  const [muted, setMuted] = useState(false)
+  useEffect(() => { getDMMuted(conversationId).then(setMuted).catch(() => {}) }, [conversationId])
+  const toggleMute = async () => {
+    const next = !muted
+    haptic(8)
+    setMuted(next)
+    try { await setDMMuted(conversationId, next) } catch { setMuted(!next) }
+  }
 
   // Safety notice (dismissed per conversation in localStorage)
   const safetyKey = `dm_safety_dismissed_${conversationId}`
@@ -353,7 +367,13 @@ export default function DMPage() {
     try {
       await sendDMMessage(conversationId, userId, content, replyId)
       queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] })
+      // Sending a message means you've seen the thread — advance last_read_at
+      // and clear the unread badge / Messages-tab dot immediately.
+      markDMRead(conversationId)
+      queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
+      queryClient.invalidateQueries({ queryKey: ['dms'] })
       sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content, type: 'text', url: `/dm/${conversationId}` })
+      remindNotifications('message')
     } catch {
       queryClient.setQueryData<DMMessage[]>(['dmMessages', conversationId], old =>
         (old ?? []).filter(m => m.id !== optimistic.id)
@@ -366,39 +386,47 @@ export default function DMPage() {
 
   // ── Image upload ──────────────────────────────────────────────────────────
   const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !userId) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0 || !userId) return
     e.target.value = ''
-    if (file.size > 10 * 1024 * 1024) { alert('Image must be under 10 MB'); return }
 
     setUploadingImage(true)
-    const localUrl = URL.createObjectURL(file)
-    const optimisticId = `optimistic-img-${Date.now()}`
-    const optimistic: DMMessage = {
-      id: optimisticId,
-      conversation_id: conversationId,
-      sender_id: userId,
-      content: localUrl,
-      type: 'image',
-      reply_to_id: null,
-      created_at: new Date().toISOString(),
-      sender: { id: userId, name: userName, profile_photo: null },
-      reply_to: null,
-      reactions: [],
-    }
-    queryClient.setQueryData<DMMessage[]>(['dmMessages', conversationId], old => [...(old ?? []), optimistic])
-
     try {
-      const publicUrl = await uploadDMImage(conversationId, file)
-      await sendDMMessage(conversationId, userId, publicUrl, null, 'image')
+      for (const file of files) {
+        if (file.size > 10 * 1024 * 1024) { alert(`"${file.name}" is over 10 MB and was skipped`); continue }
+        const localUrl = URL.createObjectURL(file)
+        const optimisticId = `optimistic-img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        const optimistic: DMMessage = {
+          id: optimisticId,
+          conversation_id: conversationId,
+          sender_id: userId,
+          content: localUrl,
+          type: 'image',
+          reply_to_id: null,
+          created_at: new Date().toISOString(),
+          sender: { id: userId, name: userName, profile_photo: null },
+          reply_to: null,
+          reactions: [],
+        }
+        queryClient.setQueryData<DMMessage[]>(['dmMessages', conversationId], old => [...(old ?? []), optimistic])
+        try {
+          const publicUrl = await uploadDMImage(conversationId, file)
+          await sendDMMessage(conversationId, userId, publicUrl, null, 'image')
+          URL.revokeObjectURL(localUrl)
+          sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/dm/${conversationId}` })
+        } catch {
+          queryClient.setQueryData<DMMessage[]>(['dmMessages', conversationId], old =>
+            (old ?? []).filter(m => m.id !== optimisticId)
+          )
+          URL.revokeObjectURL(localUrl)
+        }
+      }
       await queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] })
-      URL.revokeObjectURL(localUrl)
-      sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/dm/${conversationId}` })
-    } catch {
-      queryClient.setQueryData<DMMessage[]>(['dmMessages', conversationId], old =>
-        (old ?? []).filter(m => m.id !== optimisticId)
-      )
-      URL.revokeObjectURL(localUrl)
+      // Sending a photo also counts as seeing the thread — clear unread state.
+      markDMRead(conversationId)
+      queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
+      queryClient.invalidateQueries({ queryKey: ['dms'] })
+      remindNotifications('message')
     } finally {
       setUploadingImage(false)
     }
@@ -447,6 +475,9 @@ export default function DMPage() {
   const presenceText = otherUser ? formatLastSeen(otherUser.last_seen_at, isOtherOnline) : ''
   const allMessages = [...olderMessages, ...messages]
   const displayMessages = searchOpen && debouncedQuery.length >= 2 ? searchResults : allMessages
+  // Reply-quote fallback: reply_to embed returns empty on refetch — resolve the
+  // quoted message from the already-loaded list by reply_to_id.
+  const messagesById = new Map(allMessages.map(m => [m.id, m]))
 
   // Last message I sent — for read receipt
   const myMessages = allMessages.filter(m => m.sender_id === userId)
@@ -516,7 +547,7 @@ export default function DMPage() {
                 <div className="relative shrink-0">
                   <div className="w-9 h-9 rounded-full bg-white/10 overflow-hidden">
                     {otherUser.profile_photo
-                      ? <img src={resizedImage(otherUser.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
+                      ? <img src={resizedImage(otherUser.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                       : <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white/50">{otherUser.name?.[0]?.toUpperCase()}</div>
                     }
                   </div>
@@ -550,6 +581,29 @@ export default function DMPage() {
               )
             ) : (
               <div className="flex items-center gap-1 shrink-0">
+                {/* Mute toggle — bell (on) / bell-off (muted) */}
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className="transition-colors p-1"
+                  style={{ color: muted ? '#F0BE7A' : 'rgba(255,255,255,0.4)' }}
+                  aria-label={muted ? 'Unmute conversation' : 'Mute conversation'}
+                >
+                  {muted ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M18.63 13A17.9 17.9 0 0 1 18 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M18 8a6 6 0 0 0-9.33-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M2 2l20 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  )}
+                </button>
                 <button type="button" onClick={handleOpenSearch} className="text-white/40 hover:text-white transition-colors p-1">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                     <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/>
@@ -642,7 +696,7 @@ export default function DMPage() {
                     {!isMe && (
                       <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden flex items-center justify-center text-xs shrink-0">
                         {msg.sender?.profile_photo
-                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
+                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                           : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                     )}
@@ -652,11 +706,15 @@ export default function DMPage() {
                         onPointerDown={() => handlePointerDown(msg)}
                         onPointerUp={handlePointerUp}
                         onPointerCancel={handlePointerUp}
-                        onClick={() => { if (!holdFired.current) setViewingImage(msg.content) }}
-                        className="rounded-2xl overflow-hidden active:opacity-80 transition-opacity"
-                        style={{ width: 200, height: 200 }}
+                        onClick={() => {
+                          if (holdFired.current) return
+                          const imgs = displayMessages.filter((m: DMMessage) => m.type === 'image').map((m: DMMessage) => m.content)
+                          setViewingImage({ images: imgs, index: Math.max(0, imgs.indexOf(msg.content)) })
+                        }}
+                        className="ta-nocopy rounded-2xl overflow-hidden active:opacity-80 transition-opacity block"
+                        style={{ maxWidth: 220 }}
                       >
-                        <img src={msg.content} alt="" className="w-full h-full object-cover" />
+                        <img src={msg.content} alt="" className="w-full h-auto block" style={{ maxHeight: 280, objectFit: 'contain' }} />
                       </button>
                       {reacted.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-0.5 px-1">
@@ -691,7 +749,7 @@ export default function DMPage() {
                     <div className="relative shrink-0">
                       <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden flex items-center justify-center text-xs">
                         {msg.sender?.profile_photo
-                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
+                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                           : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                       {isOtherOnline && (
@@ -701,22 +759,28 @@ export default function DMPage() {
                   )}
                   <div className={`max-w-[70%] min-w-0 flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
                     {/* Reply quote */}
-                    {msg.reply_to?.content && (
-                      <div
-                        className={`px-3 py-1.5 rounded-xl text-xs mb-0.5 max-w-full ${isMe ? 'text-right' : 'text-left'}`}
-                        style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderLeft: isMe ? 'none' : '2px solid rgba(255,255,255,0.2)', borderRight: isMe ? '2px solid rgba(255,255,255,0.2)' : 'none' }}
-                      >
-                        <p className="text-white/50 font-semibold truncate">{displayName(msg.reply_to.sender?.name)}</p>
-                        <p className="text-white/35 truncate">{msg.reply_to.content?.startsWith('https://') ? '📷 Photo' : msg.reply_to.content}</p>
-                      </div>
-                    )}
+                    {(() => {
+                      const src = msg.reply_to?.content ? msg.reply_to : (msg.reply_to_id ? messagesById.get(msg.reply_to_id) : null)
+                      const rc = src?.content
+                      if (!rc) return null
+                      const rn = displayName((src as any)?.sender?.name)
+                      return (
+                        <div
+                          className={`px-3 py-1.5 rounded-xl text-xs mb-0.5 max-w-full ${isMe ? 'text-right' : 'text-left'}`}
+                          style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderLeft: isMe ? 'none' : '2px solid rgba(255,255,255,0.2)', borderRight: isMe ? '2px solid rgba(255,255,255,0.2)' : 'none' }}
+                        >
+                          {rn && <p className="text-white/50 font-semibold truncate">{rn}</p>}
+                          <p className="text-white/35 truncate">{rc.startsWith('https://') ? '📷 Photo' : rc}</p>
+                        </div>
+                      )
+                    })()}
                     <button
                       type="button"
                       onPointerDown={() => handlePointerDown(msg)}
                       onPointerUp={handlePointerUp}
                       onPointerCancel={handlePointerUp}
                       onClick={() => { /* tap does nothing for text */ }}
-                      className={`px-4 py-2.5 rounded-2xl text-sm text-left max-w-full transition-opacity active:opacity-75 ${isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'}`}
+                      className={`ta-nocopy px-4 py-2.5 rounded-2xl text-sm text-left max-w-full transition-opacity active:opacity-75 ${isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'}`}
                       style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     >
                       {searchOpen && debouncedQuery.length >= 2 ? highlightText(msg.content, debouncedQuery) : msg.content}
@@ -754,7 +818,7 @@ export default function DMPage() {
               <div className="flex items-end gap-2">
                 <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden flex items-center justify-center text-xs shrink-0">
                   {otherUser?.profile_photo
-                    ? <img src={otherUser.profile_photo} alt="" className="w-full h-full object-cover" />
+                    ? <img src={otherUser.profile_photo} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                     : otherUser?.name?.[0]?.toUpperCase() ?? '?'}
                 </div>
                 <div className="px-4 py-3 rounded-2xl rounded-bl-sm bg-[#141414] flex gap-1 items-center">
@@ -843,7 +907,7 @@ export default function DMPage() {
                 </svg>
               )}
             </button>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
+            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImagePick} />
 
             <input
               value={input}
@@ -931,32 +995,13 @@ export default function DMPage() {
         )}
       </AnimatePresence>
 
-      {/* Full-screen image viewer */}
-      {viewingImage && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.96)' }}
-          onClick={() => setViewingImage(null)}
-        >
-          <img
-            src={viewingImage}
-            alt=""
-            className="max-w-full max-h-full object-contain"
-            style={{ maxWidth: '100vw', maxHeight: '100dvh', padding: 16 }}
-            onClick={e => e.stopPropagation()}
-          />
-          <button
-            type="button"
-            onClick={() => setViewingImage(null)}
-            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full"
-            style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff' }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-            </svg>
-          </button>
-        </div>,
-        document.body
+      {/* Full-screen image viewer (swipe through the conversation's photos) */}
+      {viewingImage && (
+        <ImageViewer
+          images={viewingImage.images}
+          startIndex={viewingImage.index}
+          onClose={() => setViewingImage(null)}
+        />
       )}
 
       {showUserInfo && otherUser && (

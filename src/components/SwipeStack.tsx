@@ -16,6 +16,7 @@ import { joinTrip, saveTrip, getTripChat, getUserJoinedTripIds, getUserSavedTrip
 import { JoinCelebration } from './JoinCelebration'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { track } from '@/lib/analytics'
+import { remindNotifications } from '@/lib/notifReminder'
 import { hasPlus, getTrialStatus } from '@/lib/trial'
 import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
@@ -447,6 +448,9 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   const { h, m, s } = useMidnightCountdown()
   const [swipeLimitReached, setSwipeLimitReached] = useState(false)
   const [limitChecked, setLimitChecked] = useState(false)
+  // Fire `swipe_limit_reached` at most once per mount so PostHog sees one clean
+  // exposure per session, not a re-render storm.
+  const limitReachedTracked = useRef(false)
   // Authoritative daily swipe count from the server; optimistically bumped on
   // each swipe for instant UX, then reconciled with the server's return value.
   const swipesTodayRef = useRef(0)
@@ -534,6 +538,21 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
       .finally(() => { if (!cancelled) setLimitChecked(true) })
     return () => { cancelled = true }
   }, [userId, userProfile, isGuest, dailyLimit])
+
+  // Record the exposure the moment the wall goes up — whether it was hit by
+  // swiping into it this session or was already reached on load. This is the
+  // top of the cap→paywall→purchase funnel and the cohort seed for "did the
+  // cap hurt next-day retention?". Guests and Plus users never wall, so we
+  // only get here for a real capped free user.
+  useEffect(() => {
+    if (!swipeLimitReached || limitReachedTracked.current) return
+    limitReachedTracked.current = true
+    track('swipe_limit_reached', {
+      limit: dailyLimit,
+      variant: swipeVariant,
+      rail: isNativeApp() ? 'native' : 'web',
+    })
+  }, [swipeLimitReached, dailyLimit, swipeVariant])
 
   // Show DNA nudge at card 3 — only on return visits (hint already dismissed before)
   useEffect(() => {
@@ -700,6 +719,7 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     track('trip_joined', { trip_id: trip.id, source: 'swipe' })
     try {
       await joinTrip(trip.id, userId)
+      remindNotifications('join-trip')
       haptic([15, 30, 15, 30, 60])
       qc.invalidateQueries({ queryKey: ['tripChats'] })
       qc.invalidateQueries({ queryKey: ['unreadCount'] })

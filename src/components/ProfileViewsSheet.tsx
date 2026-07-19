@@ -98,7 +98,7 @@ function Paywall({ count, viewers, onClose, onSuccess, userId, onWelcomeDone }: 
     setLoading(true)
     setError(null)
     try {
-      await purchasePlus(selected)
+      await purchasePlus(selected, 'who-viewed')
       // Native: RevenueCat already confirmed the entitlement against Apple's
       // receipt — unlock immediately instead of waiting on the webhook that
       // syncs it to Supabase (that still happens in the background).
@@ -457,22 +457,29 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
     getMyViewerCount().then(setViewerCount)
   }, [])
 
+  // Reveal is a Plus-only benefit. If the user isn't Plus, wipe any reveals left
+  // over from a previous Plus period so the whole list re-blurs — otherwise a
+  // lapsed member keeps free access to identities they unlocked while paying.
+  useEffect(() => {
+    if (!isPlus) {
+      try { localStorage.removeItem(LS_IDS_KEY) } catch {}
+      setRevealedIds(new Set())
+    }
+  }, [isPlus])
+
   const handleViewerTap = (viewer: Viewer) => {
     haptic(8)
-    setSelectedViewer({ id: viewer.id, locked: !revealedIds.has(viewer.id) })
+    // Plus users open unlocked; everyone else opens the blurred/locked profile.
+    setSelectedViewer({ id: viewer.id, locked: !isPlus && !revealedIds.has(viewer.id) })
   }
 
   const handleRevealRequest = (): boolean => {
     if (!selectedViewer) return false
     // Plus users (trial or paid) see everyone — persist the reveal so the list
-    // unblurs them and floats them to the top (previously it wasn't recorded,
-    // so they stayed blurred in the grid even after being revealed).
+    // unblurs them and floats them to the top.
     if (isPlus) { reveal(selectedViewer.id); return true }
-    if (revealedIds.has(selectedViewer.id)) return true
-    if (revealedIds.size < 1) {
-      reveal(selectedViewer.id)
-      return true
-    }
+    // Free users: revealing anyone is Plus-only. Every reveal opens the paywall
+    // — the whole point of the blurred teaser is to convert on that tap.
     setShowPaywall(true)
     return false
   }
@@ -529,26 +536,14 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
             </div>
           ) : (
             <>
-              {/* ── Hero count ── */}
-              <div className="flex flex-col items-center px-5 pt-10 pb-8 text-center">
-                <motion.div
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 24, delay: 0.04 }}
-                  className="mb-6"
-                >
-                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="rgba(240,235,227,0.55)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    <circle cx="12" cy="12" r="3" stroke="rgba(240,235,227,0.55)" strokeWidth="1.8" />
-                  </svg>
-                </motion.div>
-
+              {/* ── Hero count — compact so the faces below are the star ── */}
+              <div className="flex flex-col items-center px-5 pt-6 pb-5 text-center">
                 <motion.p
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ type: 'spring', stiffness: 340, damping: 26, delay: 0.1 }}
                   className="font-extrabold tracking-tight"
-                  style={{ fontSize: 96, lineHeight: '88px', color: '#F0EBE3', letterSpacing: '-5px' }}
+                  style={{ fontSize: 56, lineHeight: '54px', color: '#F0EBE3', letterSpacing: '-2.5px' }}
                 >
                   {displayCount}
                 </motion.p>
@@ -557,17 +552,46 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.35, delay: 0.2 }}
-                  className="font-medium mt-4"
-                  style={{ color: 'rgba(255,255,255,0.38)', fontSize: 16 }}
+                  className="font-medium mt-2"
+                  style={{ color: 'rgba(255,255,255,0.38)', fontSize: 15 }}
                 >
                   {viewerCount === 1 ? 'person viewed your profile' : 'people viewed your profile'}
                 </motion.p>
+                {!isPlus && (
+                  <motion.p
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    transition={{ duration: 0.35, delay: 0.28 }}
+                    className="mt-1"
+                    style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12.5 }}
+                  >
+                    They found you — tap to see who
+                  </motion.p>
+                )}
               </div>
 
-              <div style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.07)' }} />
+              {/* Prominent reveal CTA — the button the whole teaser drives toward. */}
+              {!isPlus && (
+                <div className="px-5 pb-1">
+                  <button
+                    type="button"
+                    onClick={() => { haptic(10); setShowPaywall(true) }}
+                    className="w-full py-3.5 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                    style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                      <rect x="4" y="11" width="16" height="10" rx="2" stroke="#000" strokeWidth="2.2" />
+                      <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="#000" strokeWidth="2.2" strokeLinecap="round" />
+                    </svg>
+                    Reveal who viewed you
+                  </button>
+                </div>
+              )}
 
-              {/* Gated: real views exist but the identity list is Plus-only */}
-              {viewers.length === 0 && (
+              <div className="mt-4" style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.07)' }} />
+
+              {/* Fallback only: views exist but no rows came back (e.g. RPC hiccup).
+                  Free users normally get blurred rows now, so this rarely shows. */}
+              {!isPlus && viewers.length === 0 && (
                 <div className="flex flex-col items-center px-8 pt-8 pb-2 text-center gap-3">
                   <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
                     Upgrade to see who's been checking you out
@@ -588,7 +612,9 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
                 {[...viewers]
                   .sort((a, b) => (revealedIds.has(b.id) ? 1 : 0) - (revealedIds.has(a.id) ? 1 : 0))
                   .map((viewer, i) => {
-                  const isRevealed = revealedIds.has(viewer.id)
+                  // Plus users see everyone; free users see everyone blurred
+                  // (no free reveals) until they upgrade.
+                  const isRevealed = isPlus || revealedIds.has(viewer.id)
                   return (
                     <motion.button
                       key={viewer.id}
@@ -617,7 +643,7 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
                             style={
                               isRevealed
                                 ? undefined
-                                : { filter: 'blur(2px) brightness(0.82)', transform: 'scale(1.08)' }
+                                : { filter: 'blur(7px) brightness(0.8)', transform: 'scale(1.12)' }
                             }
                           />
                         ) : (
@@ -635,7 +661,13 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
 
                       <p
                         className="font-semibold text-xs text-center w-full truncate"
-                        style={{ color: 'rgba(255,255,255,0.85)', maxWidth: 84, paddingLeft: 2, paddingRight: 2 }}
+                        style={{
+                          color: 'rgba(255,255,255,0.85)', maxWidth: 84, paddingLeft: 2, paddingRight: 2,
+                          // Name stays blurred too until revealed — keeps the whole
+                          // card a mystery, not just the photo.
+                          filter: isRevealed ? undefined : 'blur(5px)',
+                          userSelect: isRevealed ? undefined : 'none',
+                        }}
                       >
                         {viewer.name}
                       </p>

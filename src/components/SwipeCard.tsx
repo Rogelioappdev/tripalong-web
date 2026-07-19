@@ -244,7 +244,7 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
                 className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0 z-10"
               >
                 {trip.creator.profile_photo ? (
-                  <img src={resizedImage(trip.creator.profile_photo, 100)} alt="" className="w-full h-full object-cover" draggable={false} />
+                  <img src={resizedImage(trip.creator.profile_photo, 100)} alt="" className="w-full h-full object-cover ta-avatar" draggable={false} />
                 ) : (
                   <div className="w-full h-full bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">
                     {trip.creator.name?.[0]?.toUpperCase() ?? '?'}
@@ -255,7 +255,7 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
               {otherMembers.slice(0, 2).map((m, i) => (
                 <div key={m.user_id} className="w-7 h-7 rounded-full overflow-hidden border-2 border-black shrink-0" style={{ zIndex: 9 - i }}>
                   {m.user?.profile_photo ? (
-                    <img src={resizedImage(m.user.profile_photo, 100)} alt="" className="w-full h-full object-cover" draggable={false} />
+                    <img src={resizedImage(m.user.profile_photo, 100)} alt="" className="w-full h-full object-cover ta-avatar" draggable={false} />
                   ) : (
                     <div className="w-full h-full bg-white/15 flex items-center justify-center text-[10px] font-bold text-white">
                       {m.user?.name?.[0]?.toUpperCase() ?? '?'}
@@ -321,10 +321,11 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
                       ? (matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.3)')
                       : 'rgba(255,255,255,0.2)',
                   }} />
-                  {/* Number blurred — you can almost read it */}
+                  {/* Masked, not the real number — the actual % must never reach
+                      the DOM for free users (a CSS blur is copy-pasteable). */}
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>
                     <span style={{ filter: 'blur(3.5px)', userSelect: 'none' }}>
-                      {matchPct ?? '??'}%
+                      ••%
                     </span>
                     {' '}match
                   </span>

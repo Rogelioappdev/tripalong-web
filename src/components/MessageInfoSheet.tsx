@@ -56,7 +56,7 @@ export function MessageInfoSheet({ content, isImage, sentAt, receipts, onClose }
                 <div key={r.id} className="flex items-center gap-3 px-5 py-2.5">
                   <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-white/8 flex items-center justify-center">
                     {r.photo ? (
-                      <img src={r.photo} alt="" className="w-full h-full object-cover" />
+                      <img src={r.photo} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                     ) : (
                       <span className="text-white/50 font-bold text-sm">{r.name[0]?.toUpperCase() ?? '?'}</span>
                     )}
@@ -81,7 +81,7 @@ export function MessageInfoSheet({ content, isImage, sentAt, receipts, onClose }
                 <div key={r.id} className="flex items-center gap-3 px-5 py-2.5">
                   <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-white/8 flex items-center justify-center">
                     {r.photo ? (
-                      <img src={r.photo} alt="" className="w-full h-full object-cover" />
+                      <img src={r.photo} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                     ) : (
                       <span className="text-white/50 font-bold text-sm">{r.name[0]?.toUpperCase() ?? '?'}</span>
                     )}
