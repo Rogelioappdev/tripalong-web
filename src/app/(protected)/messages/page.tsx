@@ -416,32 +416,49 @@ export default function MessagesPage() {
     })
   }, [dms])
 
-  // Remember scroll position across navigation (e.g. into a chat/DM and back)
-  // — this page fully unmounts on navigation, so without this every return
-  // trip starts back at the top instead of wherever the user was in the list.
+  // Remember scroll position across navigation (e.g. into a chat/DM and back).
+  // Saved continuously on scroll, not just on unmount — Next's client router
+  // cache can keep this page's component instance alive rather than tearing
+  // it down on navigation, which would silently skip an unmount-only save.
   useEffect(() => {
-    return () => {
+    const onScroll = () => {
       try { sessionStorage.setItem(MESSAGES_SCROLL_KEY, String(window.scrollY)) } catch {}
     }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Mobile WebKit sometimes leaves this page un-painted (black) after a fast
-  // chat/DM -> back navigation, until something forces the compositor to
-  // flush — manually scrolling fixes it (a known WebKit quirk, not specific
-  // to any animation here). Restore the saved scroll position from above and
-  // do the repaint-forcing nudge in the same frame, right as the real content
-  // replaces the skeleton — restoring first so the nudge doesn't undo it, and
-  // doing both together so there's no visible jump-to-top-then-back flash.
+  // Restore that saved position once real content replaces the skeleton.
+  // Something (Next's own scroll-to-top-on-navigate handling, most likely)
+  // resets scroll back to 0 shortly after a plain single restore attempt, so
+  // this re-asserts the saved position across a few animation frames plus a
+  // short spread of delayed retries — brute-force, but it makes sure our
+  // restore is the one that "wins" and sticks, whichever those competing
+  // resets are and whenever they land. Also doubles as the fix for mobile
+  // WebKit sometimes leaving this page un-painted (black) after a fast
+  // chat/DM -> back navigation until something forces a repaint — each
+  // restore includes the same 1px scrollBy nudge that forces that flush.
   useEffect(() => {
     if (pageLoading || chatsLoading || dmsLoading) return
-    const raf = requestAnimationFrame(() => {
-      let savedY = 0
-      try { savedY = Number(sessionStorage.getItem(MESSAGES_SCROLL_KEY)) || 0 } catch {}
+    let savedY = 0
+    try { savedY = Number(sessionStorage.getItem(MESSAGES_SCROLL_KEY)) || 0 } catch {}
+
+    const apply = () => {
       if (savedY > 0) window.scrollTo(0, savedY)
       window.scrollBy(0, 1)
       window.scrollBy(0, -1)
+    }
+
+    const raf1 = requestAnimationFrame(() => {
+      apply()
+      requestAnimationFrame(apply)
     })
-    return () => cancelAnimationFrame(raf)
+    const timers = [50, 150, 350, 600].map(ms => setTimeout(apply, ms))
+
+    return () => {
+      cancelAnimationFrame(raf1)
+      timers.forEach(clearTimeout)
+    }
   }, [pageLoading, chatsLoading, dmsLoading])
 
   if (pageLoading || chatsLoading || dmsLoading) return <MessagesSkeleton />
