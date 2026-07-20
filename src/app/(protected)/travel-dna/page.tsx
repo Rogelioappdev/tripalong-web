@@ -25,9 +25,9 @@ const STEPS = [
     subtitle: 'This helps match you with compatible travel crews',
     multi: false,
     options: [
-      { value: 'male', emoji: '👨', label: 'Man' },
-      { value: 'female', emoji: '👩', label: 'Woman' },
-      { value: 'other', emoji: '🌟', label: 'Non-binary' },
+      { value: 'male', emoji: '👨', label: 'Male' },
+      { value: 'female', emoji: '👩', label: 'Female' },
+      { value: 'other', emoji: '🌟', label: 'Other' },
     ],
   },
   {

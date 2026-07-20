@@ -516,7 +516,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                     <div>
                       <p className="text-white font-semibold text-lg mb-3">Travel Preferences</p>
                       <div className="flex flex-wrap gap-2" style={contentBlur}>
-                        {profile.gender && <PrefTile title="Gender" value={profile.gender === 'male' ? '👨 Man' : profile.gender === 'female' ? '👩 Woman' : '🌟 Non-binary'} />}
+                        {profile.gender && <PrefTile title="Gender" value={profile.gender === 'male' ? '👨 Male' : profile.gender === 'female' ? '👩 Female' : '🌟 Other'} />}
                         {profile.travel_with && <PrefTile title="Travels With" value={profile.travel_with === 'everyone' ? '🌍 Everyone' : profile.travel_with === 'female' ? '👩 Women Only' : '👨 Men Only'} />}
                         {label(PERSONALITY_OPT, profile.social_energy) && <PrefTile title="Personality" value={label(PERSONALITY_OPT, profile.social_energy)!} />}
                         {label(PACE_OPTIONS, profile.travel_pace) && <PrefTile title="Daily Pace" value={label(PACE_OPTIONS, profile.travel_pace)!} />}
