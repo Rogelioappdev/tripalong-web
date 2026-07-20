@@ -360,7 +360,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
           return (
             <>
               {/* ── Hero ── */}
-              <div ref={heroRef} className="relative shrink-0 w-full overflow-hidden" style={{ aspectRatio: '4 / 3', backgroundColor: '#111', borderRadius: '0 0 24px 24px' }}>
+              <div ref={heroRef} className="relative shrink-0 w-full overflow-hidden" style={{ height: '66dvh', backgroundColor: '#111' }}>
 
                 {/* Carousel track — one flex row of full-width slides, dragged
                     1:1 with the finger (Instagram-style) instead of crossfading. */}
@@ -419,18 +419,21 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                 </AnimatePresence>
 
                 {/* Light top-only gradient — just enough for the close button
-                    to stay legible; the photo carries the rest, no heavy
-                    bottom scrim since name/age moved off it. */}
-                <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: '30%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, transparent 100%)' }} />
+                    to stay legible. */}
+                <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: '22%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 100%)' }} />
+
+                {/* Subtle bottom gradient — grounds the glass card below so it
+                    reads even over a bright photo, without the old heavy scrim. */}
+                <div className="absolute inset-x-0 bottom-0 pointer-events-none" style={{ height: '35%', background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
 
                 {/* Photo dots */}
                 {allPhotos.length > 1 && (
-                  <div className="absolute flex justify-center gap-1.5 pointer-events-none" style={{ bottom: 12, left: 0, right: 0 }}>
+                  <div className="absolute flex justify-center gap-1.5 pointer-events-none" style={{ bottom: 10, left: 0, right: 0, zIndex: 6 }}>
                     {allPhotos.map((_, i) => (
                       <div
                         key={i}
                         className="rounded-full transition-all duration-200"
-                        style={{ width: i === photoIndex ? 24 : 8, height: 8, backgroundColor: i === photoIndex ? '#F0EBE3' : 'rgba(255,255,255,0.35)' }}
+                        style={{ width: i === photoIndex ? 24 : 8, height: 8, backgroundColor: i === photoIndex ? '#F0EBE3' : 'rgba(255,255,255,0.4)' }}
                       />
                     ))}
                   </div>
@@ -447,20 +450,25 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   </svg>
                 </button>
 
-              </div>
-
-              {/* ── Scrollable body ── */}
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                <div className="px-6 pt-5 pb-6 flex flex-col gap-7">
-
-                  {/* Name / age / verified / location — off the photo, card-like
-                      row right under it so the photo stays the focus. */}
-                  <div>
+                {/* Name / age / verified / location — liquid-glass card
+                    overlaid bottom-left on the photo, so the photo still
+                    fills the frame instead of getting pushed down by text. */}
+                <div className="absolute" style={{ left: 16, bottom: 34, right: 20, zIndex: 6 }}>
+                  <div
+                    className="inline-flex flex-col rounded-2xl px-4 py-3"
+                    style={{
+                      backgroundColor: 'rgba(20,20,20,0.35)',
+                      backdropFilter: 'blur(20px) saturate(180%)',
+                      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                      border: '0.5px solid rgba(255,255,255,0.2)',
+                      boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+                    } as React.CSSProperties}
+                  >
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-white font-bold" style={{ fontSize: 24 }}>{profile.name}</span>
-                      {profile.age && <span className="text-white font-bold" style={{ fontSize: 24 }}>{profile.age}</span>}
+                      <span className="text-white font-bold" style={{ fontSize: 22 }}>{profile.name}</span>
+                      {profile.age && <span className="text-white font-bold" style={{ fontSize: 22 }}>{profile.age}</span>}
                       {profile.is_verified && (
-                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                           <circle cx="12" cy="12" r="11" fill="#3B82F6"/>
                           <path d="M8 12.5l2.5 2.5L16 9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
@@ -468,19 +476,25 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                       {hasPlus(profile) && (
                         <span
                           className="font-bold rounded-full px-2.5 py-1"
-                          style={{ backgroundColor: 'rgba(240,235,227,0.12)', border: '0.5px solid rgba(240,235,227,0.35)', color: '#F0EBE3', fontSize: 12, letterSpacing: 0.2 }}
+                          style={{ backgroundColor: 'rgba(240,235,227,0.16)', border: '0.5px solid rgba(240,235,227,0.4)', color: '#F0EBE3', fontSize: 11, letterSpacing: 0.2 }}
                         >
                           TripAlong+
                         </span>
                       )}
                     </div>
                     {(profile.city || profile.country) && (
-                      <div className="flex items-center gap-1 mt-1.5">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/></svg>
-                        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>{[profile.city, profile.country].filter(Boolean).join(', ')}</span>
+                      <div className="flex items-center gap-1 mt-1">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="rgba(255,255,255,0.65)" strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.65)" strokeWidth="2"/></svg>
+                        <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13 }}>{[profile.city, profile.country].filter(Boolean).join(', ')}</span>
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* ── Scrollable body ── */}
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                <div className="px-6 pt-6 pb-6 flex flex-col gap-7">
 
                   {/* Bio + Instagram */}
                   {(profile.bio || (profile.instagram_handle && currentUserId)) && (
