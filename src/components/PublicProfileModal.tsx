@@ -88,13 +88,14 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
     setIndex(next)
   }
 
-  // Same preload-adjacent-photos fix as the hero swipe above.
+  // Same preload-adjacent-photos fix as the hero swipe above. Loads the
+  // original, un-resized photo — see the note by the <img> below for why.
   useEffect(() => {
     if (photos.length < 2) return
     ;[index - 1, index + 1].forEach(i => {
       if (i < 0 || i >= photos.length) return
       const img = new window.Image()
-      img.src = resizedImage(photos[i], 1200, 80)
+      img.src = photos[i]
     })
   }, [index, photos])
 
@@ -151,7 +152,19 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
             transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.8 }}
           >
             <img
-              src={resizedImage(photos[index], 1200, 80)}
+              // Full-screen, object-contain viewer: load the original photo
+              // rather than resizedImage's width-only transform. Verified live
+              // that Supabase's transform endpoint ignores height when only
+              // width is set (ignores requested proportions, returns the
+              // source's untouched original height) — for a fixed-aspect crop
+              // (avatars) that's fixed by requesting an explicit square height,
+              // but here we don't know each photo's true aspect ratio up
+              // front, and getting it wrong makes object-contain shrink the
+              // whole image down to a narrow sliver to avoid "cropping" a
+              // photo that was never actually the reported shape. Uploads are
+              // already capped at ~1440px, so this isn't a meaningful
+              // bandwidth cost for a "view this person's actual photo" screen.
+              src={photos[index]}
               alt=""
               className="w-full h-full object-contain"
               draggable={false}
