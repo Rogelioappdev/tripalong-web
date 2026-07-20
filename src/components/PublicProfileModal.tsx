@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, animate, type PanInfo } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getProfile, getTrip, getOrCreateDM, recordProfileView } from '@/lib/queries'
@@ -41,7 +41,6 @@ const PERSONALITY_OPT = [{ id: 'introvert', label: 'Introvert', emoji: '🌙' },
 const EXPERIENCE_OPT  = [{ id: 'beginner', label: 'Beginner', emoji: '🌱' }, { id: 'intermediate', label: 'Intermediate', emoji: '🌿' }, { id: 'experienced', label: 'Experienced', emoji: '🌳' }, { id: 'expert', label: 'Expert', emoji: '🌍' }]
 
 const SWIPE_THRESHOLD = 50
-const HERO_SWIPE_THRESHOLD = 30 // in-profile hero swipe — lighter than the fullscreen lightbox
 const VELOCITY_THRESHOLD = 400
 
 function label(opts: { id: string; label: string; emoji: string }[], id: string | null | undefined) {
@@ -200,7 +199,6 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [photoIndex, setPhotoIndex] = useState(0)
-  const [photoDirection, setPhotoDirection] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   // Single source of truth for the photo list (profile photo first, then the
   // rest deduped). Both the swipe handler and the render use this — previously
@@ -221,6 +219,8 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   const router = useRouter()
   const heroPtrRef = useRef({ x: 0, y: 0 })
   const heroRef = useRef<HTMLDivElement>(null)
+  const [heroWidth, setHeroWidth] = useState(0)
+  const carouselX = useMotionValue(0)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [dmLoading, setDmLoading] = useState(false)
   const [revealed, setRevealed] = useState(!locked)
@@ -291,25 +291,41 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
     ;[photoIndex - 1, photoIndex + 1].forEach(i => {
       if (i < 0 || i >= allPhotos.length) return
       const img = new window.Image()
-      img.src = resizedImage(allPhotos[i], 800, 75)
+      img.src = resizedImage(allPhotos[i], 900, 78)
     })
   }, [photoIndex, allPhotos])
 
+  // Track the hero's width so the carousel track can be positioned in real
+  // pixels (needed for drag constraints/snapping) instead of guessing at %.
+  // useLayoutEffect so it's measured before paint — no flash of a wrongly
+  // sized first slide.
+  useLayoutEffect(() => {
+    const el = heroRef.current
+    if (!el) return
+    const update = () => setHeroWidth(el.offsetWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Drive the carousel to the current photo — real drag-follow while
+  // swiping (Instagram-style), spring-snap to the target index otherwise.
+  useEffect(() => {
+    const controls = animate(carouselX, -photoIndex * heroWidth, { type: 'spring', stiffness: 420, damping: 42 })
+    return () => controls.stop()
+  }, [photoIndex, heroWidth, carouselX])
+
   if (!mounted) return null
 
-  const navigatePhoto = (next: number, dir: number) => {
-    setPhotoDirection(dir)
-    setPhotoIndex(next)
-  }
-
+  // Drag has already moved `carouselX` in real time (Instagram-style
+  // follow-your-finger); on release, snap to whichever photo is nearest,
+  // nudged by velocity so a fast flick reads as "next" even from a short drag.
   const handleHeroDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    // Lower threshold than the fullscreen lightbox so a light in-profile swipe
-    // reliably turns the photo instead of dying in the tap/swipe dead zone.
-    if (info.offset.x < -HERO_SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
-      if (photoIndex < allPhotos.length - 1) navigatePhoto(photoIndex + 1, 1)
-    } else if (info.offset.x > HERO_SWIPE_THRESHOLD || info.velocity.x > VELOCITY_THRESHOLD) {
-      if (photoIndex > 0) navigatePhoto(photoIndex - 1, -1)
-    }
+    if (!heroWidth) return
+    const settledPosition = -carouselX.get() + (info.velocity.x < -VELOCITY_THRESHOLD ? heroWidth * 0.4 : info.velocity.x > VELOCITY_THRESHOLD ? -heroWidth * 0.4 : 0)
+    const nextIndex = Math.max(0, Math.min(allPhotos.length - 1, Math.round(settledPosition / heroWidth)))
+    setPhotoIndex(nextIndex)
   }
 
   const content = (
@@ -340,33 +356,45 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
           return (
             <>
               {/* ── Hero ── */}
-              <div ref={heroRef} className="relative shrink-0" style={{ height: '45dvh' }}>
+              <div ref={heroRef} className="relative shrink-0 w-full overflow-hidden" style={{ aspectRatio: '4 / 3', backgroundColor: '#111' }}>
 
-                {/* Photo with slide animation */}
-                <AnimatePresence initial={false} custom={photoDirection} mode="popLayout">
-                  {mainPhoto ? (
-                    <motion.img
-                      key={photoIndex}
-                      src={resizedImage(mainPhoto, 800, 75)}
-                      alt={profile.name}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      custom={photoDirection}
-                      initial={{ x: photoDirection * 60, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      exit={{ x: photoDirection * -60, opacity: 0 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.8 }}
-                      draggable={false}
-                    />
-                  ) : (
-                    <motion.div
-                      key="placeholder"
-                      className="absolute inset-0 flex items-center justify-center"
-                      style={{ backgroundColor: '#111' }}
-                    >
-                      <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* Carousel track — one flex row of full-width slides, dragged
+                    1:1 with the finger (Instagram-style) instead of crossfading. */}
+                {mainPhoto ? (
+                  <motion.div
+                    className="absolute inset-y-0 left-0 flex h-full"
+                    style={{ x: carouselX, touchAction: 'pan-y' }}
+                    drag={allPhotos.length > 1 ? 'x' : false}
+                    dragConstraints={{ left: -(allPhotos.length - 1) * heroWidth, right: 0 }}
+                    dragElastic={0.15}
+                    dragMomentum={false}
+                    onDragEnd={handleHeroDragEnd}
+                    onPointerDown={(e) => { heroPtrRef.current = { x: e.clientX, y: e.clientY } }}
+                    onPointerUp={(e) => {
+                      const dx = Math.abs(e.clientX - heroPtrRef.current.x)
+                      const dy = Math.abs(e.clientY - heroPtrRef.current.y)
+                      if (dx < 6 && dy < 6 && !isLocked) setLightboxOpen(true)
+                    }}
+                  >
+                    {allPhotos.map((photo, i) => (
+                      <div key={photo} className="relative shrink-0 h-full" style={{ width: heroWidth || '100%' }}>
+                        <img
+                          src={resizedImage(photo, 900, 78)}
+                          alt={profile.name}
+                          className="w-full h-full object-cover"
+                          draggable={false}
+                          // Only the current + adjacent slides need to be eager —
+                          // the rest can wait until they're swiped near.
+                          loading={Math.abs(i - photoIndex) <= 1 ? 'eager' : 'lazy'}
+                        />
+                      </div>
+                    ))}
+                  </motion.div>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
+                  </div>
+                )}
 
                 {/* Blur overlay — only when locked, fades out on reveal */}
                 <AnimatePresence>
@@ -386,30 +414,14 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   )}
                 </AnimatePresence>
 
-                {/* Gradient */}
-                <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 20%, rgba(0,0,0,0.95) 100%)' }} />
-
-                {/* Swipe + tap drag layer — sits above gradient, below close button */}
-                {allPhotos.length > 0 && (
-                  <motion.div
-                    className="absolute inset-0"
-                    drag={allPhotos.length > 1 ? 'x' : false}
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.22}
-                    onDragEnd={handleHeroDragEnd}
-                    onPointerDown={(e) => { heroPtrRef.current = { x: e.clientX, y: e.clientY } }}
-                    onPointerUp={(e) => {
-                      const dx = Math.abs(e.clientX - heroPtrRef.current.x)
-                      const dy = Math.abs(e.clientY - heroPtrRef.current.y)
-                      if (dx < 6 && dy < 6 && !isLocked) setLightboxOpen(true)
-                    }}
-                    style={{ touchAction: 'none', cursor: 'pointer' } as React.CSSProperties}
-                  />
-                )}
+                {/* Light top-only gradient — just enough for the close button
+                    and verified badge to stay legible; the photo carries the
+                    rest, no heavy bottom scrim since name/age moved off it. */}
+                <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: '30%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, transparent 100%)' }} />
 
                 {/* Photo dots */}
                 {allPhotos.length > 1 && (
-                  <div className="absolute flex justify-center gap-1.5 pointer-events-none" style={{ bottom: 88, left: 0, right: 0 }}>
+                  <div className="absolute flex justify-center gap-1.5 pointer-events-none" style={{ bottom: 12, left: 0, right: 0 }}>
                     {allPhotos.map((_, i) => (
                       <div
                         key={i}
@@ -420,7 +432,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   </div>
                 )}
 
-                {/* Chevron-down close — z-index keeps it above drag layer */}
+                {/* Chevron-down close — z-index keeps it above the carousel track */}
                 <button
                   onClick={() => { haptic(8); onClose() }}
                   className="absolute flex items-center justify-center active:scale-90 transition-transform"
@@ -438,33 +450,33 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                     <span className="text-white text-xs font-semibold">Verified</span>
                   </div>
                 )}
-
-                {/* Name / age / location */}
-                <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 pointer-events-none" style={{ zIndex: 5 }}>
-                  <div className="flex items-baseline gap-3 mb-1">
-                    <span className="text-white font-bold" style={{ fontSize: 36 }}>{profile.name}</span>
-                    {profile.age && <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 28, fontWeight: 300 }}>{profile.age}</span>}
-                    {hasPlus(profile) && (
-                      <span
-                        className="font-bold rounded-full px-2.5 py-1"
-                        style={{ backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.4)', color: '#F0EBE3', fontSize: 12, letterSpacing: 0.2 }}
-                      >
-                        TripAlong+
-                      </span>
-                    )}
-                  </div>
-                  {(profile.city || profile.country) && (
-                    <div className="flex items-center gap-1">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="#F0EBE3" strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke="#F0EBE3" strokeWidth="2"/></svg>
-                      <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14 }}>{[profile.city, profile.country].filter(Boolean).join(', ')}</span>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* ── Scrollable body ── */}
               <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                 <div className="px-6 pt-6 pb-6 flex flex-col gap-7">
+
+                  {/* Name / age / location — off the photo so it can breathe */}
+                  <div>
+                    <div className="flex items-baseline gap-3 mb-1.5 flex-wrap">
+                      <span className="text-white font-bold" style={{ fontSize: 28 }}>{profile.name}</span>
+                      {profile.age && <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 22, fontWeight: 300 }}>{profile.age}</span>}
+                      {hasPlus(profile) && (
+                        <span
+                          className="font-bold rounded-full px-2.5 py-1"
+                          style={{ backgroundColor: 'rgba(240,235,227,0.12)', border: '0.5px solid rgba(240,235,227,0.35)', color: '#F0EBE3', fontSize: 12, letterSpacing: 0.2 }}
+                        >
+                          TripAlong+
+                        </span>
+                      )}
+                    </div>
+                    {(profile.city || profile.country) && (
+                      <div className="flex items-center gap-1">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/></svg>
+                        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>{[profile.city, profile.country].filter(Boolean).join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Bio + Instagram */}
                   {(profile.bio || (profile.instagram_handle && currentUserId)) && (
