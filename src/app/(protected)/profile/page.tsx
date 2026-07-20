@@ -12,7 +12,7 @@ import { haptic } from '@/lib/haptics'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { CountryPicker } from '@/components/CountryPicker'
-import { resizedImage } from '@/lib/imageUrl'
+import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
 
 // ── DNA field definitions (single source of truth on this page) ───────────
 const DNA_FIELDS = [
@@ -403,7 +403,7 @@ export default function ProfilePage() {
           {/* Hero photo */}
           <div className="relative w-full aspect-[3/2] rounded-3xl overflow-hidden bg-white/6">
             {profile?.profile_photo ? (
-              <img key={profile.profile_photo} src={resizedImage(profile.profile_photo, 800, 80)} alt="" className="w-full h-full object-cover" />
+              <img key={profile.profile_photo} src={resizedImage(profile.profile_photo, 800, 80, 533)} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-5xl">👤</div>
             )}
@@ -665,7 +665,7 @@ export default function ProfilePage() {
             <div className="grid grid-cols-3 gap-1.5">
               {orderedPhotos.map((url, i) => (
                 <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
-                  <img src={resizedImage(url, 400)} alt="" className="w-full h-full object-cover" />
+                  <img src={resizedAvatar(url, 400)} alt="" className="w-full h-full object-cover" />
                   {i === 0 && (
                     <div
                       className="absolute top-1 left-1 z-10 px-2 py-0.5 rounded-full text-[10px] font-semibold"

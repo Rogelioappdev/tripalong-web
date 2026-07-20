@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { resizedImage } from '@/lib/imageUrl'
+import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -58,7 +58,7 @@ function MemberAvatar({ person, index }: { person: Person; index: number }) {
     >
       {photo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={resizedImage(photo, 80)} alt="" className="w-full h-full object-cover ta-avatar" />
+        <img src={resizedAvatar(photo, 80)} alt="" className="w-full h-full object-cover ta-avatar" />
       ) : (
         initial
       )}

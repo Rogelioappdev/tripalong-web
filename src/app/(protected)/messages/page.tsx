@@ -21,7 +21,7 @@ import { displayName } from '@/lib/displayName'
 import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 import { ConversationActionSheet } from '@/components/ConversationActionSheet'
 import { isNativeApp } from '@/lib/native-app'
-import { resizedImage } from '@/lib/imageUrl'
+import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
 
 function CheckTick({ seen }: { seen: boolean }) {
   const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.55)'
@@ -653,7 +653,7 @@ export default function MessagesPage() {
                     <div className="relative shrink-0">
                       <div className="w-12 h-12 rounded-full bg-white/8 overflow-hidden">
                         {other?.profile_photo ? (
-                          <img src={resizedImage(other.profile_photo, 100)} alt="" className="w-full h-full object-cover ta-avatar" />
+                          <img src={resizedAvatar(other.profile_photo, 100)} alt="" className="w-full h-full object-cover ta-avatar" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/50">
                             {displayName(other?.name)[0].toUpperCase()}
@@ -745,7 +745,7 @@ export default function MessagesPage() {
             kind="dm"
             title={displayName(actionSheetDM.other_user?.name)}
             avatar={actionSheetDM.other_user?.profile_photo
-              ? <img src={resizedImage(actionSheetDM.other_user.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
+              ? <img src={resizedAvatar(actionSheetDM.other_user.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
               : <span className="text-sm font-bold text-white/50">{displayName(actionSheetDM.other_user?.name)[0].toUpperCase()}</span>}
             isMuted={!!actionSheetDM.is_muted}
             onClose={() => setActionSheetDM(null)}

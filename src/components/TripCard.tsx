@@ -1,6 +1,6 @@
 'use client'
 
-import { resizedImage } from '@/lib/imageUrl'
+import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
 import type { TripWithDetails } from '@/lib/types'
 
 interface TripCardProps {
@@ -79,7 +79,7 @@ export function TripCard({ trip, onClick }: TripCardProps) {
         <div className="flex items-center gap-2">
           {trip.creator.profile_photo ? (
             <img
-              src={resizedImage(trip.creator.profile_photo, 100)}
+              src={resizedAvatar(trip.creator.profile_photo, 100)}
               alt={trip.creator.name}
               className="w-5 h-5 rounded-full object-cover"
             />

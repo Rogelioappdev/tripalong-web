@@ -35,7 +35,7 @@ import { haptic } from '@/lib/haptics'
 import { useSwipeBack } from '@/lib/useSwipeBack'
 import type { DMMessage, TripMessage } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
-import { resizedImage } from '@/lib/imageUrl'
+import { resizedAvatar } from '@/lib/imageUrl'
 import { ImageViewer } from '@/components/ImageViewer'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -547,7 +547,7 @@ export default function DMPage() {
                 <div className="relative shrink-0">
                   <div className="w-9 h-9 rounded-full bg-white/10 overflow-hidden">
                     {otherUser.profile_photo
-                      ? <img src={resizedImage(otherUser.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
+                      ? <img src={resizedAvatar(otherUser.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                       : <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white/50">{otherUser.name?.[0]?.toUpperCase()}</div>
                     }
                   </div>
@@ -698,7 +698,7 @@ export default function DMPage() {
                         {msg.sender?.profile_photo
                           // Plain center-crop, matching the Group Info member rows — .ta-avatar's
                           // top-biased crop is too tight on the face at this tiny 28px size.
-                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
+                          ? <img src={resizedAvatar(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                           : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                     )}
@@ -753,7 +753,7 @@ export default function DMPage() {
                         {msg.sender?.profile_photo
                           // Plain center-crop, matching the Group Info member rows — .ta-avatar's
                           // top-biased crop is too tight on the face at this tiny 28px size.
-                          ? <img src={resizedImage(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
+                          ? <img src={resizedAvatar(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                           : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                       {isOtherOnline && (

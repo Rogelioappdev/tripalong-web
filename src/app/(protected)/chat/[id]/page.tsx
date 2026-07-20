@@ -39,7 +39,7 @@ import {
 } from '@/lib/queries'
 import type { TripMessage, TripWithDetails, HangalongWithDetails } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
-import { resizedImage } from '@/lib/imageUrl'
+import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
 
 const HANG_ACTIVITY_EMOJI: Record<string, string> = {
   hike: '🥾', road_trip: '🚗', beach: '🏖️', climbing: '🧗',
@@ -962,7 +962,7 @@ export default function ChatPage() {
                         // Plain center-crop, not .ta-avatar's top-biased crop — at this tiny
                         // 28px size the top bias crops in too tight on the face, unlike the
                         // Group Info member rows (44px, plain object-cover) it should match.
-                        ? <img src={resizedImage(senderPhoto, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
+                        ? <img src={resizedAvatar(senderPhoto, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                         : senderName[0].toUpperCase()}
                     </button>
                   )}
@@ -1060,7 +1060,7 @@ export default function ChatPage() {
                           {seenBy.slice(0, 3).map(r => (
                             <div key={r.user_id} className="w-4 h-4 rounded-full bg-white/20 overflow-hidden">
                               {r.user?.profile_photo
-                                ? <img src={resizedImage(r.user.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
+                                ? <img src={resizedAvatar(r.user.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                                 : <div className="w-full h-full flex items-center justify-center" style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)' }}>
                                     {r.user?.name?.[0]?.toUpperCase()}
                                   </div>}
