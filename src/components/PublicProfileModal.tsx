@@ -298,7 +298,11 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   // Track the hero's width so the carousel track can be positioned in real
   // pixels (needed for drag constraints/snapping) instead of guessing at %.
   // useLayoutEffect so it's measured before paint — no flash of a wrongly
-  // sized first slide.
+  // sized first slide. Depends on `loading`/`profile` because the hero <div>
+  // heroRef points at doesn't exist until the loading spinner is replaced by
+  // real content — without that dependency this ran once against a null ref
+  // and heroWidth stayed 0 forever, which pinned dragConstraints to
+  // {left: 0, right: 0} and made the carousel completely unswipeable.
   useLayoutEffect(() => {
     const el = heroRef.current
     if (!el) return
@@ -307,7 +311,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
     const ro = new ResizeObserver(update)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [loading, profile])
 
   // Drive the carousel to the current photo — real drag-follow while
   // swiping (Instagram-style), spring-snap to the target index otherwise.
@@ -356,7 +360,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
           return (
             <>
               {/* ── Hero ── */}
-              <div ref={heroRef} className="relative shrink-0 w-full overflow-hidden" style={{ aspectRatio: '4 / 3', backgroundColor: '#111' }}>
+              <div ref={heroRef} className="relative shrink-0 w-full overflow-hidden" style={{ aspectRatio: '4 / 3', backgroundColor: '#111', borderRadius: '0 0 24px 24px' }}>
 
                 {/* Carousel track — one flex row of full-width slides, dragged
                     1:1 with the finger (Instagram-style) instead of crossfading. */}
@@ -415,8 +419,8 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                 </AnimatePresence>
 
                 {/* Light top-only gradient — just enough for the close button
-                    and verified badge to stay legible; the photo carries the
-                    rest, no heavy bottom scrim since name/age moved off it. */}
+                    to stay legible; the photo carries the rest, no heavy
+                    bottom scrim since name/age moved off it. */}
                 <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: '30%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, transparent 100%)' }} />
 
                 {/* Photo dots */}
@@ -443,24 +447,24 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   </svg>
                 </button>
 
-                {/* Verified badge */}
-                {profile.is_verified && (
-                  <div className="absolute flex items-center gap-1 rounded-full px-3 py-1.5" style={{ top: 'calc(env(safe-area-inset-top) + 56px)', right: 16, backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.35)', zIndex: 10 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    <span className="text-white text-xs font-semibold">Verified</span>
-                  </div>
-                )}
               </div>
 
               {/* ── Scrollable body ── */}
               <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                <div className="px-6 pt-6 pb-6 flex flex-col gap-7">
+                <div className="px-6 pt-5 pb-6 flex flex-col gap-7">
 
-                  {/* Name / age / location — off the photo so it can breathe */}
+                  {/* Name / age / verified / location — off the photo, card-like
+                      row right under it so the photo stays the focus. */}
                   <div>
-                    <div className="flex items-baseline gap-3 mb-1.5 flex-wrap">
-                      <span className="text-white font-bold" style={{ fontSize: 28 }}>{profile.name}</span>
-                      {profile.age && <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 22, fontWeight: 300 }}>{profile.age}</span>}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white font-bold" style={{ fontSize: 24 }}>{profile.name}</span>
+                      {profile.age && <span className="text-white font-bold" style={{ fontSize: 24 }}>{profile.age}</span>}
+                      {profile.is_verified && (
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="11" fill="#3B82F6"/>
+                          <path d="M8 12.5l2.5 2.5L16 9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
                       {hasPlus(profile) && (
                         <span
                           className="font-bold rounded-full px-2.5 py-1"
@@ -471,7 +475,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                       )}
                     </div>
                     {(profile.city || profile.country) && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 mt-1.5">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/></svg>
                         <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>{[profile.city, profile.country].filter(Boolean).join(', ')}</span>
                       </div>
