@@ -1226,7 +1226,7 @@ export default function ChatPage() {
             ref={composerFormRef}
             onSubmit={handleSend}
             className="shrink-0 pt-3 border-t border-white/8 flex gap-2 items-end md:pb-4"
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' } as React.CSSProperties}
           >
             {/* Hidden file input */}
             <input

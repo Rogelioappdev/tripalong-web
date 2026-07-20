@@ -28,7 +28,12 @@ export function BottomTabBar() {
     refetchInterval: 60_000,
   })
 
-  if (HIDE_ON.some(p => pathname === p) || pathname.startsWith('/auth')) return null
+  if (
+    HIDE_ON.some(p => pathname === p) ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/chat/') ||
+    pathname.startsWith('/dm/')
+  ) return null
 
   const tabs = [
     {
