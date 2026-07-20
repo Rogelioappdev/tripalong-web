@@ -175,6 +175,9 @@ export default function ChatPage() {
 
   // Image
   const [uploadingImage, setUploadingImage] = useState(false)
+  // Single combined "sending N photos" placeholder shown while a multi-photo
+  // batch uploads, instead of one bubble per photo popping in individually.
+  const [uploadingBatch, setUploadingBatch] = useState<{ count: number; preview: string } | null>(null)
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -454,59 +457,58 @@ export default function ChatPage() {
   }
 
   // ── Image pick & upload ───────────────────────────────────────────────────
+  // Multiple photos upload in parallel behind a single "sending N photos"
+  // placeholder, then reveal together — instead of one bubble per photo
+  // popping in individually as each upload finishes in turn, which read as
+  // slow/janky next to WhatsApp/Instagram's combined send-in-progress tile.
   const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    if (files.length === 0 || !userId) return
+    const picked = Array.from(e.target.files ?? [])
+    if (picked.length === 0 || !userId) return
     e.target.value = ''
 
-    setUploadingImage(true)
-    // Send each picked photo as its own message, in order. Invalidate right
-    // after each upload succeeds (not just once at the end of the batch) so
-    // that photo's bubble swaps from its dimmed/spinner "uploading" state to
-    // "sent" as soon as it's actually done, instead of every picked photo
-    // staying in the loading state until the whole batch finishes.
-    try {
-      for (const file of files) {
-        if (file.size > 10 * 1024 * 1024) {
-          alert(`"${file.name}" is over 10 MB and was skipped`)
-          continue
-        }
-        const localUrl = URL.createObjectURL(file)
-        const optimisticId = `optimistic-img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-        const optimistic: TripMessage = {
-          id: optimisticId,
-          trip_chat_id: chatId,
-          sender_id: userId,
-          content: localUrl,
-          type: 'image',
-          reply_to_id: null,
-          is_edited: false,
-          created_at: new Date().toISOString(),
-          sender: { id: userId, name: userName, profile_photo: null },
-          reply_to: null,
-          reactions: [],
-        }
-        queryClient.setQueryData<TripMessage[]>(['messages', chatId], old => [...(old ?? []), optimistic])
-        try {
-          const publicUrl = await uploadChatImage(chatId, file)
-          await sendMessage(chatId, userId, publicUrl, null, 'image')
-          URL.revokeObjectURL(localUrl)
-          haptic(10)
-          await queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
-          sendPushNotification({ chatId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/chat/${chatId}` })
-        } catch {
-          queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
-            (old ?? []).filter(m => m.id !== optimisticId)
-          )
-          URL.revokeObjectURL(localUrl)
-        }
+    const files = picked.filter(file => {
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`"${file.name}" is over 10 MB and was skipped`)
+        return false
       }
-      // Sending a photo also counts as seeing the thread — clear unread state.
-      markTripChatRead(chatId)
-      queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
-      queryClient.invalidateQueries({ queryKey: ['tripChats'] })
-      remindNotifications('message')
+      return true
+    })
+    if (files.length === 0) return
+
+    const preview = URL.createObjectURL(files[0])
+    setUploadingBatch({ count: files.length, preview })
+    setUploadingImage(true)
+
+    try {
+      // Upload is the slow, bandwidth-bound part — run it in parallel so a
+      // batch takes as long as the slowest single upload, not the sum of all.
+      const uploaded = await Promise.allSettled(files.map(file => uploadChatImage(chatId, file)))
+
+      // Sending is a lightweight DB insert — do it in order so the messages
+      // land in the sequence the user picked them.
+      let sentCount = 0
+      for (const result of uploaded) {
+        if (result.status !== 'fulfilled') continue
+        await sendMessage(chatId, userId, result.value, null, 'image')
+        sentCount++
+        sendPushNotification({ chatId, senderId: userId, senderName: userName, content: result.value, type: 'image', url: `/chat/${chatId}` })
+      }
+
+      const failedCount = uploaded.length - sentCount
+      if (failedCount > 0) alert(`${failedCount} photo${failedCount > 1 ? 's' : ''} failed to send`)
+
+      if (sentCount > 0) {
+        haptic(10)
+        await queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+        // Sending a photo also counts as seeing the thread — clear unread state.
+        markTripChatRead(chatId)
+        queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
+        queryClient.invalidateQueries({ queryKey: ['tripChats'] })
+        remindNotifications('message')
+      }
     } finally {
+      URL.revokeObjectURL(preview)
+      setUploadingBatch(null)
       setUploadingImage(false)
     }
   }
@@ -902,7 +904,6 @@ export default function ChatPage() {
             {!isLoading && !!userId && displayMessages.map((msg, idx) => {
               const isMe = msg.sender_id === userId
               const isSystem = msg.type === 'system'
-              const isUploadingImage = msg.type === 'image' && msg.id.startsWith('optimistic-img-')
               const rosterSender = senderById.get(msg.sender_id)
               const senderName = displayName(rosterSender?.name ?? msg.sender?.name)
               const senderPhoto = rosterSender?.profile_photo ?? msg.sender?.profile_photo ?? null
@@ -1011,20 +1012,15 @@ export default function ChatPage() {
                           const imgs = displayMessages.filter(m => m.type === 'image').map(m => m.content)
                           setViewingImage({ images: imgs, index: Math.max(0, imgs.indexOf(msg.content)) })
                         }}
-                        className={`overflow-hidden rounded-2xl relative ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
+                        className={`overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
                         style={{ maxWidth: 220, display: 'block' }}
                       >
                         <img
                           src={msg.content}
                           alt="Image"
                           className="w-full h-auto block"
-                          style={{ maxHeight: 280, objectFit: 'contain', opacity: isUploadingImage ? 0.55 : 1, transition: 'opacity 0.25s ease' }}
+                          style={{ maxHeight: 280, objectFit: 'contain' }}
                         />
-                        {isUploadingImage && (
-                          <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.15)' }}>
-                            <div className="w-7 h-7 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          </div>
-                        )}
                       </button>
                     ) : (
                       <div
@@ -1088,6 +1084,35 @@ export default function ChatPage() {
                 </Fragment>
               )
             })}
+
+            {/* Sending-multiple-photos placeholder — one combined tile
+                instead of a bubble per photo, matching WhatsApp/Instagram's
+                single in-flight indicator. Swaps out for the real bubbles,
+                all at once, as soon as the whole batch lands. */}
+            <AnimatePresence>
+              {uploadingBatch && (
+                <motion.div
+                  key="upload-batch"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-end justify-end"
+                >
+                  <div className="relative overflow-hidden rounded-2xl rounded-br-sm shrink-0" style={{ width: 120, height: 120 }}>
+                    <img src={uploadingBatch.preview} alt="" className="w-full h-full object-cover" style={{ opacity: 0.45 }} />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>
+                      <div className="w-7 h-7 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {uploadingBatch.count > 1 && (
+                        <span className="text-white font-bold text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}>
+                          {uploadingBatch.count} photos
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Typing indicator */}
             {!searchOpen && typingNames.length > 0 && (
