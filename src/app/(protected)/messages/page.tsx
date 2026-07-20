@@ -23,6 +23,8 @@ import { ConversationActionSheet } from '@/components/ConversationActionSheet'
 import { isNativeApp } from '@/lib/native-app'
 import { resizedAvatar } from '@/lib/imageUrl'
 
+const MESSAGES_SCROLL_KEY = 'ta-messages-scroll-y'
+
 function CheckTick({ seen }: { seen: boolean }) {
   const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.55)'
   return (
@@ -414,15 +416,28 @@ export default function MessagesPage() {
     })
   }, [dms])
 
+  // Remember scroll position across navigation (e.g. into a chat/DM and back)
+  // — this page fully unmounts on navigation, so without this every return
+  // trip starts back at the top instead of wherever the user was in the list.
+  useEffect(() => {
+    return () => {
+      try { sessionStorage.setItem(MESSAGES_SCROLL_KEY, String(window.scrollY)) } catch {}
+    }
+  }, [])
+
   // Mobile WebKit sometimes leaves this page un-painted (black) after a fast
   // chat/DM -> back navigation, until something forces the compositor to
   // flush — manually scrolling fixes it (a known WebKit quirk, not specific
-  // to any animation here), so nudge the scroll position by a sub-pixel
-  // amount right as the real content replaces the skeleton, instead of
-  // waiting on the user to scroll themselves.
+  // to any animation here). Restore the saved scroll position from above and
+  // do the repaint-forcing nudge in the same frame, right as the real content
+  // replaces the skeleton — restoring first so the nudge doesn't undo it, and
+  // doing both together so there's no visible jump-to-top-then-back flash.
   useEffect(() => {
     if (pageLoading || chatsLoading || dmsLoading) return
     const raf = requestAnimationFrame(() => {
+      let savedY = 0
+      try { savedY = Number(sessionStorage.getItem(MESSAGES_SCROLL_KEY)) || 0 } catch {}
+      if (savedY > 0) window.scrollTo(0, savedY)
       window.scrollBy(0, 1)
       window.scrollBy(0, -1)
     })
