@@ -414,6 +414,21 @@ export default function MessagesPage() {
     })
   }, [dms])
 
+  // Mobile WebKit sometimes leaves this page un-painted (black) after a fast
+  // chat/DM -> back navigation, until something forces the compositor to
+  // flush — manually scrolling fixes it (a known WebKit quirk, not specific
+  // to any animation here), so nudge the scroll position by a sub-pixel
+  // amount right as the real content replaces the skeleton, instead of
+  // waiting on the user to scroll themselves.
+  useEffect(() => {
+    if (pageLoading || chatsLoading || dmsLoading) return
+    const raf = requestAnimationFrame(() => {
+      window.scrollBy(0, 1)
+      window.scrollBy(0, -1)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [pageLoading, chatsLoading, dmsLoading])
+
   if (pageLoading || chatsLoading || dmsLoading) return <MessagesSkeleton />
 
   return (
