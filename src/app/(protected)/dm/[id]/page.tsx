@@ -120,6 +120,17 @@ export default function DMPage() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [replyTo, setReplyTo] = useState<DMMessage | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+  const composerFormRef = useRef<HTMLFormElement>(null)
+
+  // Auto-grow the composer as the message wraps to more lines, capped so it
+  // doesn't swallow the whole screen on a very long message.
+  useEffect(() => {
+    const el = composerRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [input])
 
   // Typing
   const [otherTyping, setOtherTyping] = useState(false)
@@ -336,10 +347,18 @@ export default function DMPage() {
     channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: {} })
   }, [])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
     if (typingDebounce.current) clearTimeout(typingDebounce.current)
     typingDebounce.current = setTimeout(broadcastTyping, 300)
+  }
+
+  // Enter sends, Shift+Enter inserts a newline — matches iMessage behavior.
+  const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      composerFormRef.current?.requestSubmit()
+    }
   }
 
   // ── Send ──────────────────────────────────────────────────────────────────
@@ -930,8 +949,9 @@ export default function DMPage() {
 
           {/* Input */}
           <form
+            ref={composerFormRef}
             onSubmit={handleSend}
-            className="shrink-0 pt-3 border-t border-white/8 flex gap-2 md:pb-4"
+            className="shrink-0 pt-3 border-t border-white/8 flex gap-2 items-end md:pb-4"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
           >
             {/* Photo button */}
@@ -954,18 +974,21 @@ export default function DMPage() {
             </button>
             <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImagePick} />
 
-            <input
+            <textarea
+              ref={composerRef}
+              rows={1}
               value={input}
               onChange={handleInputChange}
+              onKeyDown={handleComposerKeyDown}
               disabled={isBlockedByMe}
               placeholder={isBlockedByMe ? 'You blocked this person' : 'Message…'}
-              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25 disabled:opacity-40"
-              style={{ fontSize: 16 }}
+              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25 disabled:opacity-40 resize-none overflow-y-auto"
+              style={{ fontSize: 16, maxHeight: 120 }}
             />
             <button
               type="submit"
               disabled={!input.trim() || sending || isBlockedByMe}
-              className="bg-white text-black font-semibold px-5 rounded-2xl text-sm hover:bg-white/90 transition-colors disabled:opacity-30"
+              className="bg-white text-black font-semibold px-5 py-3 rounded-2xl text-sm hover:bg-white/90 transition-colors disabled:opacity-30"
             >
               Send
             </button>

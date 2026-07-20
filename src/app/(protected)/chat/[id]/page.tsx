@@ -161,6 +161,15 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false)
   const [replyTo, setReplyTo] = useState<TripMessage | null>(null)
 
+  // Auto-grow the composer as the message wraps to more lines, capped so it
+  // doesn't swallow the whole screen on a very long message.
+  useEffect(() => {
+    const el = composerRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [input])
+
   // Typing indicators
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({})
   const typingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -180,6 +189,8 @@ export default function ChatPage() {
   const [uploadingBatch, setUploadingBatch] = useState<{ count: number; preview: string } | null>(null)
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+  const composerFormRef = useRef<HTMLFormElement>(null)
 
   // Sender profile (tap avatar/name to view)
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
@@ -399,10 +410,18 @@ export default function ChatPage() {
     })
   }, [userName])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
     if (typingDebounce.current) clearTimeout(typingDebounce.current)
     typingDebounce.current = setTimeout(broadcastTyping, 300)
+  }
+
+  // Enter sends, Shift+Enter inserts a newline — matches iMessage behavior.
+  const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      composerFormRef.current?.requestSubmit()
+    }
   }
 
   // ── Send ──────────────────────────────────────────────────────────────────
@@ -1204,8 +1223,9 @@ export default function ChatPage() {
 
           {/* Input */}
           <form
+            ref={composerFormRef}
             onSubmit={handleSend}
-            className="shrink-0 pt-3 border-t border-white/8 flex gap-2 md:pb-4"
+            className="shrink-0 pt-3 border-t border-white/8 flex gap-2 items-end md:pb-4"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
           >
             {/* Hidden file input */}
@@ -1238,16 +1258,20 @@ export default function ChatPage() {
                 </svg>
               )}
             </button>
-            <input
+            <textarea
+              ref={composerRef}
+              rows={1}
               value={input}
               onChange={handleInputChange}
+              onKeyDown={handleComposerKeyDown}
               placeholder="Message…"
-              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25"
+              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25 resize-none overflow-y-auto"
+              style={{ maxHeight: 120 }}
             />
             <button
               type="submit"
               disabled={!input.trim() || sending}
-              className="bg-white text-black font-semibold px-5 rounded-2xl text-sm hover:bg-white/90 transition-colors disabled:opacity-30"
+              className="bg-white text-black font-semibold px-5 py-3 rounded-2xl text-sm hover:bg-white/90 transition-colors disabled:opacity-30"
             >
               Send
             </button>
