@@ -326,13 +326,43 @@ export default function PrivacyPage() {
 
         <Sub n="6.3" title="Deletion." />
         <P>
-          You may request deletion of your account and personal data at any time via{' '}
-          <strong className="text-white">Settings → Danger Zone → Delete Account</strong>, or by
-          emailing{' '}
-          <a href="mailto:privacy@tripalong.app" className="underline" style={{ color: 'rgba(255,255,255,0.7)' }}>
-            privacy@tripalong.app
-          </a>. We will delete your data within 30 days, subject to the exceptions in Section 4.
+          You can request deletion of your account and personal data at any time, whether or not you
+          still have the app installed. Choose whichever method works for you:
         </P>
+
+        <p className="text-sm font-semibold mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.8)' }}>
+          Option A — From inside the app
+        </p>
+        <ol className="list-decimal ml-5 space-y-2 mb-4">
+          <Li>Open TripAlong and sign in</Li>
+          <Li>Go to <strong className="text-white">Settings</strong></Li>
+          <Li>Scroll to <strong className="text-white">Danger Zone</strong> and tap <strong className="text-white">Delete Account</strong></Li>
+          <Li>Confirm the deletion when prompted</Li>
+        </ol>
+
+        <p className="text-sm font-semibold mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.8)' }}>
+          Option B — Without the app (web request)
+        </p>
+        <ol className="list-decimal ml-5 space-y-2 mb-4">
+          <Li>
+            Email{' '}
+            <a href="mailto:privacy@tripalong.app?subject=Account%20Deletion%20Request" className="underline" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              privacy@tripalong.app
+            </a>{' '}
+            with the subject line &quot;Account Deletion Request&quot;
+          </Li>
+          <Li>Include the email address or phone number associated with your account so we can verify your identity</Li>
+          <Li>We will confirm your request by email and process the deletion — no need to reinstall the app</Li>
+        </ol>
+
+        <InfoBox>
+          <p className="text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.8)' }}>What gets deleted vs. retained</p>
+          <ul className="list-disc ml-4 space-y-2">
+            <Li><strong className="text-white/85">Deleted within 30 days:</strong> your profile, photos, trip listings, messages sent under your account, subscription/billing records tied to your identity, device and push-notification tokens, and analytics identifiers</Li>
+            <Li><strong className="text-white/85">Retained where legally required:</strong> financial/tax records we must keep by law, information needed to resolve an open dispute or enforce our Terms, and data needed for active fraud or safety investigations — see Section 4</Li>
+            <Li><strong className="text-white/85">Anonymized, not deleted:</strong> group chat messages remain visible to other members but are re-attributed to a deleted user; aggregate analytics that can no longer identify you may be kept indefinitely</Li>
+          </ul>
+        </InfoBox>
 
         <Sub n="6.4" title="Data Portability." />
         <P>
