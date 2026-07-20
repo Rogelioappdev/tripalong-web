@@ -391,6 +391,11 @@ export default function DMPage() {
     e.target.value = ''
 
     setUploadingImage(true)
+    // Invalidate right after each upload succeeds (not just once at the end
+    // of the batch) so that photo's bubble swaps from its dimmed/spinner
+    // "uploading" state to "sent" as soon as it's actually done, instead of
+    // every picked photo staying in the loading state until the whole batch
+    // finishes.
     try {
       for (const file of files) {
         if (file.size > 10 * 1024 * 1024) { alert(`"${file.name}" is over 10 MB and was skipped`); continue }
@@ -413,6 +418,8 @@ export default function DMPage() {
           const publicUrl = await uploadDMImage(conversationId, file)
           await sendDMMessage(conversationId, userId, publicUrl, null, 'image')
           URL.revokeObjectURL(localUrl)
+          haptic(10)
+          await queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] })
           sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/dm/${conversationId}` })
         } catch {
           queryClient.setQueryData<DMMessage[]>(['dmMessages', conversationId], old =>
@@ -421,7 +428,6 @@ export default function DMPage() {
           URL.revokeObjectURL(localUrl)
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] })
       // Sending a photo also counts as seeing the thread — clear unread state.
       markDMRead(conversationId)
       queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
@@ -689,6 +695,7 @@ export default function DMPage() {
               const reacted = groupReactions(msg.reactions)
               const myReactionEmojis = (msg.reactions ?? []).filter(r => r.user_id === userId).map(r => r.emoji)
               const isLastMyMsg = msg.id === lastMyMsg?.id
+              const isUploadingImage = msg.type === 'image' && msg.id.startsWith('optimistic-img-')
 
               if (msg.type === 'image') {
                 return (
@@ -713,10 +720,20 @@ export default function DMPage() {
                           const imgs = displayMessages.filter((m: DMMessage) => m.type === 'image').map((m: DMMessage) => m.content)
                           setViewingImage({ images: imgs, index: Math.max(0, imgs.indexOf(msg.content)) })
                         }}
-                        className="ta-nocopy rounded-2xl overflow-hidden active:opacity-80 transition-opacity block"
+                        className="ta-nocopy rounded-2xl overflow-hidden relative active:opacity-80 transition-opacity block"
                         style={{ maxWidth: 220 }}
                       >
-                        <img src={msg.content} alt="" className="w-full h-auto block" style={{ maxHeight: 280, objectFit: 'contain' }} />
+                        <img
+                          src={msg.content}
+                          alt=""
+                          className="w-full h-auto block"
+                          style={{ maxHeight: 280, objectFit: 'contain', opacity: isUploadingImage ? 0.55 : 1, transition: 'opacity 0.25s ease' }}
+                        />
+                        {isUploadingImage && (
+                          <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.15)' }}>
+                            <div className="w-7 h-7 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          </div>
+                        )}
                       </button>
                       {reacted.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-0.5 px-1">

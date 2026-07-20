@@ -460,7 +460,11 @@ export default function ChatPage() {
     e.target.value = ''
 
     setUploadingImage(true)
-    // Send each picked photo as its own message, in order.
+    // Send each picked photo as its own message, in order. Invalidate right
+    // after each upload succeeds (not just once at the end of the batch) so
+    // that photo's bubble swaps from its dimmed/spinner "uploading" state to
+    // "sent" as soon as it's actually done, instead of every picked photo
+    // staying in the loading state until the whole batch finishes.
     try {
       for (const file of files) {
         if (file.size > 10 * 1024 * 1024) {
@@ -487,6 +491,8 @@ export default function ChatPage() {
           const publicUrl = await uploadChatImage(chatId, file)
           await sendMessage(chatId, userId, publicUrl, null, 'image')
           URL.revokeObjectURL(localUrl)
+          haptic(10)
+          await queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
           sendPushNotification({ chatId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/chat/${chatId}` })
         } catch {
           queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
@@ -495,7 +501,6 @@ export default function ChatPage() {
           URL.revokeObjectURL(localUrl)
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
       // Sending a photo also counts as seeing the thread — clear unread state.
       markTripChatRead(chatId)
       queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
@@ -897,6 +902,7 @@ export default function ChatPage() {
             {!isLoading && !!userId && displayMessages.map((msg, idx) => {
               const isMe = msg.sender_id === userId
               const isSystem = msg.type === 'system'
+              const isUploadingImage = msg.type === 'image' && msg.id.startsWith('optimistic-img-')
               const rosterSender = senderById.get(msg.sender_id)
               const senderName = displayName(rosterSender?.name ?? msg.sender?.name)
               const senderPhoto = rosterSender?.profile_photo ?? msg.sender?.profile_photo ?? null
@@ -1005,15 +1011,20 @@ export default function ChatPage() {
                           const imgs = displayMessages.filter(m => m.type === 'image').map(m => m.content)
                           setViewingImage({ images: imgs, index: Math.max(0, imgs.indexOf(msg.content)) })
                         }}
-                        className={`overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
+                        className={`overflow-hidden rounded-2xl relative ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
                         style={{ maxWidth: 220, display: 'block' }}
                       >
                         <img
                           src={msg.content}
                           alt="Image"
                           className="w-full h-auto block"
-                          style={{ maxHeight: 280, objectFit: 'contain' }}
+                          style={{ maxHeight: 280, objectFit: 'contain', opacity: isUploadingImage ? 0.55 : 1, transition: 'opacity 0.25s ease' }}
                         />
+                        {isUploadingImage && (
+                          <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.15)' }}>
+                            <div className="w-7 h-7 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          </div>
+                        )}
                       </button>
                     ) : (
                       <div
