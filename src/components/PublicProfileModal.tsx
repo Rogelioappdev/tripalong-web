@@ -340,7 +340,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
-        className="relative w-full sm:max-w-lg flex flex-col overflow-hidden"
+        className="relative w-full sm:max-w-lg flex flex-col overflow-y-auto overflow-x-hidden"
         style={{ backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh' }}
       >
         {loading || !profile ? (
@@ -422,9 +422,10 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                     to stay legible. */}
                 <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: '22%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 100%)' }} />
 
-                {/* Subtle bottom gradient — grounds the glass card below so it
-                    reads even over a bright photo, without the old heavy scrim. */}
-                <div className="absolute inset-x-0 bottom-0 pointer-events-none" style={{ height: '35%', background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
+                {/* Bottom gradient fades all the way to solid black so the
+                    photo blends smoothly into the page below it instead of
+                    cutting hard from image to flat black at the seam. */}
+                <div className="absolute inset-x-0 bottom-0 pointer-events-none" style={{ height: '45%', background: 'linear-gradient(to top, #000 0%, rgba(0,0,0,0.55) 45%, transparent 100%)' }} />
 
                 {/* Photo dots */}
                 {allPhotos.length > 1 && (
@@ -492,8 +493,9 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                 </div>
               </div>
 
-              {/* ── Scrollable body ── */}
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+              {/* ── Body — flows under the hero now; the whole sheet scrolls
+                  as one page instead of pinning the photo in place. ── */}
+              <div className="shrink-0">
                 <div className="px-6 pt-6 pb-6 flex flex-col gap-7">
 
                   {/* Bio + Instagram */}
