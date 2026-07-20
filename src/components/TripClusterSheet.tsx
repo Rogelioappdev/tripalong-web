@@ -4,7 +4,7 @@
 // (zoom can't separate them). Tapping a row hands the trip back to open its peek.
 
 import { motion } from 'framer-motion'
-import { resizedImage } from '@/lib/imageUrl'
+import { resizedAvatar } from '@/lib/imageUrl'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -71,7 +71,7 @@ export function TripClusterSheet({
                 <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center" style={{ background: '#1a1a1a' }}>
                   {trip.cover_image ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={resizedImage(trip.cover_image, 140)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
+                    <img src={resizedAvatar(trip.cover_image, 140)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                   ) : (
                     <span className="text-xl">🌍</span>
                   )}

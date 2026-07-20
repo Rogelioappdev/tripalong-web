@@ -737,7 +737,7 @@ export default function ChatPage() {
               <button type="button" onClick={() => setShowGroupInfo(true)} className="flex-1 flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-white/10 overflow-hidden shrink-0">
                   {tripInfo.cover_image
-                    ? <img src={resizedImage(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
+                    ? <img src={resizedAvatar(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                     : <div className="w-full h-full flex items-center justify-center text-sm">🌍</div>}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
@@ -771,7 +771,7 @@ export default function ChatPage() {
                   style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
                 >
                   {hangInfo.photo_url
-                    ? <img src={resizedImage(hangInfo.photo_url, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
+                    ? <img src={resizedAvatar(hangInfo.photo_url, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                     : <span style={{ fontSize: 18 }}>{HANG_ACTIVITY_EMOJI[hangInfo.activity_type] ?? '✨'}</span>}
                 </div>
                 <div className="flex-1 min-w-0 text-left">

@@ -21,7 +21,7 @@ import { displayName } from '@/lib/displayName'
 import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 import { ConversationActionSheet } from '@/components/ConversationActionSheet'
 import { isNativeApp } from '@/lib/native-app'
-import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
+import { resizedAvatar } from '@/lib/imageUrl'
 
 function CheckTick({ seen }: { seen: boolean }) {
   const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.55)'
@@ -548,7 +548,7 @@ export default function MessagesPage() {
                     {selectMode === 'chats' && <SelectCheckbox checked={isSelected} />}
                     <div className="w-12 h-12 rounded-2xl bg-white/8 overflow-hidden shrink-0">
                       {avatarPhoto ? (
-                        <img src={resizedImage(avatarPhoto, 100)} alt="" className="w-full h-full object-cover ta-avatar" />
+                        <img src={resizedAvatar(avatarPhoto, 100)} alt="" className="w-full h-full object-cover ta-avatar" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xl">{avatarFallback}</div>
                       )}
@@ -724,7 +724,7 @@ export default function MessagesPage() {
               kind="group"
               title={title}
               subtitle={isHang ? chat.hangalong.location_name : null}
-              avatar={avatarPhoto ? <img src={resizedImage(avatarPhoto, 100)} alt="" className="w-full h-full object-cover" /> : <span className="text-lg">🌍</span>}
+              avatar={avatarPhoto ? <img src={resizedAvatar(avatarPhoto, 100)} alt="" className="w-full h-full object-cover" /> : <span className="text-lg">🌍</span>}
               isMuted={!!actionSheetChat.is_muted}
               onClose={() => setActionSheetChat(null)}
               onToggleMute={() => handleToggleMuteChat(chat.id, !!actionSheetChat.is_muted)}
