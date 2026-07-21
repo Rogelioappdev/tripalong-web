@@ -767,7 +767,7 @@ export default function ChatPage() {
       <NavBar />
       <motion.main
         className="md:pt-14 bg-black flex flex-col overflow-hidden"
-        style={{ height: '100dvh' }}
+        style={{ height: '100dvh', willChange: 'transform', backfaceVisibility: 'hidden' }}
         initial={{ x: 32, opacity: 0.88 }}
         animate={isExiting ? { x: 60, opacity: 0.85 } : { x: 0, opacity: 1 }}
         transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
