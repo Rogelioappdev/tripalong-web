@@ -516,9 +516,13 @@ export default function ChatPage() {
         const result = uploaded[i]
         if (result.status !== 'fulfilled') continue
         const mediaType = files[i].type.startsWith('video/') ? 'video' : 'image'
-        await sendMessage(chatId, userId, result.value, null, mediaType)
-        sentCount++
-        sendPushNotification({ chatId, senderId: userId, senderName: userName, content: result.value, type: mediaType, url: `/chat/${chatId}` })
+        try {
+          await sendMessage(chatId, userId, result.value, null, mediaType)
+          sentCount++
+          sendPushNotification({ chatId, senderId: userId, senderName: userName, content: result.value, type: mediaType, url: `/chat/${chatId}` })
+        } catch (err) {
+          console.error('Failed to send message', err)
+        }
       }
 
       const failedCount = uploaded.length - sentCount

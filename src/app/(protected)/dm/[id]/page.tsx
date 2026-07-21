@@ -447,9 +447,13 @@ export default function DMPage() {
         const result = uploaded[i]
         if (result.status !== 'fulfilled') continue
         const mediaType = files[i].type.startsWith('video/') ? 'video' : 'image'
-        await sendDMMessage(conversationId, userId, result.value, null, mediaType)
-        sentCount++
-        sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content: result.value, type: mediaType, url: `/dm/${conversationId}` })
+        try {
+          await sendDMMessage(conversationId, userId, result.value, null, mediaType)
+          sentCount++
+          sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content: result.value, type: mediaType, url: `/dm/${conversationId}` })
+        } catch (err) {
+          console.error('Failed to send message', err)
+        }
       }
 
       const failedCount = uploaded.length - sentCount
