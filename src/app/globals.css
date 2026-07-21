@@ -22,17 +22,29 @@ body {
   touch-action: manipulation;
 }
 
-/* Hide scrollbar on mobile card stack */
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-/* Chat/DM message text is intentionally non-copyable (matches the native
-   WebView's injected rule). Everything else stays selectable/copyable. */
-.ta-nocopy, .ta-nocopy * {
+/* Nothing is selectable/highlightable by default (matches the native
+   WebView's injected rule) — otherwise long-pressing arbitrary UI (buttons,
+   labels, avatars) triggers the browser's text-selection/callout instead of
+   the app's own long-press actions. Message text copying goes through the
+   dedicated Copy button in the message action sheet (navigator.clipboard),
+   not raw browser selection, so this applies everywhere without exception
+   for chat bubbles. Inputs/textareas/contenteditable opt back in below since
+   they need normal text-editing selection to function at all. */
+* {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
 }
+
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* Hide scrollbar on mobile card stack */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* Profile-photo avatars: bias the object-cover crop toward the top so faces
    (usually near the top of a portrait photo) show, instead of the crop cutting

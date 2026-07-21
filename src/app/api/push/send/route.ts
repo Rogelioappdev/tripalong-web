@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
   const body = type === 'join'
     ? (content ?? '')
     : isDM
-      ? (type === 'image' ? '📷 Photo' : (content ?? ''))
-      : (type === 'image' ? 'sent a photo 📷' : 'sent a message')
+      ? (type === 'image' ? '📷 Photo' : type === 'video' ? '🎥 Video' : (content ?? ''))
+      : (type === 'image' ? 'sent a photo 📷' : type === 'video' ? 'sent a video 🎥' : 'sent a message')
   const subsRpc = isDM ? 'get_dm_push_subscriptions' : 'get_chat_push_subscriptions'
   const tokensRpc = isDM ? 'get_dm_native_push_tokens' : 'get_chat_native_push_tokens'
   const rpcIdParam = isDM ? 'p_conversation_id' : 'p_chat_id'

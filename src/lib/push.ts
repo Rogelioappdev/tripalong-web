@@ -80,7 +80,7 @@ export async function sendPushNotification(params: {
   senderId: string
   senderName: string
   content: string
-  type: 'text' | 'image' | 'join'
+  type: 'text' | 'image' | 'video' | 'join'
   url: string
 }): Promise<void> {
   try {
@@ -105,7 +105,7 @@ export async function sendDMPushNotification(params: {
   senderId: string
   senderName: string
   content: string
-  type: 'text' | 'image'
+  type: 'text' | 'image' | 'video'
   url: string
 }): Promise<void> {
   try {

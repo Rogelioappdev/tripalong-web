@@ -26,7 +26,7 @@ import {
   getProfile,
   getOlderChatMessages,
   sendMessage,
-  uploadChatImage,
+  uploadChatMedia,
   deleteMessage,
   toggleReaction,
   markTripChatRead,
@@ -40,6 +40,7 @@ import {
 import type { TripMessage, TripWithDetails, HangalongWithDetails } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
 import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
+import { mediaPreviewLabel } from '@/lib/messagePreview'
 
 const HANG_ACTIVITY_EMOJI: Record<string, string> = {
   hike: '🥾', road_trip: '🚗', beach: '🏖️', climbing: '🧗',
@@ -486,35 +487,42 @@ export default function ChatPage() {
     e.target.value = ''
 
     const files = picked.filter(file => {
-      if (file.size > 10 * 1024 * 1024) {
-        alert(`"${file.name}" is over 10 MB and was skipped`)
+      const isVideo = file.type.startsWith('video/')
+      const limit = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024
+      if (file.size > limit) {
+        alert(`"${file.name}" is over ${isVideo ? '50 MB' : '10 MB'} and was skipped`)
         return false
       }
       return true
     })
     if (files.length === 0) return
 
-    const preview = URL.createObjectURL(files[0])
+    // Videos can't render as an <img> preview blob — fall back to a generic
+    // icon placeholder for the batch preview when the first file is a video.
+    const firstIsVideo = files[0].type.startsWith('video/')
+    const preview = firstIsVideo ? '' : URL.createObjectURL(files[0])
     setUploadingBatch({ count: files.length, preview })
     setUploadingImage(true)
 
     try {
       // Upload is the slow, bandwidth-bound part — run it in parallel so a
       // batch takes as long as the slowest single upload, not the sum of all.
-      const uploaded = await Promise.allSettled(files.map(file => uploadChatImage(chatId, file)))
+      const uploaded = await Promise.allSettled(files.map(file => uploadChatMedia(chatId, file)))
 
       // Sending is a lightweight DB insert — do it in order so the messages
       // land in the sequence the user picked them.
       let sentCount = 0
-      for (const result of uploaded) {
+      for (let i = 0; i < uploaded.length; i++) {
+        const result = uploaded[i]
         if (result.status !== 'fulfilled') continue
-        await sendMessage(chatId, userId, result.value, null, 'image')
+        const mediaType = files[i].type.startsWith('video/') ? 'video' : 'image'
+        await sendMessage(chatId, userId, result.value, null, mediaType)
         sentCount++
-        sendPushNotification({ chatId, senderId: userId, senderName: userName, content: result.value, type: 'image', url: `/chat/${chatId}` })
+        sendPushNotification({ chatId, senderId: userId, senderName: userName, content: result.value, type: mediaType, url: `/chat/${chatId}` })
       }
 
       const failedCount = uploaded.length - sentCount
-      if (failedCount > 0) alert(`${failedCount} photo${failedCount > 1 ? 's' : ''} failed to send`)
+      if (failedCount > 0) alert(`${failedCount} item${failedCount > 1 ? 's' : ''} failed to send`)
 
       if (sentCount > 0) {
         haptic(10)
@@ -970,7 +978,7 @@ export default function ChatPage() {
                 <Fragment key={msg.id}>
                 {dateSep}
                 <div
-                  className={`ta-nocopy flex items-end gap-2 select-none ${isMe ? 'flex-row-reverse' : ''}`}
+                  className={`flex items-end gap-2 select-none ${isMe ? 'flex-row-reverse' : ''}`}
                   onPointerDown={() => handlePointerDown(msg)}
                   onPointerUp={handlePointerUp}
                   onPointerMove={handlePointerMove}
@@ -1016,7 +1024,7 @@ export default function ChatPage() {
                           className={`px-3 py-1.5 rounded-xl text-xs max-w-full ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
                           style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
                         >
-                          <p className="text-white/35 truncate">{rc.startsWith('https://') ? '📷 Photo' : rc}</p>
+                          <p className="text-white/35 truncate">{mediaPreviewLabel(rc) ?? rc}</p>
                         </div>
                       )
                     })()}
@@ -1041,9 +1049,18 @@ export default function ChatPage() {
                           style={{ maxHeight: 280, objectFit: 'contain' }}
                         />
                       </button>
+                    ) : msg.type === 'video' ? (
+                      <video
+                        src={msg.content}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className={`overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
+                        style={{ maxWidth: 220, maxHeight: 280, display: 'block', backgroundColor: '#000' }}
+                      />
                     ) : (
                       <div
-                        className={`ta-nocopy px-4 py-2.5 rounded-2xl text-sm max-w-full ${
+                        className={`px-4 py-2.5 rounded-2xl text-sm max-w-full ${
                           isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'
                         }`}
                         style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
@@ -1118,13 +1135,19 @@ export default function ChatPage() {
                   transition={{ duration: 0.2 }}
                   className="flex items-end justify-end"
                 >
-                  <div className="relative overflow-hidden rounded-2xl rounded-br-sm shrink-0" style={{ width: 120, height: 120 }}>
-                    <img src={uploadingBatch.preview} alt="" className="w-full h-full object-cover" style={{ opacity: 0.45 }} />
+                  <div className="relative overflow-hidden rounded-2xl rounded-br-sm shrink-0" style={{ width: 120, height: 120, backgroundColor: '#1a1a1a' }}>
+                    {uploadingBatch.preview ? (
+                      <img src={uploadingBatch.preview} alt="" className="w-full h-full object-cover" style={{ opacity: 0.45 }} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center" style={{ opacity: 0.45 }}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M23 7l-7 5 7 5V7z" fill="white"/><rect x="1" y="5" width="15" height="14" rx="2" fill="white"/></svg>
+                      </div>
+                    )}
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>
                       <div className="w-7 h-7 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       {uploadingBatch.count > 1 && (
                         <span className="text-white font-bold text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}>
-                          {uploadingBatch.count} photos
+                          {uploadingBatch.count} items
                         </span>
                       )}
                     </div>
@@ -1232,7 +1255,7 @@ export default function ChatPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
               multiple
               className="hidden"
               onChange={handleImagePick}
@@ -1331,6 +1354,7 @@ export default function ChatPage() {
             key="info"
             content={infoMsg.content}
             isImage={infoMsg.type === 'image'}
+            isVideo={infoMsg.type === 'video'}
             sentAt={infoMsg.created_at}
             receipts={infoReceipts}
             onClose={() => setInfoMsg(null)}

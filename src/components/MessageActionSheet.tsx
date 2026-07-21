@@ -33,7 +33,7 @@ export function MessageActionSheet({ msg, isMe, myReactions, onClose, onReact, o
         ), onClick: onInfo }]
       : []),
     isMe
-      ? { label: 'Delete', icon: (
+      ? { label: 'Unsend', icon: (
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><polyline points="3 6 5 6 21 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke="currentColor" strokeWidth="2"/></svg>
         ), onClick: onDelete, danger: true }
       : { label: 'Report', icon: (

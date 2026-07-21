@@ -22,6 +22,7 @@ import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 import { ConversationActionSheet } from '@/components/ConversationActionSheet'
 import { isNativeApp } from '@/lib/native-app'
 import { resizedAvatar } from '@/lib/imageUrl'
+import { mediaPreviewLabel } from '@/lib/messagePreview'
 
 const MESSAGES_SCROLL_KEY = 'ta-messages-scroll-y'
 
@@ -611,7 +612,7 @@ export default function MessagesPage() {
                         <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
                           {iMySentLast && <CheckTick seen={item.others_read} />}
                           <p className="text-xs truncate">
-                            {item.last_message?.startsWith('https://') ? '📷 Photo' : (item.last_message ?? 'Group chat')}
+                            {mediaPreviewLabel(item.last_message) ?? (item.last_message ?? 'Group chat')}
                           </p>
                         </div>
                       )}
@@ -723,7 +724,7 @@ export default function MessagesPage() {
                         <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
                           {iMySentLast && <CheckTick seen={dmSeen} />}
                           <p className="text-xs truncate">
-                            {dm.last_message.startsWith('https://') ? '📷 Photo' : dm.last_message}
+                            {mediaPreviewLabel(dm.last_message) ?? dm.last_message}
                           </p>
                         </div>
                       ) : presenceText ? (

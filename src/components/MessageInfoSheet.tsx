@@ -13,6 +13,7 @@ export interface MessageReceipt {
 interface Props {
   content: string
   isImage: boolean
+  isVideo?: boolean
   sentAt: string
   receipts: MessageReceipt[]
   onClose: () => void
@@ -24,7 +25,7 @@ function formatTimestamp(iso: string) {
   })
 }
 
-export function MessageInfoSheet({ content, isImage, sentAt, receipts, onClose }: Props) {
+export function MessageInfoSheet({ content, isImage, isVideo, sentAt, receipts, onClose }: Props) {
   const read = receipts.filter(r => r.seenAt).sort((a, b) => (b.seenAt! > a.seenAt! ? 1 : -1))
   const delivered = receipts.filter(r => !r.seenAt)
 
@@ -43,7 +44,7 @@ export function MessageInfoSheet({ content, isImage, sentAt, receipts, onClose }
         <div className="px-5 pt-4 pb-3" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.07)' }}>
           <p className="text-white font-semibold text-sm mb-1">Message Info</p>
           <p className="text-white/40 text-xs leading-snug line-clamp-2">
-            {isImage ? '📷 Photo' : content}
+            {isImage ? '📷 Photo' : isVideo ? '🎥 Video' : content}
           </p>
           <p className="text-white/25 text-[11px] mt-1.5">Sent {formatTimestamp(sentAt)}</p>
         </div>

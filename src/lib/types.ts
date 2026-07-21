@@ -103,7 +103,7 @@ export type DMMessage = {
   conversation_id: string
   sender_id: string
   content: string
-  type: 'text' | 'image'
+  type: 'text' | 'image' | 'video'
   reply_to_id: string | null
   created_at: string
   sender?: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
@@ -122,7 +122,7 @@ export type TripMessage = {
   trip_chat_id: string
   sender_id: string
   content: string
-  type: 'text' | 'image' | 'system'
+  type: 'text' | 'image' | 'video' | 'system'
   reply_to_id: string | null
   is_edited: boolean
   created_at: string

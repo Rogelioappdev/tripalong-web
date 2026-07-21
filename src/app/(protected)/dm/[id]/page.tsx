@@ -18,7 +18,7 @@ import {
   getOlderDMMessages,
   sendDMMessage,
   deleteDMMessage,
-  uploadDMImage,
+  uploadDMMedia,
   getDMConversations,
   markDMRead,
   toggleReaction,
@@ -36,6 +36,7 @@ import { useSwipeBack } from '@/lib/useSwipeBack'
 import type { DMMessage, TripMessage } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
 import { resizedAvatar } from '@/lib/imageUrl'
+import { mediaPreviewLabel } from '@/lib/messagePreview'
 import { ImageViewer } from '@/components/ImageViewer'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -417,35 +418,42 @@ export default function DMPage() {
     e.target.value = ''
 
     const files = picked.filter(file => {
-      if (file.size > 10 * 1024 * 1024) {
-        alert(`"${file.name}" is over 10 MB and was skipped`)
+      const isVideo = file.type.startsWith('video/')
+      const limit = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024
+      if (file.size > limit) {
+        alert(`"${file.name}" is over ${isVideo ? '50 MB' : '10 MB'} and was skipped`)
         return false
       }
       return true
     })
     if (files.length === 0) return
 
-    const preview = URL.createObjectURL(files[0])
+    // Videos can't render as an <img> preview blob — fall back to a generic
+    // icon placeholder for the batch preview when the first file is a video.
+    const firstIsVideo = files[0].type.startsWith('video/')
+    const preview = firstIsVideo ? '' : URL.createObjectURL(files[0])
     setUploadingBatch({ count: files.length, preview })
     setUploadingImage(true)
 
     try {
       // Upload is the slow, bandwidth-bound part — run it in parallel so a
       // batch takes as long as the slowest single upload, not the sum of all.
-      const uploaded = await Promise.allSettled(files.map(file => uploadDMImage(conversationId, file)))
+      const uploaded = await Promise.allSettled(files.map(file => uploadDMMedia(conversationId, file)))
 
       // Sending is a lightweight DB insert — do it in order so the messages
       // land in the sequence the user picked them.
       let sentCount = 0
-      for (const result of uploaded) {
+      for (let i = 0; i < uploaded.length; i++) {
+        const result = uploaded[i]
         if (result.status !== 'fulfilled') continue
-        await sendDMMessage(conversationId, userId, result.value, null, 'image')
+        const mediaType = files[i].type.startsWith('video/') ? 'video' : 'image'
+        await sendDMMessage(conversationId, userId, result.value, null, mediaType)
         sentCount++
-        sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content: result.value, type: 'image', url: `/dm/${conversationId}` })
+        sendDMPushNotification({ conversationId, senderId: userId, senderName: userName, content: result.value, type: mediaType, url: `/dm/${conversationId}` })
       }
 
       const failedCount = uploaded.length - sentCount
-      if (failedCount > 0) alert(`${failedCount} photo${failedCount > 1 ? 's' : ''} failed to send`)
+      if (failedCount > 0) alert(`${failedCount} item${failedCount > 1 ? 's' : ''} failed to send`)
 
       if (sentCount > 0) {
         haptic(10)
@@ -744,11 +752,57 @@ export default function DMPage() {
                           const imgs = displayMessages.filter((m: DMMessage) => m.type === 'image').map((m: DMMessage) => m.content)
                           setViewingImage({ images: imgs, index: Math.max(0, imgs.indexOf(msg.content)) })
                         }}
-                        className="ta-nocopy rounded-2xl overflow-hidden active:opacity-80 transition-opacity block"
+                        className="rounded-2xl overflow-hidden active:opacity-80 transition-opacity block"
                         style={{ maxWidth: 220 }}
                       >
                         <img src={msg.content} alt="" className="w-full h-auto block" style={{ maxHeight: 280, objectFit: 'contain' }} />
                       </button>
+                      {reacted.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-0.5 px-1">
+                          {reacted.map(({ emoji, count, users }) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => userId && toggleReaction(msg.id, emoji).then(() => queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] }))}
+                              className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs"
+                              style={{
+                                backgroundColor: users.includes(userId ?? '') ? 'rgba(240,235,227,0.18)' : 'rgba(255,255,255,0.07)',
+                                border: `0.5px solid ${users.includes(userId ?? '') ? 'rgba(240,235,227,0.35)' : 'rgba(255,255,255,0.1)'}`,
+                              }}
+                            >
+                              {emoji} {count > 1 && <span className="text-white/60">{count}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className={`flex items-center gap-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+                        <span className="text-white/45 text-xs">{formatTime(msg.created_at)}</span>
+                        {isMe && <CheckTick seen={!!otherLastRead && otherLastRead >= msg.created_at} />}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
+              if (msg.type === 'video') {
+                return (
+                  <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
+                    {!isMe && (
+                      <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden flex items-center justify-center text-xs shrink-0">
+                        {msg.sender?.profile_photo
+                          ? <img src={resizedAvatar(msg.sender.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
+                          : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
+                      </div>
+                    )}
+                    <div className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+                      <video
+                        src={msg.content}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className={`overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
+                        style={{ maxWidth: 220, maxHeight: 280, display: 'block', backgroundColor: '#000' }}
+                      />
                       {reacted.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-0.5 px-1">
                           {reacted.map(({ emoji, count, users }) => (
@@ -805,7 +859,7 @@ export default function DMPage() {
                           style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderLeft: isMe ? 'none' : '2px solid rgba(255,255,255,0.2)', borderRight: isMe ? '2px solid rgba(255,255,255,0.2)' : 'none' }}
                         >
                           {rn && <p className="text-white/50 font-semibold truncate">{rn}</p>}
-                          <p className="text-white/35 truncate">{rc.startsWith('https://') ? '📷 Photo' : rc}</p>
+                          <p className="text-white/35 truncate">{mediaPreviewLabel(rc) ?? rc}</p>
                         </div>
                       )
                     })()}
@@ -815,7 +869,7 @@ export default function DMPage() {
                       onPointerUp={handlePointerUp}
                       onPointerCancel={handlePointerUp}
                       onClick={() => { /* tap does nothing for text */ }}
-                      className={`ta-nocopy px-4 py-2.5 rounded-2xl text-sm text-left max-w-full transition-opacity active:opacity-75 ${isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'}`}
+                      className={`px-4 py-2.5 rounded-2xl text-sm text-left max-w-full transition-opacity active:opacity-75 ${isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'}`}
                       style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     >
                       {searchOpen && debouncedQuery.length >= 2 ? highlightText(msg.content, debouncedQuery) : msg.content}
@@ -862,13 +916,19 @@ export default function DMPage() {
                   transition={{ duration: 0.2 }}
                   className="flex items-end justify-end"
                 >
-                  <div className="relative overflow-hidden rounded-2xl rounded-br-sm shrink-0" style={{ width: 120, height: 120 }}>
-                    <img src={uploadingBatch.preview} alt="" className="w-full h-full object-cover" style={{ opacity: 0.45 }} />
+                  <div className="relative overflow-hidden rounded-2xl rounded-br-sm shrink-0" style={{ width: 120, height: 120, backgroundColor: '#1a1a1a' }}>
+                    {uploadingBatch.preview ? (
+                      <img src={uploadingBatch.preview} alt="" className="w-full h-full object-cover" style={{ opacity: 0.45 }} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center" style={{ opacity: 0.45 }}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M23 7l-7 5 7 5V7z" fill="white"/><rect x="1" y="5" width="15" height="14" rx="2" fill="white"/></svg>
+                      </div>
+                    )}
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>
                       <div className="w-7 h-7 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       {uploadingBatch.count > 1 && (
                         <span className="text-white font-bold text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}>
-                          {uploadingBatch.count} photos
+                          {uploadingBatch.count} items
                         </span>
                       )}
                     </div>
@@ -912,7 +972,7 @@ export default function DMPage() {
                   {replyTo.sender_id === userId ? 'You' : displayName(replyTo.sender?.name)}
                 </p>
                 <p className="text-white/30 text-xs truncate">
-                  {replyTo.type === 'image' ? '📷 Photo' : replyTo.content}
+                  {replyTo.type === 'image' ? '📷 Photo' : replyTo.type === 'video' ? '🎥 Video' : replyTo.content}
                 </p>
               </div>
               <button type="button" onClick={() => setReplyTo(null)} className="text-white/30 hover:text-white/60 shrink-0">
@@ -972,7 +1032,7 @@ export default function DMPage() {
                 </svg>
               )}
             </button>
-            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImagePick} />
+            <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple className="hidden" onChange={handleImagePick} />
 
             <textarea
               ref={composerRef}
@@ -1032,6 +1092,7 @@ export default function DMPage() {
             key="info"
             content={infoMsg.content}
             isImage={infoMsg.type === 'image'}
+            isVideo={infoMsg.type === 'video'}
             sentAt={infoMsg.created_at}
             receipts={infoReceipts}
             onClose={() => setInfoMsg(null)}

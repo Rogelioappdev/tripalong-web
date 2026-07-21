@@ -302,7 +302,7 @@ export async function sendMessage(
   senderId: string,
   content: string,
   replyToId?: string | null,
-  type: 'text' | 'image' = 'text',
+  type: 'text' | 'image' | 'video' = 'text',
 ) {
   const payload: Record<string, unknown> = { trip_chat_id: chatId, sender_id: senderId, content, type }
   if (replyToId) payload.reply_to_id = replyToId
@@ -312,9 +312,16 @@ export async function sendMessage(
 
 const CHAT_IMAGES_BASE = 'https://tnstvbxngubfuxatggem.supabase.co/storage/v1/object/public/chat-images'
 
-export async function uploadChatImage(chatId: string, file: File): Promise<string> {
+// Despite the bucket/URL constant's name, this uploads any chat media file —
+// photo or video — the storage bucket doesn't care about content type.
+export async function uploadChatMedia(chatId: string, file: File): Promise<string> {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const path = `${chatId}/${Date.now()}.${ext}`
+  // crypto.randomUUID(), not Date.now() — a multi-photo send fires these in
+  // parallel (Promise.allSettled(files.map(...))), and two files picked in
+  // the same millisecond previously collided on the exact same storage path,
+  // so the second upload's URL resolved to whichever file's bytes actually
+  // landed there — both messages then rendered the same photo.
+  const path = `${chatId}/${crypto.randomUUID()}.${ext}`
   const { error } = await supabase.storage.from('chat-images').upload(path, file, { upsert: false })
   if (error) throw error
   return `${CHAT_IMAGES_BASE}/${path}`
@@ -667,7 +674,7 @@ export async function sendDMMessage(
   senderId: string,
   content: string,
   replyToId?: string | null,
-  type: 'text' | 'image' = 'text',
+  type: 'text' | 'image' | 'video' = 'text',
 ) {
   const payload: Record<string, unknown> = { conversation_id: conversationId, sender_id: senderId, content, type }
   if (replyToId) payload.reply_to_id = replyToId
@@ -680,9 +687,12 @@ export async function deleteDMMessage(messageId: string): Promise<void> {
   if (error) throw error
 }
 
-export async function uploadDMImage(conversationId: string, file: File): Promise<string> {
+// Despite the name, this uploads any DM media file — photo or video.
+export async function uploadDMMedia(conversationId: string, file: File): Promise<string> {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const path = `dm/${conversationId}/${Date.now()}.${ext}`
+  // Same fix as uploadChatMedia — crypto.randomUUID() instead of Date.now(),
+  // which collided when multiple photos uploaded in the same millisecond.
+  const path = `dm/${conversationId}/${crypto.randomUUID()}.${ext}`
   const { error } = await supabase.storage.from('chat-images').upload(path, file, { upsert: false })
   if (error) throw error
   return `${CHAT_IMAGES_BASE}/${path}`
