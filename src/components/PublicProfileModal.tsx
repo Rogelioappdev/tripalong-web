@@ -217,10 +217,28 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showBlockReport, setShowBlockReport] = useState(false)
   const router = useRouter()
-  const heroPtrRef = useRef({ x: 0, y: 0 })
   const heroRef = useRef<HTMLDivElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
   const [heroWidth, setHeroWidth] = useState(0)
   const carouselX = useMotionValue(0)
+  // Deterministic gesture arbitration for the photo carousel: the browser +
+  // Framer's own `drag` prop negotiating "is this a horizontal swipe or a
+  // vertical scroll" via touch-action was unreliable (jitter, misreads,
+  // direction-dependent misfires) because touch-action has to commit to an
+  // axis at touchstart, before any movement data exists. This tracks the
+  // gesture manually instead: wait for a few pixels of movement, THEN decide
+  // the axis from actual delta, and only ever drive one of (carousel X) or
+  // (page scroll) for the rest of that gesture — never both.
+  const carouselGestureRef = useRef<{
+    startX: number
+    startY: number
+    startCarouselX: number
+    startScrollTop: number
+    locked: 'x' | 'y' | null
+    lastX: number
+    lastT: number
+    velocityX: number
+  } | null>(null)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [dmLoading, setDmLoading] = useState(false)
   const [revealed, setRevealed] = useState(!locked)
@@ -322,21 +340,80 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
 
   if (!mounted) return null
 
-  // Drag has already moved `carouselX` in real time (Instagram-style
-  // follow-your-finger); on release, snap to whichever photo is nearest,
-  // nudged by velocity so a fast flick reads as "next" even from a short drag.
-  const handleHeroDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    if (!heroWidth) return
-    const settledPosition = -carouselX.get() + (info.velocity.x < -VELOCITY_THRESHOLD ? heroWidth * 0.4 : info.velocity.x > VELOCITY_THRESHOLD ? -heroWidth * 0.4 : 0)
-    const nextIndex = Math.max(0, Math.min(allPhotos.length - 1, Math.round(settledPosition / heroWidth)))
-    setPhotoIndex(nextIndex)
+  const CAROUSEL_LOCK_THRESHOLD = 8 // px of movement before committing to an axis
+
+  const handleCarouselPointerDown = (e: React.PointerEvent) => {
+    if (allPhotos.length === 0) return
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    carouselGestureRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startCarouselX: carouselX.get(),
+      startScrollTop: sheetRef.current?.scrollTop ?? 0,
+      locked: null,
+      lastX: e.clientX,
+      lastT: e.timeStamp,
+      velocityX: 0,
+    }
   }
+
+  const handleCarouselPointerMove = (e: React.PointerEvent) => {
+    const g = carouselGestureRef.current
+    if (!g) return
+    const dx = e.clientX - g.startX
+    const dy = e.clientY - g.startY
+
+    if (!g.locked) {
+      if (Math.abs(dx) < CAROUSEL_LOCK_THRESHOLD && Math.abs(dy) < CAROUSEL_LOCK_THRESHOLD) return
+      // Committed once — the rest of this gesture stays on this axis no
+      // matter how the finger wobbles afterward, so it can't flip mid-swipe.
+      g.locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+    }
+
+    if (g.locked === 'x') {
+      e.preventDefault()
+      if (allPhotos.length > 1 && heroWidth) {
+        const min = -(allPhotos.length - 1) * heroWidth
+        const raw = g.startCarouselX + dx
+        // Light rubber-band past the first/last photo instead of a hard stop.
+        const clamped = raw > 0 ? raw * 0.3 : raw < min ? min + (raw - min) * 0.3 : raw
+        carouselX.set(clamped)
+      }
+      const dt = e.timeStamp - g.lastT
+      if (dt > 0) g.velocityX = ((e.clientX - g.lastX) / dt) * 1000
+      g.lastX = e.clientX
+      g.lastT = e.timeStamp
+    } else if (g.locked === 'y' && sheetRef.current) {
+      sheetRef.current.scrollTop = g.startScrollTop - dy
+    }
+  }
+
+  const handleCarouselPointerUp = () => {
+    const g = carouselGestureRef.current
+    carouselGestureRef.current = null
+    if (!g) return
+
+    if (!g.locked) {
+      // Never crossed the lock threshold — it was a tap, not a swipe.
+      if (!isLocked) setLightboxOpen(true)
+      return
+    }
+
+    if (g.locked === 'x' && heroWidth) {
+      const settledPosition = -carouselX.get() + (g.velocityX < -VELOCITY_THRESHOLD ? heroWidth * 0.4 : g.velocityX > VELOCITY_THRESHOLD ? -heroWidth * 0.4 : 0)
+      const nextIndex = Math.max(0, Math.min(allPhotos.length - 1, Math.round(settledPosition / heroWidth)))
+      setPhotoIndex(nextIndex)
+    }
+  }
+
+  const handleCarouselPointerCancel = () => { carouselGestureRef.current = null }
 
   const content = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
       <motion.div
+        ref={sheetRef}
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
@@ -364,25 +441,21 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
 
                 {/* Carousel track — one flex row of full-width slides, dragged
                     1:1 with the finger (Instagram-style) instead of crossfading.
-                    touchAction: 'none' so the browser never hands this same
-                    touch to native vertical scroll mid-swipe — 'pan-y' let
-                    both fire at once, which read as the page jittering up/down
-                    while you were just trying to swipe photos sideways. */}
+                    Gesture axis (swipe photos vs. scroll the page) is decided
+                    manually in handleCarouselPointer* — see carouselGestureRef
+                    above for why: touch-action has to commit to an axis before
+                    any movement data exists, which kept misreading swipes as
+                    scrolls (and vice versa) depending on exactly where/how the
+                    gesture started. touchAction: 'none' hands 100% of this
+                    element's touch handling to that manual logic. */}
                 {mainPhoto ? (
                   <motion.div
                     className="absolute inset-y-0 left-0 flex h-full"
                     style={{ x: carouselX, touchAction: 'none' }}
-                    drag={allPhotos.length > 1 ? 'x' : false}
-                    dragConstraints={{ left: -(allPhotos.length - 1) * heroWidth, right: 0 }}
-                    dragElastic={0.15}
-                    dragMomentum={false}
-                    onDragEnd={handleHeroDragEnd}
-                    onPointerDown={(e) => { heroPtrRef.current = { x: e.clientX, y: e.clientY } }}
-                    onPointerUp={(e) => {
-                      const dx = Math.abs(e.clientX - heroPtrRef.current.x)
-                      const dy = Math.abs(e.clientY - heroPtrRef.current.y)
-                      if (dx < 6 && dy < 6 && !isLocked) setLightboxOpen(true)
-                    }}
+                    onPointerDown={handleCarouselPointerDown}
+                    onPointerMove={handleCarouselPointerMove}
+                    onPointerUp={handleCarouselPointerUp}
+                    onPointerCancel={handleCarouselPointerCancel}
                   >
                     {allPhotos.map((photo, i) => (
                       <div key={photo} className="relative shrink-0 h-full" style={{ width: heroWidth || '100%' }}>
