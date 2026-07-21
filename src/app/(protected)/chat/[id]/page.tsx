@@ -42,6 +42,7 @@ import type { TripMessage, TripWithDetails, HangalongWithDetails } from '@/lib/t
 import { isNativeApp } from '@/lib/native-app'
 import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
 import { mediaPreviewLabel } from '@/lib/messagePreview'
+import { getVideoDuration } from '@/lib/videoDuration'
 
 const HANG_ACTIVITY_EMOJI: Record<string, string> = {
   hike: '🥾', road_trip: '🚗', beach: '🏖️', climbing: '🧗',
@@ -488,15 +489,28 @@ export default function ChatPage() {
     if (picked.length === 0 || !userId) return
     e.target.value = ''
 
-    const files = picked.filter(file => {
+    const files: File[] = []
+    for (const file of picked) {
       const isVideo = file.type.startsWith('video/')
-      const limit = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024
+      const limit = isVideo ? 20 * 1024 * 1024 : 10 * 1024 * 1024
       if (file.size > limit) {
-        alert(`"${file.name}" is over ${isVideo ? '50 MB' : '10 MB'} and was skipped`)
-        return false
+        alert(`"${file.name}" is over ${isVideo ? '20 MB' : '10 MB'} and was skipped`)
+        continue
       }
-      return true
-    })
+      if (isVideo) {
+        try {
+          const duration = await getVideoDuration(file)
+          if (duration > 60) {
+            alert(`"${file.name}" is longer than 60 seconds and was skipped`)
+            continue
+          }
+        } catch {
+          alert(`"${file.name}" couldn't be read and was skipped`)
+          continue
+        }
+      }
+      files.push(file)
+    }
     if (files.length === 0) return
 
     // Videos can't render as an <img> preview blob — fall back to a generic
