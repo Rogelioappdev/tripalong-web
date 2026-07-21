@@ -371,7 +371,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                 {mainPhoto ? (
                   <motion.div
                     className="absolute inset-y-0 left-0 flex h-full"
-                    style={{ x: carouselX, touchAction: 'none' } as React.CSSProperties}
+                    style={{ x: carouselX, touchAction: 'none' }}
                     drag={allPhotos.length > 1 ? 'x' : false}
                     dragConstraints={{ left: -(allPhotos.length - 1) * heroWidth, right: 0 }}
                     dragElastic={0.15}
