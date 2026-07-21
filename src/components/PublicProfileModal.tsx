@@ -340,7 +340,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
-        className="relative w-full sm:max-w-lg flex flex-col overflow-y-auto overflow-x-hidden"
+        className="relative w-full sm:max-w-lg flex flex-col overflow-y-auto overflow-x-hidden overscroll-y-none"
         style={{ backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh' }}
       >
         {loading || !profile ? (
