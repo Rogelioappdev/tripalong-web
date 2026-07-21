@@ -769,8 +769,8 @@ export default function ChatPage() {
         className="md:pt-14 bg-black flex flex-col overflow-hidden"
         style={{ height: '100dvh' }}
         initial={{ x: 32, opacity: 0.88 }}
-        animate={isExiting ? { x: 40, opacity: 0.85 } : { x: 0, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+        animate={isExiting ? { x: 60, opacity: 0.85 } : { x: 0, opacity: 1 }}
+        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
         onAnimationComplete={() => { if (isExiting) router.back() }}
       >
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
