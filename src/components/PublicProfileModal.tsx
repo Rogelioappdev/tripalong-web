@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getProfile, getTrip, getOrCreateDM, recordProfileView } from '@/lib/queries'
@@ -40,13 +40,6 @@ const PLANNING_OPT    = [{ id: 'planner', label: 'Planner', emoji: '📋' }, { i
 const PERSONALITY_OPT = [{ id: 'introvert', label: 'Introvert', emoji: '🌙' }, { id: 'extrovert', label: 'Extrovert', emoji: '☀️' }, { id: 'ambivert', label: 'Ambivert', emoji: '🌗' }]
 const EXPERIENCE_OPT  = [{ id: 'beginner', label: 'Beginner', emoji: '🌱' }, { id: 'intermediate', label: 'Intermediate', emoji: '🌿' }, { id: 'experienced', label: 'Experienced', emoji: '🌳' }, { id: 'expert', label: 'Expert', emoji: '🌍' }]
 
-const SWIPE_THRESHOLD = 50
-const VELOCITY_THRESHOLD = 400
-// How long to wait after the carousel stops scrolling before trusting
-// scrollLeft to update `photoIndex` (dots, lightbox initial photo) — avoids
-// recomputing on every intermediate scroll event mid-gesture.
-const SCROLL_SETTLE_MS = 100
-
 function label(opts: { id: string; label: string; emoji: string }[], id: string | null | undefined) {
   if (!id) return null
   const o = opts.find(x => x.id === id)
@@ -71,25 +64,55 @@ interface LightboxProps {
 
 function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
   const [index, setIndex] = useState(initialIndex)
-  const [direction, setDirection] = useState(0)
   const [mounted, setMounted] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const slideRefs = useRef<Array<HTMLDivElement | null>>([])
 
   useEffect(() => { setMounted(true) }, [])
+
+  // Jump the native scroll container to the photo that was tapped in the
+  // hero carousel, then keep it there — scrollLeft starts at 0 on mount, so
+  // without this it would always open on the first photo instead of the one
+  // the user actually tapped.
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || initialIndex === 0) return
+    el.scrollLeft = initialIndex * el.offsetWidth
+  }, [initialIndex])
+
+  const navigate = (next: number) => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ left: next * el.offsetWidth, behavior: 'smooth' })
+  }
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowLeft' && index > 0) navigate(index - 1, -1)
-      if (e.key === 'ArrowRight' && index < photos.length - 1) navigate(index + 1, 1)
+      if (e.key === 'ArrowLeft' && index > 0) navigate(index - 1)
+      if (e.key === 'ArrowRight' && index < photos.length - 1) navigate(index + 1)
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [index, photos.length, onClose])
 
-  const navigate = (next: number, dir: number) => {
-    setDirection(dir)
-    setIndex(next)
-  }
+  // Same reasoning as the hero carousel's IntersectionObserver: reliable
+  // regardless of how the browser paces scroll events during native momentum.
+  useLayoutEffect(() => {
+    const root = scrollRef.current
+    if (!root || photos.length === 0) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        const mostVisible = entries.reduce((best, e) => (e.intersectionRatio > (best?.intersectionRatio ?? 0) ? e : best), entries[0])
+        if (!mostVisible || mostVisible.intersectionRatio < 0.5) return
+        const idx = slideRefs.current.indexOf(mostVisible.target as HTMLDivElement)
+        if (idx !== -1) setIndex(prev => (prev === idx ? prev : idx))
+      },
+      { root, threshold: [0.5] }
+    )
+    slideRefs.current.slice(0, photos.length).forEach(el => { if (el) io.observe(el) })
+    return () => io.disconnect()
+  }, [photos])
 
   // Same preload-adjacent-photos fix as the hero swipe above. Loads the
   // original, un-resized photo — see the note by the <img> below for why.
@@ -101,14 +124,6 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
       img.src = photos[i]
     })
   }, [index, photos])
-
-  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    if (info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
-      if (index < photos.length - 1) navigate(index + 1, 1)
-    } else if (info.offset.x > SWIPE_THRESHOLD || info.velocity.x > VELOCITY_THRESHOLD) {
-      if (index > 0) navigate(index - 1, -1)
-    }
-  }
 
   if (!mounted) return null
 
@@ -135,24 +150,19 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
         </button>
       </div>
 
-      {/* Swipeable image area */}
-      <motion.div
-        className="flex-1 overflow-hidden relative"
-        drag={photos.length > 1 ? 'x' : false}
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.15}
-        onDragEnd={handleDragEnd}
-        style={{ touchAction: 'none' } as React.CSSProperties}
+      {/* Swipeable image area — native horizontal scroll-snap, same mechanism
+          as the hero carousel, so both feel identical to swipe. */}
+      <div
+        ref={scrollRef}
+        className="flex-1 flex overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
+        style={{ scrollSnapType: 'x mandatory', touchAction: 'pan-x', scrollbarWidth: 'none' } as React.CSSProperties}
       >
-        <AnimatePresence initial={false} custom={direction} mode="popLayout">
-          <motion.div
-            key={index}
-            className="absolute inset-0 flex items-center justify-center"
-            custom={direction}
-            initial={{ x: direction * 80, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: direction * -80, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.8 }}
+        {photos.map((photo, i) => (
+          <div
+            key={photo}
+            ref={el => { slideRefs.current[i] = el }}
+            className="relative shrink-0 w-full h-full flex items-center justify-center"
+            style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as React.CSSProperties}
           >
             <img
               // Full-screen, object-contain viewer: load the original photo
@@ -167,14 +177,15 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
               // photo that was never actually the reported shape. Uploads are
               // already capped at ~1440px, so this isn't a meaningful
               // bandwidth cost for a "view this person's actual photo" screen.
-              src={photos[index]}
+              src={photo}
               alt=""
               className="w-full h-full object-contain"
               draggable={false}
+              loading={Math.abs(i - index) <= 1 ? 'eager' : 'lazy'}
             />
-          </motion.div>
-        </AnimatePresence>
-      </motion.div>
+          </div>
+        ))}
+      </div>
 
       {/* Dots */}
       {photos.length > 1 && (
@@ -183,7 +194,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
           style={{ paddingTop: 16, paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
         >
           {photos.map((_, i) => (
-            <button key={i} onClick={() => { haptic(4); navigate(i, i > index ? 1 : -1) }}>
+            <button key={i} onClick={() => { haptic(4); navigate(i) }}>
               <div
                 className="rounded-full transition-all duration-200"
                 style={{ width: i === index ? 24 : 8, height: 8, backgroundColor: i === index ? '#F0EBE3' : 'rgba(255,255,255,0.3)' }}
@@ -231,8 +242,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   // normal vertical scroll — this is the same mechanism Instagram's own web
   // carousel uses.
   const carouselScrollRef = useRef<HTMLDivElement>(null)
-  const scrollSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [heroWidth, setHeroWidth] = useState(0)
+  const slideRefs = useRef<Array<HTMLDivElement | null>>([])
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [dmLoading, setDmLoading] = useState(false)
   const [revealed, setRevealed] = useState(!locked)
@@ -311,33 +321,30 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
     })
   }, [photoIndex, allPhotos])
 
-  // Track the hero's width so scrollLeft can be converted to a photo index
-  // (scrollLeft / heroWidth). useLayoutEffect so it's measured before paint.
-  // Depends on `loading`/`profile` because the hero <div> heroRef points at
-  // doesn't exist until the loading spinner is replaced by real content.
+  // Keep `photoIndex` (dots, lightbox initial photo, eager/lazy loading) in
+  // sync with whichever slide is actually visible in the native scroll-snap
+  // carousel. Driven by IntersectionObserver rather than computing from
+  // scrollLeft/width — scroll events during native momentum scrolling are
+  // throttled/coalesced inconsistently across browsers, which was making the
+  // dots lag or miss updates; visibility crossing a threshold is reliable
+  // regardless of how the browser paces scroll events.
   useLayoutEffect(() => {
-    const el = heroRef.current
-    if (!el) return
-    const update = () => setHeroWidth(el.offsetWidth)
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [loading, profile])
+    const root = carouselScrollRef.current
+    if (!root || allPhotos.length === 0) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        const mostVisible = entries.reduce((best, e) => (e.intersectionRatio > (best?.intersectionRatio ?? 0) ? e : best), entries[0])
+        if (!mostVisible || mostVisible.intersectionRatio < 0.5) return
+        const idx = slideRefs.current.indexOf(mostVisible.target as HTMLDivElement)
+        if (idx !== -1) setPhotoIndex(prev => (prev === idx ? prev : idx))
+      },
+      { root, threshold: [0.5] }
+    )
+    slideRefs.current.slice(0, allPhotos.length).forEach(el => { if (el) io.observe(el) })
+    return () => io.disconnect()
+  }, [allPhotos, loading, profile])
 
   if (!mounted) return null
-
-  // Native scroll fires continuously while swiping; only trust scrollLeft
-  // once it's settled so the dots/lightbox-index don't thrash mid-gesture.
-  const handleCarouselScroll = () => {
-    const el = carouselScrollRef.current
-    if (!el || !heroWidth) return
-    if (scrollSettleTimer.current) clearTimeout(scrollSettleTimer.current)
-    scrollSettleTimer.current = setTimeout(() => {
-      const idx = Math.max(0, Math.min(allPhotos.length - 1, Math.round(el.scrollLeft / heroWidth)))
-      setPhotoIndex(prev => (prev === idx ? prev : idx))
-    }, SCROLL_SETTLE_MS)
-  }
 
   // Native scroll-snap suppresses the click event that would otherwise fire
   // after a drag-scroll, so this only ever fires for a genuine tap.
@@ -389,12 +396,12 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                     ref={carouselScrollRef}
                     className="absolute inset-y-0 left-0 w-full flex h-full overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
                     style={{ scrollSnapType: 'x mandatory', touchAction: 'pan-x', scrollbarWidth: 'none' } as React.CSSProperties}
-                    onScroll={handleCarouselScroll}
                     onClick={handleCarouselTap}
                   >
                     {allPhotos.map((photo, i) => (
                       <div
                         key={photo}
+                        ref={el => { slideRefs.current[i] = el }}
                         className="relative shrink-0 h-full w-full"
                         style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as React.CSSProperties}
                       >
