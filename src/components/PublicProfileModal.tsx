@@ -457,8 +457,13 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
 
                 {/* Name / age / verified / location — liquid-glass card
                     overlaid bottom-left on the photo, so the photo still
-                    fills the frame instead of getting pushed down by text. */}
-                <div className="absolute" style={{ left: 16, bottom: 34, right: 20, zIndex: 6 }}>
+                    fills the frame instead of getting pushed down by text.
+                    pointer-events-none so a swipe starting on this card (a
+                    real chunk of the photo, right where a thumb often lands)
+                    passes through to the carousel's drag layer underneath
+                    instead of being captured by this plain div and falling
+                    back to native page scroll. */}
+                <div className="absolute pointer-events-none" style={{ left: 16, bottom: 34, right: 20, zIndex: 6 }}>
                   <div
                     className="inline-flex flex-col rounded-2xl px-4 py-3"
                     style={{
