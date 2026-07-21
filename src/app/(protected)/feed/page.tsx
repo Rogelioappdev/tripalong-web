@@ -17,6 +17,7 @@ import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import { getTripMatchBreakdown } from '@/lib/matching'
 import { getNotificationStatusAsync } from '@/lib/push'
 import { track } from '@/lib/analytics'
+import { useNetworkStatus } from '@/lib/useNetworkStatus'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 import { MemberJoinToast } from '@/components/MemberJoinToast'
@@ -35,6 +36,30 @@ const HangDetailModal = dynamicImport(() => import('@/components/HangDetailModal
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
+
+function Bone({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={`bg-white/8 rounded-2xl animate-pulse ${className}`} style={style} />
+}
+
+// Mimics SwipeCard's shape (rounded-[22px], w-full h-full, #111 base) instead
+// of the bare spinner that used to show here — on a slow connection this
+// makes the feed feel like it's already loaded rather than stuck/broken.
+function FeedSkeleton() {
+  return (
+    <div className="relative w-full h-full rounded-[22px] overflow-hidden" style={{ backgroundColor: '#111' }}>
+      <Bone className="absolute inset-0 rounded-none" />
+      <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col gap-3">
+        <Bone style={{ width: '65%', height: 22 }} />
+        <Bone style={{ width: '40%', height: 14 }} />
+        <div className="flex items-center gap-2 mt-1">
+          <Bone className="rounded-full" style={{ width: 28, height: 28 }} />
+          <Bone className="rounded-full" style={{ width: 28, height: 28, marginLeft: -12 }} />
+          <Bone style={{ width: 90, height: 12, marginLeft: 8 }} />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function UpgradeToastHandler({ onUpgrade }: { onUpgrade: () => void }) {
   const router = useRouter()
@@ -86,6 +111,10 @@ export default function FeedPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
+  const { isOnline } = useNetworkStatus()
+  // Not "loading" itself — a separate signal for "this load is taking long
+  // enough that the user should know it's their connection, not a hang."
+  const [slowLoad, setSlowLoad] = useState(false)
 
   // Load initial saved count once userId is known
   useEffect(() => {
@@ -251,6 +280,15 @@ export default function FeedPage() {
     refetchOnMount: 'always',
   })
 
+  // Flip on only once a load has genuinely dragged — on a fast connection
+  // this never shows, so it reads as "your connection is slow" rather than
+  // a generic loading flicker.
+  useEffect(() => {
+    if (!isLoading) { setSlowLoad(false); return }
+    const t = setTimeout(() => setSlowLoad(true), 4000)
+    return () => clearTimeout(t)
+  }, [isLoading])
+
   const { data: hangalongs = [] } = useQuery({
     queryKey: ['hangalongs'],
     queryFn: getHangalongs,
@@ -352,6 +390,34 @@ export default function FeedPage() {
         className="bg-black flex flex-col md:pt-14"
         style={{ height: '100dvh', overflow: 'hidden' }}
       >
+        {/* Offline banner — visible any time the connection drops, not just
+            while a fetch is in flight, so losing wifi mid-session is obvious
+            instead of the feed just quietly going stale. */}
+        <AnimatePresence>
+          {!isOnline && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden shrink-0"
+            >
+              <div
+                className="flex items-center justify-center gap-2 py-2 px-4"
+                style={{ backgroundColor: 'rgba(255,80,80,0.1)', borderBottom: '0.5px solid rgba(255,80,80,0.25)' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9z" fill="#ff8a8a" opacity="0.5"/>
+                  <path d="M5 13l2 2a9.9 9.9 0 0 1 10 0l2-2a12.87 12.87 0 0 0-14 0z" fill="#ff8a8a" opacity="0.5"/>
+                  <path d="M9 17l2 2a4.95 4.95 0 0 1 2 0l2-2a7.9 7.9 0 0 0-6 0z" fill="#ff8a8a" opacity="0.5"/>
+                  <circle cx="12" cy="20" r="1.3" fill="#ff8a8a"/>
+                  <path d="M2 2l20 20" stroke="#ff8a8a" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                <span className="text-xs font-semibold" style={{ color: '#ff8a8a' }}>No internet connection</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Trial expired nudge strip */}
         <AnimatePresence>
           {trialExpiredNudge && !showTrialExpiredPaywall && (
@@ -495,13 +561,34 @@ export default function FeedPage() {
           style={{ paddingBottom: TAB_BAR_CLEARANCE }}
         >
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center gap-3 w-full">
-              <div className="w-10 h-10 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-              <p className="text-white/30 text-sm">Loading trips...</p>
+            <div className="w-full max-w-sm flex flex-col gap-3">
+              <AnimatePresence>
+                {slowLoad && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    className="self-center flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                      <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9z" fill="rgba(255,255,255,0.35)"/>
+                      <path d="M5 13l2 2a9.9 9.9 0 0 1 10 0l2-2a12.87 12.87 0 0 0-14 0z" fill="rgba(255,255,255,0.35)"/>
+                      <path d="M9 17l2 2a4.95 4.95 0 0 1 2 0l2-2a7.9 7.9 0 0 0-6 0z" fill="rgba(255,255,255,0.35)"/>
+                      <circle cx="12" cy="20" r="1.3" fill="rgba(255,255,255,0.35)"/>
+                      <path d="M2 2l20 20" stroke="rgba(255,120,120,0.8)" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    <span className="text-white/50 text-xs font-medium">Slow connection — hang tight</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <FeedSkeleton />
             </div>
           ) : isError ? (
             <div className="flex flex-col items-center justify-center gap-4 w-full">
-              <p className="text-white/30 text-sm text-center">Couldn't load trips</p>
+              <p className="text-white/30 text-sm text-center">
+                {isOnline ? "Couldn't load trips" : "You're offline — check your connection"}
+              </p>
               <button
                 onClick={() => refetch()}
                 className="px-5 py-2.5 rounded-2xl text-sm font-semibold"
