@@ -192,6 +192,7 @@ export default function ChatPage() {
   const [uploadingBatch, setUploadingBatch] = useState<{ count: number; preview: string } | null>(null)
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null)
   const [viewingVideo, setViewingVideo] = useState<string | null>(null)
+  const [isExiting, setIsExiting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const composerFormRef = useRef<HTMLFormElement>(null)
@@ -744,11 +745,20 @@ export default function ChatPage() {
   }, [referencedUserIdsKey, senderById, profilesFetching])
 
   // ── Swipe-back ────────────────────────────────────────────────────────────
+  // Mirrors the entrance slide (see motion.main below) so leaving the chat
+  // feels like the same motion in reverse instead of an instant cut — the
+  // actual navigation waits for onAnimationComplete to fire.
+  const handleBack = () => {
+    if (isExiting) return
+    haptic(6)
+    setIsExiting(true)
+  }
+
   // Disabled while any sheet/overlay is on top so the gesture doesn't
   // navigate the whole screen away underneath it.
   useSwipeBack(
-    () => router.back(),
-    !searchOpen && !showGroupInfo && !actionMsg && !infoMsg && !reportMsg && !viewingImage && !viewingVideo && !showCelebration && !profileUserId
+    handleBack,
+    !searchOpen && !showGroupInfo && !actionMsg && !infoMsg && !reportMsg && !viewingImage && !viewingVideo && !showCelebration && !profileUserId && !isExiting
   )
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -759,8 +769,9 @@ export default function ChatPage() {
         className="md:pt-14 bg-black flex flex-col overflow-hidden"
         style={{ height: '100dvh' }}
         initial={{ x: 32, opacity: 0.88 }}
-        animate={{ x: 0, opacity: 1 }}
+        animate={isExiting ? { x: 40, opacity: 0.85 } : { x: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+        onAnimationComplete={() => { if (isExiting) router.back() }}
       >
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
 
@@ -770,7 +781,7 @@ export default function ChatPage() {
             style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}
           >
             <button
-              onClick={searchOpen ? handleCloseSearch : () => router.back()}
+              onClick={searchOpen ? handleCloseSearch : handleBack}
               className="text-white/40 hover:text-white transition-colors shrink-0"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
