@@ -363,11 +363,15 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
               <div ref={heroRef} className="relative shrink-0 w-full overflow-hidden" style={{ height: '66dvh', backgroundColor: '#111' }}>
 
                 {/* Carousel track — one flex row of full-width slides, dragged
-                    1:1 with the finger (Instagram-style) instead of crossfading. */}
+                    1:1 with the finger (Instagram-style) instead of crossfading.
+                    touchAction: 'none' so the browser never hands this same
+                    touch to native vertical scroll mid-swipe — 'pan-y' let
+                    both fire at once, which read as the page jittering up/down
+                    while you were just trying to swipe photos sideways. */}
                 {mainPhoto ? (
                   <motion.div
                     className="absolute inset-y-0 left-0 flex h-full"
-                    style={{ x: carouselX, touchAction: 'pan-y' }}
+                    style={{ x: carouselX, touchAction: 'none' } as React.CSSProperties}
                     drag={allPhotos.length > 1 ? 'x' : false}
                     dragConstraints={{ left: -(allPhotos.length - 1) * heroWidth, right: 0 }}
                     dragElastic={0.15}
