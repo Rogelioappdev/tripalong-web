@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence, useMotionValue, animate, type PanInfo } from 'framer-motion'
+import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getProfile, getTrip, getOrCreateDM, recordProfileView } from '@/lib/queries'
@@ -42,6 +42,10 @@ const EXPERIENCE_OPT  = [{ id: 'beginner', label: 'Beginner', emoji: '🌱' }, {
 
 const SWIPE_THRESHOLD = 50
 const VELOCITY_THRESHOLD = 400
+// How long to wait after the carousel stops scrolling before trusting
+// scrollLeft to update `photoIndex` (dots, lightbox initial photo) — avoids
+// recomputing on every intermediate scroll event mid-gesture.
+const SCROLL_SETTLE_MS = 100
 
 function label(opts: { id: string; label: string; emoji: string }[], id: string | null | undefined) {
   if (!id) return null
@@ -218,27 +222,17 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   const [showBlockReport, setShowBlockReport] = useState(false)
   const router = useRouter()
   const heroRef = useRef<HTMLDivElement>(null)
-  const sheetRef = useRef<HTMLDivElement>(null)
+  // Native horizontal scroll-snap container for the photo carousel — no more
+  // hand-rolled drag physics. The browser's own touch stack (iOS/Android)
+  // disambiguates "swiping the photo" vs. "scrolling the page" far better
+  // than anything hand-tuned in JS: touch-action: pan-x tells it this
+  // element only wants horizontal gestures, so a vertical touch is simply
+  // never captured here in the first place and falls through to the page's
+  // normal vertical scroll — this is the same mechanism Instagram's own web
+  // carousel uses.
+  const carouselScrollRef = useRef<HTMLDivElement>(null)
+  const scrollSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [heroWidth, setHeroWidth] = useState(0)
-  const carouselX = useMotionValue(0)
-  // Deterministic gesture arbitration for the photo carousel: the browser +
-  // Framer's own `drag` prop negotiating "is this a horizontal swipe or a
-  // vertical scroll" via touch-action was unreliable (jitter, misreads,
-  // direction-dependent misfires) because touch-action has to commit to an
-  // axis at touchstart, before any movement data exists. This tracks the
-  // gesture manually instead: wait for a few pixels of movement, THEN decide
-  // the axis from actual delta, and only ever drive one of (carousel X) or
-  // (page scroll) for the rest of that gesture — never both.
-  const carouselGestureRef = useRef<{
-    startX: number
-    startY: number
-    startCarouselX: number
-    startScrollTop: number
-    locked: 'x' | 'y' | null
-    lastX: number
-    lastT: number
-    velocityX: number
-  } | null>(null)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [dmLoading, setDmLoading] = useState(false)
   const [revealed, setRevealed] = useState(!locked)
@@ -285,6 +279,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   useEffect(() => {
     setLoading(true)
     setPhotoIndex(0)
+    if (carouselScrollRef.current) carouselScrollRef.current.scrollLeft = 0
     setSavedTrips([])
     getProfile(userId).then(p => { setProfile(p); setLoading(false) })
     supabase
@@ -296,9 +291,12 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
       .then(({ data }) => setSavedTrips((data ?? []).map((r: any) => r.trip).filter(Boolean)))
   }, [userId])
 
-  // Swipe down on the hero to dismiss — disabled while a nested overlay
-  // (lightbox, block/report sheet, trip detail) is on top. Must run before the
-  // `!mounted` early return below so hook order stays stable across renders.
+  // Swipe down anywhere on the hero to dismiss. Safe to run unconditionally
+  // alongside the carousel's native horizontal scroll-snap below: this hook's
+  // listeners are passive (never preventDefault) and only ever fire for a
+  // gesture that's clearly more vertical than horizontal, so a horizontal
+  // photo swipe never triggers it. Must run before the `!mounted` early
+  // return so hook order stays stable across renders.
   useSwipeDownDismiss(heroRef, onClose, !lightboxOpen && !showBlockReport && !selectedTrip)
 
   // Preload the neighboring photos so swiping to them is instant instead of
@@ -313,14 +311,10 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
     })
   }, [photoIndex, allPhotos])
 
-  // Track the hero's width so the carousel track can be positioned in real
-  // pixels (needed for drag constraints/snapping) instead of guessing at %.
-  // useLayoutEffect so it's measured before paint — no flash of a wrongly
-  // sized first slide. Depends on `loading`/`profile` because the hero <div>
-  // heroRef points at doesn't exist until the loading spinner is replaced by
-  // real content — without that dependency this ran once against a null ref
-  // and heroWidth stayed 0 forever, which pinned dragConstraints to
-  // {left: 0, right: 0} and made the carousel completely unswipeable.
+  // Track the hero's width so scrollLeft can be converted to a photo index
+  // (scrollLeft / heroWidth). useLayoutEffect so it's measured before paint.
+  // Depends on `loading`/`profile` because the hero <div> heroRef points at
+  // doesn't exist until the loading spinner is replaced by real content.
   useLayoutEffect(() => {
     const el = heroRef.current
     if (!el) return
@@ -331,89 +325,31 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
     return () => ro.disconnect()
   }, [loading, profile])
 
-  // Drive the carousel to the current photo — real drag-follow while
-  // swiping (Instagram-style), spring-snap to the target index otherwise.
-  useEffect(() => {
-    const controls = animate(carouselX, -photoIndex * heroWidth, { type: 'spring', stiffness: 420, damping: 42 })
-    return () => controls.stop()
-  }, [photoIndex, heroWidth, carouselX])
-
   if (!mounted) return null
 
-  const CAROUSEL_LOCK_THRESHOLD = 8 // px of movement before committing to an axis
-
-  const handleCarouselPointerDown = (e: React.PointerEvent) => {
-    if (allPhotos.length === 0) return
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    carouselGestureRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startCarouselX: carouselX.get(),
-      startScrollTop: sheetRef.current?.scrollTop ?? 0,
-      locked: null,
-      lastX: e.clientX,
-      lastT: e.timeStamp,
-      velocityX: 0,
-    }
+  // Native scroll fires continuously while swiping; only trust scrollLeft
+  // once it's settled so the dots/lightbox-index don't thrash mid-gesture.
+  const handleCarouselScroll = () => {
+    const el = carouselScrollRef.current
+    if (!el || !heroWidth) return
+    if (scrollSettleTimer.current) clearTimeout(scrollSettleTimer.current)
+    scrollSettleTimer.current = setTimeout(() => {
+      const idx = Math.max(0, Math.min(allPhotos.length - 1, Math.round(el.scrollLeft / heroWidth)))
+      setPhotoIndex(prev => (prev === idx ? prev : idx))
+    }, SCROLL_SETTLE_MS)
   }
 
-  const handleCarouselPointerMove = (e: React.PointerEvent) => {
-    const g = carouselGestureRef.current
-    if (!g) return
-    const dx = e.clientX - g.startX
-    const dy = e.clientY - g.startY
-
-    if (!g.locked) {
-      if (Math.abs(dx) < CAROUSEL_LOCK_THRESHOLD && Math.abs(dy) < CAROUSEL_LOCK_THRESHOLD) return
-      // Committed once — the rest of this gesture stays on this axis no
-      // matter how the finger wobbles afterward, so it can't flip mid-swipe.
-      g.locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
-    }
-
-    if (g.locked === 'x') {
-      e.preventDefault()
-      if (allPhotos.length > 1 && heroWidth) {
-        const min = -(allPhotos.length - 1) * heroWidth
-        const raw = g.startCarouselX + dx
-        // Light rubber-band past the first/last photo instead of a hard stop.
-        const clamped = raw > 0 ? raw * 0.3 : raw < min ? min + (raw - min) * 0.3 : raw
-        carouselX.set(clamped)
-      }
-      const dt = e.timeStamp - g.lastT
-      if (dt > 0) g.velocityX = ((e.clientX - g.lastX) / dt) * 1000
-      g.lastX = e.clientX
-      g.lastT = e.timeStamp
-    } else if (g.locked === 'y' && sheetRef.current) {
-      sheetRef.current.scrollTop = g.startScrollTop - dy
-    }
+  // Native scroll-snap suppresses the click event that would otherwise fire
+  // after a drag-scroll, so this only ever fires for a genuine tap.
+  const handleCarouselTap = () => {
+    if (!isLocked) setLightboxOpen(true)
   }
-
-  const handleCarouselPointerUp = () => {
-    const g = carouselGestureRef.current
-    carouselGestureRef.current = null
-    if (!g) return
-
-    if (!g.locked) {
-      // Never crossed the lock threshold — it was a tap, not a swipe.
-      if (!isLocked) setLightboxOpen(true)
-      return
-    }
-
-    if (g.locked === 'x' && heroWidth) {
-      const settledPosition = -carouselX.get() + (g.velocityX < -VELOCITY_THRESHOLD ? heroWidth * 0.4 : g.velocityX > VELOCITY_THRESHOLD ? -heroWidth * 0.4 : 0)
-      const nextIndex = Math.max(0, Math.min(allPhotos.length - 1, Math.round(settledPosition / heroWidth)))
-      setPhotoIndex(nextIndex)
-    }
-  }
-
-  const handleCarouselPointerCancel = () => { carouselGestureRef.current = null }
 
   const content = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
       <motion.div
-        ref={sheetRef}
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
@@ -439,26 +375,29 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
               {/* ── Hero ── */}
               <div ref={heroRef} className="relative shrink-0 w-full overflow-hidden" style={{ height: '66dvh', backgroundColor: '#111' }}>
 
-                {/* Carousel track — one flex row of full-width slides, dragged
-                    1:1 with the finger (Instagram-style) instead of crossfading.
-                    Gesture axis (swipe photos vs. scroll the page) is decided
-                    manually in handleCarouselPointer* — see carouselGestureRef
-                    above for why: touch-action has to commit to an axis before
-                    any movement data exists, which kept misreading swipes as
-                    scrolls (and vice versa) depending on exactly where/how the
-                    gesture started. touchAction: 'none' hands 100% of this
-                    element's touch handling to that manual logic. */}
+                {/* Carousel — native horizontal scroll-snap, the same
+                    mechanism Instagram's own web carousel uses. touch-action:
+                    pan-x tells the browser this element only wants horizontal
+                    gestures, so a vertical touch is simply never captured
+                    here and falls straight through to the page's normal
+                    scroll — no JS guessing which axis a gesture belongs to,
+                    the platform's own touch stack (which is far better tuned
+                    than anything hand-rolled) does it for free. Native scroll
+                    also means real momentum/rubber-banding at the ends. */}
                 {mainPhoto ? (
-                  <motion.div
-                    className="absolute inset-y-0 left-0 flex h-full"
-                    style={{ x: carouselX, touchAction: 'none' }}
-                    onPointerDown={handleCarouselPointerDown}
-                    onPointerMove={handleCarouselPointerMove}
-                    onPointerUp={handleCarouselPointerUp}
-                    onPointerCancel={handleCarouselPointerCancel}
+                  <div
+                    ref={carouselScrollRef}
+                    className="absolute inset-y-0 left-0 w-full flex h-full overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollSnapType: 'x mandatory', touchAction: 'pan-x', scrollbarWidth: 'none' } as React.CSSProperties}
+                    onScroll={handleCarouselScroll}
+                    onClick={handleCarouselTap}
                   >
                     {allPhotos.map((photo, i) => (
-                      <div key={photo} className="relative shrink-0 h-full" style={{ width: heroWidth || '100%' }}>
+                      <div
+                        key={photo}
+                        className="relative shrink-0 h-full w-full"
+                        style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as React.CSSProperties}
+                      >
                         <img
                           src={resizedImage(photo, 900, 78)}
                           alt={profile.name}
@@ -470,7 +409,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                         />
                       </div>
                     ))}
-                  </motion.div>
+                  </div>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
