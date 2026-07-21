@@ -643,7 +643,8 @@ export async function getOrCreateDM(otherUserId: string): Promise<string> {
 const DM_MSG_SELECT = `
   *,
   sender:users(id, name, profile_photo),
-  reply_to:messages!reply_to_id(id, content, sender:users(name))
+  reply_to:messages!reply_to_id(id, content, sender:users(name)),
+  reactions:dm_message_reactions(id, user_id, emoji)
 `
 
 export async function getDMMessages(conversationId: string) {
@@ -685,6 +686,23 @@ export async function sendDMMessage(
 export async function deleteDMMessage(messageId: string): Promise<void> {
   const { error } = await supabase.from('messages').delete().eq('id', messageId)
   if (error) throw error
+}
+
+export async function toggleDMReaction(messageId: string, emoji: string): Promise<void> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return
+  const { data: existing } = await supabase
+    .from('dm_message_reactions')
+    .select('id')
+    .eq('message_id', messageId)
+    .eq('user_id', uid)
+    .eq('emoji', emoji)
+    .maybeSingle()
+  if (existing) {
+    await supabase.from('dm_message_reactions').delete().eq('id', existing.id)
+  } else {
+    await supabase.from('dm_message_reactions').insert({ message_id: messageId, user_id: uid, emoji })
+  }
 }
 
 // Despite the name, this uploads any DM media file — photo or video.

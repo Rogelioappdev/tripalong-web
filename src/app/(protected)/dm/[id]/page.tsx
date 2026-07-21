@@ -21,7 +21,7 @@ import {
   uploadDMMedia,
   getDMConversations,
   markDMRead,
-  toggleReaction,
+  toggleDMReaction,
   searchDMMessages,
   getDMOtherLastRead,
   isUserBlocked,
@@ -783,7 +783,7 @@ export default function DMPage() {
                             <button
                               key={emoji}
                               type="button"
-                              onClick={() => userId && toggleReaction(msg.id, emoji).then(() => queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] }))}
+                              onClick={() => userId && toggleDMReaction(msg.id, emoji).then(() => queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] }))}
                               className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs"
                               style={{
                                 backgroundColor: users.includes(userId ?? '') ? 'rgba(240,235,227,0.18)' : 'rgba(255,255,255,0.07)',
@@ -847,7 +847,7 @@ export default function DMPage() {
                             <button
                               key={emoji}
                               type="button"
-                              onClick={() => userId && toggleReaction(msg.id, emoji).then(() => queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] }))}
+                              onClick={() => userId && toggleDMReaction(msg.id, emoji).then(() => queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] }))}
                               className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs"
                               style={{
                                 backgroundColor: users.includes(userId ?? '') ? 'rgba(240,235,227,0.18)' : 'rgba(255,255,255,0.07)',
@@ -919,7 +919,7 @@ export default function DMPage() {
                           <button
                             key={emoji}
                             type="button"
-                            onClick={() => userId && toggleReaction(msg.id, emoji).then(() => queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] }))}
+                            onClick={() => userId && toggleDMReaction(msg.id, emoji).then(() => queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] }))}
                             className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs"
                             style={{
                               backgroundColor: users.includes(userId ?? '') ? 'rgba(240,235,227,0.18)' : 'rgba(255,255,255,0.07)',
@@ -1103,7 +1103,7 @@ export default function DMPage() {
             myReactions={(actionMsg.reactions ?? []).filter(r => r.user_id === userId).map(r => r.emoji)}
             onClose={() => setActionMsg(null)}
             onReact={emoji => {
-              if (userId) toggleReaction(actionMsg.id, emoji).then(() => queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] }))
+              if (userId) toggleDMReaction(actionMsg.id, emoji).then(() => queryClient.invalidateQueries({ queryKey: ['dmMessages', conversationId] }))
               setActionMsg(null)
             }}
             onReply={() => { setReplyTo(actionMsg); setActionMsg(null) }}
