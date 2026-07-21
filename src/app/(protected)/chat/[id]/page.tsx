@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase'
 import { registerPush, sendPushNotification } from '@/lib/push'
 import { remindNotifications } from '@/lib/notifReminder'
 import { ImageViewer } from '@/components/ImageViewer'
+import { VideoViewer } from '@/components/VideoViewer'
 import { initPresence, useOnlineUsers } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
 import { displayName } from '@/lib/displayName'
@@ -189,6 +190,7 @@ export default function ChatPage() {
   // batch uploads, instead of one bubble per photo popping in individually.
   const [uploadingBatch, setUploadingBatch] = useState<{ count: number; preview: string } | null>(null)
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null)
+  const [viewingVideo, setViewingVideo] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const composerFormRef = useRef<HTMLFormElement>(null)
@@ -732,7 +734,7 @@ export default function ChatPage() {
   // navigate the whole screen away underneath it.
   useSwipeBack(
     () => router.back(),
-    !searchOpen && !showGroupInfo && !actionMsg && !infoMsg && !reportMsg && !viewingImage && !showCelebration && !profileUserId
+    !searchOpen && !showGroupInfo && !actionMsg && !infoMsg && !reportMsg && !viewingImage && !viewingVideo && !showCelebration && !profileUserId
   )
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1054,14 +1056,30 @@ export default function ChatPage() {
                         />
                       </button>
                     ) : msg.type === 'video' ? (
-                      <video
-                        src={msg.content}
-                        controls
-                        playsInline
-                        preload="metadata"
-                        className={`overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
-                        style={{ maxWidth: 220, maxHeight: 280, display: 'block', backgroundColor: '#000' }}
-                      />
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (holdFired.current) return
+                          setViewingVideo(msg.content)
+                        }}
+                        className={`relative overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
+                        style={{ maxWidth: 220, display: 'block' }}
+                      >
+                        <video
+                          src={`${msg.content}#t=0.1`}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="w-full h-full block"
+                          style={{ maxHeight: 280, objectFit: 'cover', backgroundColor: '#000' }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="flex items-center justify-center rounded-full" style={{ width: 44, height: 44, background: 'rgba(0,0,0,0.45)' }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+                          </div>
+                        </div>
+                      </button>
                     ) : (
                       <div
                         className={`px-4 py-2.5 rounded-2xl text-sm max-w-full ${
@@ -1384,6 +1402,11 @@ export default function ChatPage() {
           startIndex={viewingImage.index}
           onClose={() => setViewingImage(null)}
         />
+      )}
+
+      {/* Full-screen video player */}
+      {viewingVideo && (
+        <VideoViewer src={viewingVideo} onClose={() => setViewingVideo(null)} />
       )}
 
       <style>{`
