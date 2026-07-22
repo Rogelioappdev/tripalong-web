@@ -192,6 +192,18 @@ export default function ChatPage() {
   const [uploadingBatch, setUploadingBatch] = useState<{ count: number; preview: string } | null>(null)
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null)
   const [viewingVideo, setViewingVideo] = useState<string | null>(null)
+  const [showAppBanner, setShowAppBanner] = useState(false)
+
+  // Shown once, only on web, right after joining a trip via a shared link —
+  // the highest-intent moment to prompt an app install, not before they've
+  // even seen the trip.
+  useEffect(() => {
+    if (isNativeApp) return
+    if (sessionStorage.getItem('showAppDownloadBanner')) {
+      sessionStorage.removeItem('showAppDownloadBanner')
+      setShowAppBanner(true)
+    }
+  }, [])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const composerFormRef = useRef<HTMLFormElement>(null)
@@ -868,6 +880,35 @@ export default function ChatPage() {
               </button>
             )}
           </div>
+
+          {/* Get-the-app banner — only shown once, right after joining via a shared link on web */}
+          {showAppBanner && (
+            <div className="mt-3 flex items-center gap-3 px-4 py-3 rounded-2xl shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}>
+              <span className="text-xl shrink-0">📲</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-semibold">Get the TripAlong app</p>
+                <p className="text-white/40 text-xs">Never miss a message from this trip</p>
+              </div>
+              <a
+                href="/get"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 font-semibold text-xs px-3 py-1.5 rounded-xl active:scale-95 transition-all"
+                style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+              >
+                Get app
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowAppBanner(false)}
+                className="shrink-0 text-white/30"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+          )}
 
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-4 flex flex-col gap-1.5" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>

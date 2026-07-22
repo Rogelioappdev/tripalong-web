@@ -68,6 +68,10 @@ export default function TripLandingPage() {
     try {
       await joinTrip(tripId, userId)
       const chat = await getTripChat(tripId)
+      // Someone who joined via a shared trip link and isn't in the native
+      // app yet — prompt to download once they land in the chat, not
+      // before they've even seen the trip.
+      sessionStorage.setItem('showAppDownloadBanner', '1')
       router.push(`/chat/${chat.id}`)
     } catch (e: any) {
       setJoinError('Could not join trip. Please try again.')
