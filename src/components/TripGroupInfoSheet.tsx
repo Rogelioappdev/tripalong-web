@@ -553,22 +553,25 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
               dragElastic={0.25}
               onDragEnd={(_, info) => { if (info.offset.y > 90) setShowInvite(false) }}
             >
-              {/* Handle — the only place drag-to-dismiss starts, so it never
-                  fights the friends list's native scroll below */}
-              <div
-                className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing"
-                style={{ touchAction: 'none' }}
-                onPointerDown={e => inviteDragControls.start(e)}
-              >
-                <div className="w-9 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
-              </div>
+              {/* Drag-to-dismiss zone — covers the handle + every static
+                  (non-scrolling) section, matching how native bottom sheets
+                  let you grab anywhere except an internal scroll list. Taps
+                  on the buttons inside still register as clicks; Framer only
+                  starts an actual drag once the pointer moves past its own
+                  threshold, so this doesn't interfere with them. */}
+              <div style={{ touchAction: 'none' }} onPointerDown={e => inviteDragControls.start(e)}>
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing">
+                  <div className="w-9 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                </div>
 
-              {/* Header */}
-              <div className="px-5 pt-3 pb-5" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
-                <p className="text-white font-bold" style={{ fontSize: 20 }}>Invite to Trip</p>
-                <p className="text-white/40 text-sm mt-0.5">
-                  {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}
-                </p>
+                {/* Header */}
+                <div className="px-5 pt-3 pb-5" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-white font-bold" style={{ fontSize: 20 }}>Invite to Trip</p>
+                  <p className="text-white/40 text-sm mt-0.5">
+                    {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}
+                  </p>
+                </div>
               </div>
 
               {/* Link row */}
