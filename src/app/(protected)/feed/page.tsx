@@ -41,21 +41,36 @@ function Bone({ className = '', style }: { className?: string; style?: React.CSS
   return <div className={`bg-white/8 rounded-2xl animate-pulse ${className}`} style={style} />
 }
 
-// Mimics SwipeCard's shape (rounded-[22px], w-full h-full, #111 base) instead
-// of the bare spinner that used to show here — on a slow connection this
-// makes the feed feel like it's already loaded rather than stuck/broken.
+// Mimics SwipeCard's shape (rounded-[22px], #111 base) inside the exact same
+// flex-col root SwipeStack itself uses (card area flex-1 + shrink-0 button
+// row below) — matching that structure, not just guessing a height, is what
+// makes the skeleton card come out pixel-identical to the real one instead
+// of stretching into the space the Pass/Join/Save row would otherwise take.
 function FeedSkeleton() {
   return (
-    <div className="relative w-full h-full rounded-[22px] overflow-hidden" style={{ backgroundColor: '#111' }}>
-      <Bone className="absolute inset-0 rounded-none" />
-      <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col gap-3">
-        <Bone style={{ width: '65%', height: 22 }} />
-        <Bone style={{ width: '40%', height: 14 }} />
-        <div className="flex items-center gap-2 mt-1">
-          <Bone className="rounded-full" style={{ width: 28, height: 28 }} />
-          <Bone className="rounded-full" style={{ width: 28, height: 28, marginLeft: -12 }} />
-          <Bone style={{ width: 90, height: 12, marginLeft: 8 }} />
+    <div className="flex flex-col items-center w-full h-full gap-0">
+      <div className="relative w-full flex-1 min-h-0 overflow-hidden rounded-[22px]" style={{ backgroundColor: '#111' }}>
+        <Bone className="absolute inset-0 rounded-none" />
+        <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col gap-3">
+          <Bone style={{ width: '65%', height: 22 }} />
+          <Bone style={{ width: '40%', height: 14 }} />
+          <div className="flex items-center gap-2 mt-1">
+            <Bone className="rounded-full" style={{ width: 28, height: 28 }} />
+            <Bone className="rounded-full" style={{ width: 28, height: 28, marginLeft: -12 }} />
+            <Bone style={{ width: 90, height: 12, marginLeft: 8 }} />
+          </div>
         </div>
+      </div>
+
+      {/* Reserves the same space as SwipeStack's Pass/Join/Save row so the
+          card above ends up exactly the same height as the loaded card. */}
+      <div className="flex items-center justify-center gap-7 py-3 shrink-0">
+        {['Pass', 'Join', 'Save'].map(label => (
+          <div key={label} className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full" style={{ backgroundColor: '#161616', border: '1px solid rgba(255,255,255,0.1)' }} />
+            <span className="text-transparent text-[10px] font-semibold select-none">{label}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -561,15 +576,15 @@ export default function FeedPage() {
           style={{ paddingBottom: TAB_BAR_CLEARANCE }}
         >
           {isLoading ? (
-            <div className="w-full max-w-sm flex flex-col gap-3">
+            <div className="relative w-full max-w-sm flex flex-col">
               <AnimatePresence>
                 {slowLoad && (
                   <motion.div
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
-                    className="self-center flex items-center gap-1.5 rounded-full px-3 py-1.5"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+                    className="absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                    style={{ top: 12, backgroundColor: 'rgba(255,255,255,0.08)' }}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                       <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9z" fill="rgba(255,255,255,0.35)"/>
