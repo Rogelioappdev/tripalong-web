@@ -154,7 +154,6 @@ export default function DMPage() {
   const [uploadingBatch, setUploadingBatch] = useState<{ count: number; preview: string } | null>(null)
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null)
   const [viewingVideo, setViewingVideo] = useState<string | null>(null)
-  const [isExiting, setIsExiting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Search
@@ -556,20 +555,11 @@ export default function DMPage() {
     : []
 
   // ── Swipe-back ────────────────────────────────────────────────────────────
-  // Mirrors the entrance slide (see motion.main below) so leaving the DM
-  // feels like the same motion in reverse instead of an instant cut — the
-  // actual navigation waits for onAnimationComplete to fire.
-  const handleBack = () => {
-    if (isExiting) return
-    haptic(6)
-    setIsExiting(true)
-  }
-
   // Disabled while any sheet/overlay is on top so the gesture doesn't
   // navigate the whole screen away underneath it.
   useSwipeBack(
-    handleBack,
-    !searchOpen && !actionMsg && !infoMsg && !reportMsg && !showUserInfo && !showBlockReport && !viewingImage && !viewingVideo && !isExiting
+    () => router.back(),
+    !searchOpen && !actionMsg && !infoMsg && !reportMsg && !showUserInfo && !showBlockReport && !viewingImage && !viewingVideo
   )
 
   return (
@@ -577,11 +567,10 @@ export default function DMPage() {
       <NavBar />
       <motion.main
         className="md:pt-14 bg-black flex flex-col overflow-hidden"
-        style={{ height: '100dvh', willChange: 'transform', backfaceVisibility: 'hidden' }}
+        style={{ height: '100dvh' }}
         initial={{ x: 32, opacity: 0.88 }}
-        animate={isExiting ? { x: 60, opacity: 0.85 } : { x: 0, opacity: 1 }}
-        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-        onAnimationComplete={() => { if (isExiting) router.back() }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 36 }}
       >
         <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0 px-4">
 
@@ -591,7 +580,7 @@ export default function DMPage() {
             style={{ paddingTop: 'calc(env(safe-area-inset-top) + 11px)' }}
           >
             <button
-              onClick={handleBack}
+              onClick={() => router.back()}
               className="text-white/40 hover:text-white transition-colors shrink-0"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
