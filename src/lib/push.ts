@@ -97,6 +97,21 @@ export async function sendPushNotification(params: {
   } catch {}
 }
 
+export async function sendTripInvitePush(params: { inviteId: string; destination?: string }): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    await fetch('/api/push/send-trip-invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(params),
+    })
+  } catch {}
+}
+
 // DM equivalent of sendPushNotification — same /api/push/send endpoint, keyed
 // by conversationId instead of chatId so it resolves recipients via
 // conversation_members rather than trip_chat_members.

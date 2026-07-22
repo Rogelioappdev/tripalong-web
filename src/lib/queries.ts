@@ -245,6 +245,72 @@ export async function joinTrip(tripId: string, userId: string) {
   }
 }
 
+// "Friends" for direct trip invites — anyone you share a DM or an existing
+// trip with. See get_my_friends() in 20260721_trip_invites.sql.
+export async function getFriends(): Promise<{ id: string; name: string; profile_photo: string | null }[]> {
+  const { data, error } = await supabase.rpc('get_my_friends')
+  if (error) return []
+  return (data ?? []) as { id: string; name: string; profile_photo: string | null }[]
+}
+
+// Upsert so re-inviting someone who previously rejected resets them to pending.
+export async function inviteFriendToTrip(tripId: string, invitedUserId: string): Promise<string> {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) throw new Error('Not authenticated')
+  const { data, error } = await supabase
+    .from('trip_invites')
+    .upsert(
+      { trip_id: tripId, invited_by: uid, invited_user_id: invitedUserId, status: 'pending', responded_at: null },
+      { onConflict: 'trip_id,invited_user_id' },
+    )
+    .select('id')
+    .single()
+  if (error) throw error
+  return (data as any).id as string
+}
+
+export async function getMyPendingTripInvites() {
+  const { data, error } = await supabase
+    .from('trip_invites')
+    .select(`
+      id, trip_id, created_at,
+      inviter:users!invited_by(id, name, profile_photo),
+      trip:trips(id, destination, country, cover_image)
+    `)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+  if (error) return []
+  return (data ?? []) as any[]
+}
+
+// Only marks the invite accepted once joinTrip actually succeeds (e.g. a
+// gender-restricted trip can reject the join at the DB layer), so a failure
+// leaves the invite pending rather than silently losing it.
+export async function respondToTripInvite(inviteId: string, accept: boolean): Promise<{ tripId: string; chatId: string | null } | null> {
+  const { data: invite, error: fetchError } = await supabase
+    .from('trip_invites')
+    .select('trip_id')
+    .eq('id', inviteId)
+    .single()
+  if (fetchError) throw fetchError
+  const tripId = (invite as any).trip_id as string
+
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) throw new Error('Not authenticated')
+
+  if (accept) await joinTrip(tripId, uid)
+
+  const { error } = await supabase
+    .from('trip_invites')
+    .update({ status: accept ? 'accepted' : 'rejected', responded_at: new Date().toISOString() })
+    .eq('id', inviteId)
+  if (error) throw error
+
+  if (!accept) return null
+  const chat = await getTripChat(tripId).catch(() => null)
+  return { tripId, chatId: (chat as any)?.id ?? null }
+}
+
 export async function getTripMembership(tripId: string, userId: string) {
   const { data } = await supabase
     .from('trip_members')

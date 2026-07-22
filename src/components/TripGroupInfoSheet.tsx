@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { leaveTripFromChat, getTripChatMuted, setTripChatMuted, getChatImages } from '@/lib/queries'
+import { leaveTripFromChat, getTripChatMuted, setTripChatMuted, getChatImages, getFriends, inviteFriendToTrip } from '@/lib/queries'
+import { sendTripInvitePush } from '@/lib/push'
 import { useOnlineUsers } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
 import { PublicProfileModal } from './PublicProfileModal'
@@ -47,7 +48,28 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
   const [viewingImage, setViewingImage] = useState<string | null>(null)
   const [showInvite, setShowInvite] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [friends, setFriends] = useState<{ id: string; name: string; profile_photo: string | null }[]>([])
+  const [invitingId, setInvitingId] = useState<string | null>(null)
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
   const onlineUsers = useOnlineUsers()
+
+  useEffect(() => {
+    if (showInvite) getFriends().then(setFriends).catch(() => {})
+  }, [showInvite])
+
+  const handleInviteFriend = async (friendId: string) => {
+    setInvitingId(friendId)
+    haptic(8)
+    try {
+      const inviteId = await inviteFriendToTrip(tripInfo.id, friendId)
+      sendTripInvitePush({ inviteId, destination: tripInfo.destination })
+      setInvitedIds(prev => new Set(prev).add(friendId))
+    } catch (e) {
+      console.error('Invite friend error', e)
+    } finally {
+      setInvitingId(null)
+    }
+  }
 
   const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/trip/${tripInfo.id}` : ''
 
@@ -129,6 +151,9 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
     if (bId === tripInfo.creator_id) return 1
     return (a.user?.name ?? '').localeCompare(b.user?.name ?? '')
   })
+
+  const memberIds = new Set(members.map((m: any) => m.user?.id).filter(Boolean))
+  const inviteableFriends = friends.filter(f => !memberIds.has(f.id))
 
   const dateStr = formatDates(tripInfo.start_date, tripInfo.end_date)
   const hasDescription = !!tripInfo.description?.trim()
@@ -598,6 +623,43 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
                   Share on WhatsApp
                 </button>
               </div>
+
+              {/* Friends — people you DM or already share a trip with */}
+              {inviteableFriends.length > 0 && (
+                <div className="px-5 pt-5">
+                  <p className="text-white/30 text-xs font-semibold uppercase tracking-widest mb-2.5">From your contacts</p>
+                  <div className="flex flex-col max-h-64 overflow-y-auto">
+                    {inviteableFriends.map(f => {
+                      const invited = invitedIds.has(f.id)
+                      return (
+                        <div key={f.id} className="flex items-center gap-3 py-2">
+                          <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                            {f.profile_photo ? (
+                              <img src={f.profile_photo} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-white/50 font-bold text-sm">{f.name?.[0]?.toUpperCase() ?? '?'}</span>
+                            )}
+                          </div>
+                          <p className="flex-1 min-w-0 text-white text-sm font-medium truncate">{f.name}</p>
+                          <button
+                            type="button"
+                            onClick={() => handleInviteFriend(f.id)}
+                            disabled={invited || invitingId === f.id}
+                            className="shrink-0 font-semibold text-xs px-3 py-1.5 rounded-xl active:scale-95 transition-all disabled:opacity-60"
+                            style={{
+                              backgroundColor: invited ? 'rgba(48,209,88,0.13)' : 'rgba(240,235,227,0.09)',
+                              color: invited ? '#30D158' : 'rgba(240,235,227,0.75)',
+                              border: `0.5px solid ${invited ? 'rgba(48,209,88,0.28)' : 'rgba(240,235,227,0.12)'}`,
+                            }}
+                          >
+                            {invited ? 'Invited' : invitingId === f.id ? '…' : 'Invite'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </>
         )}

@@ -12,6 +12,7 @@ import {
   getUserTripChats, getDMConversations, getMyViewerCount, getProfile,
   setTripChatPinned, setDMPinned, setTripChatMuted, setDMMuted,
   leaveTripFromChat, leaveHangalongFromChat, deleteDMConversation,
+  getMyPendingTripInvites, respondToTripInvite,
 } from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
 import { hasPlus } from '@/lib/trial'
@@ -20,6 +21,7 @@ import { haptic } from '@/lib/haptics'
 import { displayName } from '@/lib/displayName'
 import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 import { ConversationActionSheet } from '@/components/ConversationActionSheet'
+import { JoinCelebration } from '@/components/JoinCelebration'
 import { isNativeApp } from '@/lib/native-app'
 import { resizedAvatar } from '@/lib/imageUrl'
 import { mediaPreviewLabel } from '@/lib/messagePreview'
@@ -191,6 +193,49 @@ export default function MessagesPage() {
   const [showViews, setShowViews] = useState(false)
   const [isPlus, setIsPlus] = useState(false)
   const onlineUsers = useOnlineUsers()
+
+  // Trip invites — persistent (no dismiss) until accepted or rejected.
+  const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null)
+  const [celebrationTrip, setCelebrationTrip] = useState<any | null>(null)
+  const [celebrationChatId, setCelebrationChatId] = useState<string | null>(null)
+
+  const { data: pendingInvites = [] } = useQuery({
+    queryKey: ['pendingTripInvites', userId],
+    queryFn: getMyPendingTripInvites,
+    enabled: !!userId,
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+  })
+
+  const handleAcceptInvite = async (invite: any) => {
+    setRespondingInviteId(invite.id)
+    haptic(10)
+    try {
+      const result = await respondToTripInvite(invite.id, true)
+      queryClient.invalidateQueries({ queryKey: ['pendingTripInvites', userId] })
+      queryClient.invalidateQueries({ queryKey: ['tripChats', userId] })
+      setCelebrationChatId(result?.chatId ?? null)
+      setCelebrationTrip(invite.trip)
+    } catch (e) {
+      console.error('Accept trip invite error', e)
+      alert("Couldn't join this trip — it may no longer be available.")
+    } finally {
+      setRespondingInviteId(null)
+    }
+  }
+
+  const handleRejectInvite = async (invite: any) => {
+    setRespondingInviteId(invite.id)
+    haptic(8)
+    try {
+      await respondToTripInvite(invite.id, false)
+      queryClient.invalidateQueries({ queryKey: ['pendingTripInvites', userId] })
+    } catch (e) {
+      console.error('Reject trip invite error', e)
+    } finally {
+      setRespondingInviteId(null)
+    }
+  }
 
   // Long-press → per-row action sheet (mirrors the message-bubble long-press
   // pattern in the chat page: a timer armed on pointerdown, cancelled on any
@@ -503,6 +548,51 @@ export default function MessagesPage() {
             </button>
           </div>
 
+          {/* Trip invites — stay until accepted/rejected, no dismiss */}
+          {pendingInvites.map((invite: any) => (
+            <div
+              key={invite.id}
+              className="mx-5 mt-3 mb-1 flex items-center gap-3 px-4 py-3 rounded-2xl"
+              style={{ backgroundColor: 'rgba(240,235,227,0.06)', border: '0.5px solid rgba(240,235,227,0.16)' }}
+            >
+              <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
+                {invite.trip?.cover_image ? (
+                  <img src={resizedAvatar(invite.trip.cover_image, 100)} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span style={{ fontSize: 18 }}>🌍</span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-semibold truncate">
+                  {invite.inviter?.name ?? 'Someone'} invited you to {invite.trip?.destination ?? 'a trip'}
+                </p>
+                <p className="text-white/40 text-xs truncate">
+                  {invite.trip?.destination}{invite.trip?.country ? `, ${invite.trip.country}` : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleRejectInvite(invite)}
+                  disabled={respondingInviteId === invite.id}
+                  className="font-semibold text-xs px-3 py-1.5 rounded-xl active:scale-95 transition-all disabled:opacity-50"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}
+                >
+                  Decline
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAcceptInvite(invite)}
+                  disabled={respondingInviteId === invite.id}
+                  className="font-semibold text-xs px-3 py-1.5 rounded-xl active:scale-95 transition-all disabled:opacity-50"
+                  style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+                >
+                  {respondingInviteId === invite.id ? '…' : 'Accept'}
+                </button>
+              </div>
+            </div>
+          ))}
+
           {/* Push notification banner */}
           {pushState === 'default' && (
             <div className="mx-5 mt-3 mb-1 flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}>
@@ -804,6 +894,20 @@ export default function MessagesPage() {
               setActionSheetDM(null)
             }}
             onConfirm={() => { handleDeleteDMs([actionSheetDM]); setActionSheetDM(null) }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {celebrationTrip && (
+          <JoinCelebration
+            trip={celebrationTrip}
+            inChat
+            onOpenChat={() => {
+              setCelebrationTrip(null)
+              if (celebrationChatId) router.push(`/chat/${celebrationChatId}`)
+            }}
+            onClose={() => setCelebrationTrip(null)}
           />
         )}
       </AnimatePresence>
