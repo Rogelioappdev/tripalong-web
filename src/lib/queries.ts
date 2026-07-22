@@ -270,6 +270,11 @@ export async function inviteFriendToTrip(tripId: string, invitedUserId: string):
 }
 
 export async function getMyPendingTripInvites() {
+  const uid = (await supabase.auth.getUser()).data.user?.id
+  if (!uid) return []
+  // RLS lets a row through for either side (invitee or inviter), so the
+  // recipient filter must be explicit here or the sender sees their own
+  // outgoing invites in this list too.
   const { data, error } = await supabase
     .from('trip_invites')
     .select(`
@@ -278,6 +283,7 @@ export async function getMyPendingTripInvites() {
       trip:trips(id, destination, country, cover_image)
     `)
     .eq('status', 'pending')
+    .eq('invited_user_id', uid)
     .order('created_at', { ascending: false })
   if (error) return []
   return (data ?? []) as any[]
