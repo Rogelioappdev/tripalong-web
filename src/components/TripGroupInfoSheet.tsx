@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import { leaveTripFromChat, getTripChatMuted, setTripChatMuted, getChatImages, getFriends, inviteFriendToTrip } from '@/lib/queries'
 import { sendTripInvitePush } from '@/lib/push'
 import { useOnlineUsers } from '@/lib/presence'
@@ -49,12 +49,15 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
   const [showInvite, setShowInvite] = useState(false)
   const [copied, setCopied] = useState(false)
   const [friends, setFriends] = useState<{ id: string; name: string; profile_photo: string | null }[]>([])
+  const [friendSearch, setFriendSearch] = useState('')
   const [invitingId, setInvitingId] = useState<string | null>(null)
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
   const onlineUsers = useOnlineUsers()
+  const inviteDragControls = useDragControls()
 
   useEffect(() => {
     if (showInvite) getFriends().then(setFriends).catch(() => {})
+    else setFriendSearch('')
   }, [showInvite])
 
   const handleInviteFriend = async (friendId: string) => {
@@ -154,6 +157,9 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
 
   const memberIds = new Set(members.map((m: any) => m.user?.id).filter(Boolean))
   const inviteableFriends = friends.filter(f => !memberIds.has(f.id))
+  const searchedFriends = friendSearch.trim()
+    ? inviteableFriends.filter(f => f.name?.toLowerCase().includes(friendSearch.trim().toLowerCase()))
+    : inviteableFriends
 
   const dateStr = formatDates(tripInfo.start_date, tripInfo.end_date)
   const hasDescription = !!tripInfo.description?.trim()
@@ -540,9 +546,20 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 380, damping: 40, mass: 0.9 }}
+              drag="y"
+              dragControls={inviteDragControls}
+              dragListener={false}
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={0.25}
+              onDragEnd={(_, info) => { if (info.offset.y > 90) setShowInvite(false) }}
             >
-              {/* Handle */}
-              <div className="flex justify-center pt-3 pb-1">
+              {/* Handle — the only place drag-to-dismiss starts, so it never
+                  fights the friends list's native scroll below */}
+              <div
+                className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing"
+                style={{ touchAction: 'none' }}
+                onPointerDown={e => inviteDragControls.start(e)}
+              >
                 <div className="w-9 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
               </div>
 
@@ -628,8 +645,34 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
               {inviteableFriends.length > 0 && (
                 <div className="px-5 pt-5">
                   <p className="text-white/30 text-xs font-semibold uppercase tracking-widest mb-2.5">From your contacts</p>
+                  <div
+                    className="flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 mb-2"
+                    style={{ backgroundColor: '#0A0A0A', border: '0.5px solid rgba(255,255,255,0.09)' }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+                      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2"/>
+                      <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    <input
+                      value={friendSearch}
+                      onChange={e => setFriendSearch(e.target.value)}
+                      placeholder="Search by name"
+                      className="flex-1 bg-transparent text-white placeholder-white/25 outline-none text-sm"
+                      style={{ fontSize: 16 }}
+                    />
+                    {friendSearch && (
+                      <button type="button" onClick={() => setFriendSearch('')} className="shrink-0 text-white/30">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                   <div className="flex flex-col max-h-64 overflow-y-auto">
-                    {inviteableFriends.map(f => {
+                    {searchedFriends.length === 0 && (
+                      <p className="text-white/25 text-sm text-center py-4">No contacts match "{friendSearch}"</p>
+                    )}
+                    {searchedFriends.map(f => {
                       const invited = invitedIds.has(f.id)
                       return (
                         <div key={f.id} className="flex items-center gap-3 py-2">
