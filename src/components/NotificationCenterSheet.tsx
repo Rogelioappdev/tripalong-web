@@ -37,7 +37,10 @@ export function NotificationCenterSheet({ onClose, onUnreadChange }: Props) {
   const router = useRouter()
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [loading, setLoading] = useState(true)
-  const [viewingJoinRequest, setViewingJoinRequest] = useState<{ id: string; requesterId: string; requesterName: string; tripDestination: string } | null>(null)
+  const [viewingJoinRequest, setViewingJoinRequest] = useState<{
+    id: string; requesterId: string; requesterName: string
+    tripId: string; tripDestination: string; tripCountry: string | null; tripCoverImage: string | null
+  } | null>(null)
   const [acceptedMsg, setAcceptedMsg] = useState<string | null>(null)
 
   useEffect(() => {
@@ -66,7 +69,10 @@ export function NotificationCenterSheet({ onClose, onUnreadChange }: Props) {
           id: req.id,
           requesterId: n.actor_id,
           requesterName: n.actor?.name ?? 'Someone',
+          tripId: n.trip_id,
           tripDestination: n.trip?.destination ?? 'this trip',
+          tripCountry: n.trip?.country ?? null,
+          tripCoverImage: n.trip?.cover_image ?? null,
         })
       } else {
         // Already responded to (from elsewhere) — nothing left to review.
@@ -169,7 +175,10 @@ export function NotificationCenterSheet({ onClose, onUnreadChange }: Props) {
           onClose={() => setViewingJoinRequest(null)}
           joinRequest={{
             id: viewingJoinRequest.id,
+            tripId: viewingJoinRequest.tripId,
             tripDestination: viewingJoinRequest.tripDestination,
+            tripCountry: viewingJoinRequest.tripCountry,
+            tripCoverImage: viewingJoinRequest.tripCoverImage,
             onResponded: (accepted) => {
               if (accepted) {
                 setAcceptedMsg(`${viewingJoinRequest.requesterName} accepted to ${viewingJoinRequest.tripDestination}!`)

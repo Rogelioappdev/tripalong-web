@@ -268,13 +268,13 @@ export type AppNotification = {
   is_read: boolean
   created_at: string
   actor: { name: string; profile_photo: string | null } | null
-  trip: { destination: string } | null
+  trip: { destination: string; country: string | null; cover_image: string | null } | null
 }
 
 export async function getMyNotifications(limit = 50): Promise<AppNotification[]> {
   const { data, error } = await supabase
     .from('notifications')
-    .select('id, type, actor_id, trip_id, chat_id, body, is_read, created_at, actor:users!actor_id(name, profile_photo), trip:trips!trip_id(destination)')
+    .select('id, type, actor_id, trip_id, chat_id, body, is_read, created_at, actor:users!actor_id(name, profile_photo), trip:trips!trip_id(destination, country, cover_image)')
     .order('created_at', { ascending: false })
     .limit(limit)
   if (error) return []

@@ -1065,7 +1065,10 @@ export default function MessagesPage() {
           onClose={() => setViewingJoinRequest(null)}
           joinRequest={{
             id: viewingJoinRequest.id,
+            tripId: viewingJoinRequest.trip_id,
             tripDestination: viewingJoinRequest.trip_destination,
+            tripCountry: viewingJoinRequest.trip_country,
+            tripCoverImage: viewingJoinRequest.trip_cover_image,
             onResponded: (accepted) => {
               if (accepted) {
                 setJoinRequestAcceptedMsg(`${viewingJoinRequest.requester_name} accepted to ${viewingJoinRequest.trip_destination}!`)

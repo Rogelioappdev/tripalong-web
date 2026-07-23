@@ -24,12 +24,17 @@ interface PublicProfileModalProps {
   onSendMessageLocked?: () => void
   onAuthRequired?: () => void
   // Present only when this profile is being viewed to review a pending trip
-  // join request — renders a fixed Accept/Decline bar. The requester must be
-  // viewed here before the creator can act, by design (not a shortcut from
-  // the Messages banner).
+  // join request — renders a fixed Accept/Decline bar with a tappable trip
+  // card (opens the full TripDetailModal) so the creator can actually see
+  // which trip and what it involves, not just the requester's profile. The
+  // requester must be viewed here before the creator can act, by design (not
+  // a shortcut from the Messages banner).
   joinRequest?: {
     id: string
+    tripId: string
     tripDestination: string
+    tripCountry?: string | null
+    tripCoverImage?: string | null
     onResponded: (accepted: boolean) => void
   }
 }
@@ -827,9 +832,26 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
             background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.85) 30%, #000 65%)',
           }}
         >
-          <p className="text-center text-white/50 text-xs mb-3">
-            Wants to join your trip to {joinRequest.tripDestination}
-          </p>
+          <p className="text-center text-white/50 text-xs mb-2.5">Wants to join</p>
+          <button
+            type="button"
+            onClick={() => { haptic(8); getTrip(joinRequest.tripId).then(trip => { if (trip) setSelectedTrip(trip) }) }}
+            className="w-full flex items-center gap-3 mb-3 p-2.5 rounded-2xl active:opacity-75 transition-opacity"
+            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+          >
+            <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
+              {joinRequest.tripCoverImage ? (
+                <img src={resizedImage(joinRequest.tripCoverImage, 100)} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span style={{ fontSize: 18 }}>🌍</span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-white font-semibold text-sm truncate">{joinRequest.tripDestination}</p>
+              {joinRequest.tripCountry && <p className="text-white/40 text-xs truncate">{joinRequest.tripCountry}</p>}
+            </div>
+            <span className="shrink-0 text-white/30 text-xs font-medium">View trip →</span>
+          </button>
           <div className="flex gap-3">
             <button
               type="button"
