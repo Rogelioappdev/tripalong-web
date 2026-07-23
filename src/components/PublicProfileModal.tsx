@@ -119,6 +119,10 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
 
   // Same reasoning as the hero carousel's IntersectionObserver: reliable
   // regardless of how the browser paces scroll events during native momentum.
+  // Depends on `mounted` too, same reason as the scrollLeft-jump effect
+  // above: this component renders null until then, so without it the
+  // observer would never actually attach to the real slide elements and the
+  // dots/counter would never update as you swipe.
   useLayoutEffect(() => {
     const root = scrollRef.current
     if (!root || photos.length === 0) return
@@ -133,7 +137,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
     )
     slideRefs.current.slice(0, photos.length).forEach(el => { if (el) io.observe(el) })
     return () => io.disconnect()
-  }, [photos])
+  }, [photos, mounted])
 
   // Same preload-adjacent-photos fix as the hero swipe above. Loads the
   // original, un-resized photo — see the note by the <img> below for why.
