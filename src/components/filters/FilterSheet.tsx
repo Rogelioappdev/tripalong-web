@@ -122,7 +122,6 @@ export function FilterSheet({
           {dim === 'location' && (
             <div className="flex flex-col gap-3">
               <input
-                autoFocus
                 value={locQuery}
                 onChange={e => { setLocQuery(e.target.value); onChange({ ...filters, location: e.target.value || null }) }}
                 placeholder="Search a country or city…"
