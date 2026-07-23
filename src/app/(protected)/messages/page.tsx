@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
 import {
@@ -24,6 +24,7 @@ import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 import { ConversationActionSheet } from '@/components/ConversationActionSheet'
 import { JoinCelebration } from '@/components/JoinCelebration'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
+import { RequestSentToast } from '@/components/RequestSentToast'
 import { isNativeApp } from '@/lib/native-app'
 import { resizedAvatar } from '@/lib/imageUrl'
 import { mediaPreviewLabel } from '@/lib/messagePreview'
@@ -240,9 +241,12 @@ export default function MessagesPage() {
   }
 
   // Join requests (trip full) — unlike invites, these have no inline
-  // accept/decline. Tapping the banner opens the requester's public profile;
-  // only from there can the creator respond, by design.
+  // accept/decline. The top banner just shows a count; tapping it opens the
+  // full list, and only from a person's own profile (opened from that list)
+  // can the creator actually respond, by design.
   const [viewingJoinRequest, setViewingJoinRequest] = useState<any | null>(null)
+  const [showJoinRequestsList, setShowJoinRequestsList] = useState(false)
+  const [joinRequestAcceptedMsg, setJoinRequestAcceptedMsg] = useState<string | null>(null)
 
   const { data: pendingJoinRequests = [] } = useQuery({
     queryKey: ['pendingJoinRequests', userId],
@@ -608,35 +612,31 @@ export default function MessagesPage() {
             </div>
           ))}
 
-          {/* Join requests (trip full) — no inline accept/decline; tapping
-              opens the requester's public profile, where the creator must
-              review them before responding. */}
-          {pendingJoinRequests.map((req) => (
+          {/* Join requests (trip full) — a single count banner instead of one
+              row per request, since a popular trip could rack up many.
+              Tapping opens the full list; only from a person's profile
+              (opened from that list) can the creator actually respond. */}
+          {pendingJoinRequests.length > 0 && (
             <button
-              key={req.id}
               type="button"
-              onClick={() => { haptic(8); setViewingJoinRequest(req) }}
+              onClick={() => { haptic(8); setShowJoinRequestsList(true) }}
               className="mx-5 mt-3 mb-1 flex items-center gap-3 px-4 py-3 rounded-2xl text-left active:opacity-80 transition-opacity"
               style={{ display: 'flex', width: 'calc(100% - 40px)', backgroundColor: 'rgba(240,235,227,0.06)', border: '0.5px solid rgba(240,235,227,0.16)' }}
             >
-              <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
-                {req.requester_photo ? (
-                  <img src={resizedAvatar(req.requester_photo, 100)} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-white/50 font-bold text-sm">{req.requester_name?.[0]?.toUpperCase() ?? '?'}</span>
-                )}
+              <div className="w-11 h-11 rounded-full shrink-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(240,235,227,0.1)' }}>
+                <span style={{ fontSize: 20 }}>🙋</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-semibold truncate">
-                  {req.requester_name} wants to join {req.trip_destination}
+                  {pendingJoinRequests.length} {pendingJoinRequests.length === 1 ? 'person wants' : 'people want'} to join your trips
                 </p>
-                <p className="text-white/40 text-xs truncate">Tap to view profile and respond</p>
+                <p className="text-white/40 text-xs truncate">Tap to review</p>
               </div>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>
                 <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
-          ))}
+          )}
 
           {/* Push notification banner */}
           {pushState === 'default' && (
@@ -957,6 +957,71 @@ export default function MessagesPage() {
         )}
       </AnimatePresence>
 
+      {/* Full list of pending join requests — one row per request, tap opens
+          that person's profile to actually accept/decline. */}
+      <AnimatePresence>
+        {showJoinRequestsList && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-[70]"
+              style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowJoinRequestsList(false)}
+            />
+            <motion.div
+              className="fixed bottom-0 left-0 right-0 z-[71] rounded-t-3xl overflow-hidden flex flex-col"
+              style={{ backgroundColor: '#111', maxHeight: '75vh' }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 380, damping: 40, mass: 0.9 }}
+            >
+              <div className="flex justify-center pt-3 pb-1 shrink-0">
+                <div className="w-9 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+              </div>
+              <div className="px-5 pt-2 pb-4 shrink-0" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
+                <p className="text-white font-bold" style={{ fontSize: 20 }}>Join Requests</p>
+                <p className="text-white/40 text-sm mt-0.5">
+                  {pendingJoinRequests.length} {pendingJoinRequests.length === 1 ? 'person wants' : 'people want'} to join your trips
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-2 pb-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
+                {pendingJoinRequests.map((req) => (
+                  <button
+                    key={req.id}
+                    type="button"
+                    onClick={() => { haptic(8); setShowJoinRequestsList(false); setViewingJoinRequest(req) }}
+                    className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left active:bg-white/5 transition-colors"
+                  >
+                    <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
+                      {req.requester_photo ? (
+                        <img src={resizedAvatar(req.requester_photo, 100)} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-white/50 font-bold text-sm">{req.requester_name?.[0]?.toUpperCase() ?? '?'}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-semibold truncate">{req.requester_name}</p>
+                      <p className="text-white/40 text-xs truncate">Wants to join {req.trip_destination}</p>
+                    </div>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>
+                      <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {joinRequestAcceptedMsg && <RequestSentToast message={joinRequestAcceptedMsg} />}
+      </AnimatePresence>
+
       {viewingJoinRequest && (
         <PublicProfileModal
           userId={viewingJoinRequest.requester_id}
@@ -965,6 +1030,10 @@ export default function MessagesPage() {
             id: viewingJoinRequest.id,
             tripDestination: viewingJoinRequest.trip_destination,
             onResponded: (accepted) => {
+              if (accepted) {
+                setJoinRequestAcceptedMsg(`${viewingJoinRequest.requester_name} accepted to ${viewingJoinRequest.trip_destination}!`)
+                setTimeout(() => setJoinRequestAcceptedMsg(null), 2600)
+              }
               setViewingJoinRequest(null)
               queryClient.invalidateQueries({ queryKey: ['pendingJoinRequests', userId] })
               if (accepted) {

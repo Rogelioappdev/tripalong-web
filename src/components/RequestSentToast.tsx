@@ -4,8 +4,9 @@ import { motion } from 'framer-motion'
 
 // Light confirmation toast shown right after requesting to join a full trip —
 // mirrors MemberJoinToast's floating-pill style so it reads as "the same kind
-// of notification" as the rest of the app, not a one-off alert.
-export function RequestSentToast() {
+// of notification" as the rest of the app, not a one-off alert. Reused as-is
+// (via the message prop) for the creator's "X accepted to Y" confirmation.
+export function RequestSentToast({ message = 'Request sent!' }: { message?: string }) {
   return (
     <motion.div
       initial={{ x: '-50%', y: -60, opacity: 0, scale: 0.9 }}
@@ -39,7 +40,7 @@ export function RequestSentToast() {
             <path d="M20 6L9 17l-5-5" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
-        <span style={{ color: '#fff', fontSize: 13.5, fontWeight: 700, letterSpacing: '-0.1px' }}>Request sent!</span>
+        <span style={{ color: '#fff', fontSize: 13.5, fontWeight: 700, letterSpacing: '-0.1px' }}>{message}</span>
       </div>
     </motion.div>
   )
