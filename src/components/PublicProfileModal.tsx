@@ -392,7 +392,14 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
         animate={{ x: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
         className="relative w-full sm:max-w-lg flex flex-col overflow-y-auto overflow-x-hidden overscroll-y-none"
-        style={{ backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh' }}
+        style={{
+          backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh',
+          // The join-request bar is a fixed overlay (trip card + buttons),
+          // not part of this scroll flow, so nothing here reserves space for
+          // it — without this the bar just covers the bottom of the profile
+          // (Send Message, Block/Report) and it's unreachable by scrolling.
+          paddingBottom: joinRequest ? 260 : undefined,
+        }}
       >
         {loading || !profile ? (
           <div className="flex-1 flex items-center justify-center">
