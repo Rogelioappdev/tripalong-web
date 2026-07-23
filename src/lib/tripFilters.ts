@@ -39,6 +39,13 @@ function tripMatchesDate(
   dateRange: [string, string] | null,
 ): boolean {
   if (seasons.length === 0 && !dateRange) return true
+  // A trip created via a season quick-pick has no concrete dates — match it
+  // only when season *chips* are the active filter, so it doesn't leak into
+  // every date filter regardless of season. Only applies when seasons are
+  // actually selected: a lone custom date range (no season chips) has nothing
+  // concrete to compare against a season label, so fall through to the same
+  // flexible-always-passes rule any other undated trip gets.
+  if (trip.season_label && seasons.length > 0) return seasons.includes(trip.season_label)
   // Flexible / undated trips are "whenever" — always pass a date filter.
   if (trip.is_flexible_dates || (!trip.start_date && !trip.end_date)) return true
   const s = trip.start_date ? new Date(trip.start_date).getTime() : NaN
@@ -81,7 +88,14 @@ export function applyTripFilters(trips: TripWithDetails[], f: TripFilters): Trip
       const hay = `${trip.destination ?? ''} ${trip.country ?? ''}`.toLowerCase()
       if (!hay.includes(q)) return false
     }
-    if (genderSet && !genderSet.has(trip.group_preference ?? 'everyone')) return false
+    if (genderSet) {
+      // 'everyone' and 'mixed' are synonyms elsewhere in the app (see
+      // matching.ts) — and CreateTripModal aliases 'mixed' → 'everyone' before
+      // saving, so a "Mixed" filter must also match 'everyone' trips or it
+      // would always return zero results.
+      const pref = trip.group_preference ?? 'everyone'
+      if (!genderSet.has(pref) && !(pref === 'everyone' && genderSet.has('mixed'))) return false
+    }
     if (styleSet) {
       const vibes = trip.vibes ?? []
       if (!vibes.some(v => styleSet.has(v))) return false

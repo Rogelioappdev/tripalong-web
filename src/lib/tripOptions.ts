@@ -25,13 +25,54 @@ export const GROUP_PREFS: { value: string; label: string; emoji: string }[] = [
   { value: 'mixed', label: 'Mixed', emoji: '🤝' },
 ]
 
-export const SEASONS: string[] = ['Summer 2026', 'Fall 2026', 'Winter 2026', 'Spring 2027']
+// Northern-hemisphere season windows, keyed by the year the season starts in.
+// Winter spans into the following year, so its end date rolls over.
+type SeasonDef = {
+  name: string
+  startMonth: number; startDay: number
+  endMonth: number; endDay: number
+  endYearOffset: number
+}
+const SEASON_DEFS: SeasonDef[] = [
+  { name: 'Spring', startMonth: 3,  startDay: 1, endMonth: 5,  endDay: 31, endYearOffset: 0 },
+  { name: 'Summer', startMonth: 6,  startDay: 1, endMonth: 8,  endDay: 31, endYearOffset: 0 },
+  { name: 'Fall',   startMonth: 9,  startDay: 1, endMonth: 11, endDay: 30, endYearOffset: 0 },
+  { name: 'Winter', startMonth: 12, startDay: 1, endMonth: 2,  endDay: 28, endYearOffset: 1 },
+]
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+const isoDate = (y: number, m: number, d: number) => `${y}-${pad2(m)}-${pad2(d)}`
+
+// Rolling window of upcoming seasons computed from the current date, so the
+// list never silently runs out of future options (it used to be hardcoded
+// literals that expired in ~9 months). Includes the season we're currently in.
+function buildRollingSeasons(count: number, now: Date): {
+  labels: string[]
+  ranges: Record<string, { start: string; end: string }>
+} {
+  const labels: string[] = []
+  const ranges: Record<string, { start: string; end: string }> = {}
+  for (let year = now.getFullYear(); labels.length < count; year++) {
+    for (const def of SEASON_DEFS) {
+      if (labels.length >= count) break
+      const endYear = year + def.endYearOffset
+      const end = new Date(endYear, def.endMonth - 1, def.endDay, 23, 59, 59)
+      if (end.getTime() < now.getTime()) continue // season already fully over
+      const label = `${def.name} ${year}`
+      labels.push(label)
+      ranges[label] = {
+        start: isoDate(year, def.startMonth, def.startDay),
+        end: isoDate(endYear, def.endMonth, def.endDay),
+      }
+    }
+  }
+  return { labels, ranges }
+}
+
+const rolling = buildRollingSeasons(5, new Date())
+
+export const SEASONS: string[] = rolling.labels
 
 // Maps each season label to a concrete date window so trip date ranges can be
-// tested for overlap when filtering. Northern-hemisphere seasons.
-export const SEASON_RANGES: Record<string, { start: string; end: string }> = {
-  'Summer 2026': { start: '2026-06-01', end: '2026-08-31' },
-  'Fall 2026':   { start: '2026-09-01', end: '2026-11-30' },
-  'Winter 2026': { start: '2026-12-01', end: '2027-02-28' },
-  'Spring 2027': { start: '2027-03-01', end: '2027-05-31' },
-}
+// tested for overlap when filtering.
+export const SEASON_RANGES: Record<string, { start: string; end: string }> = rolling.ranges

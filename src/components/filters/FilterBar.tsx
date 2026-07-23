@@ -23,7 +23,7 @@ const DIMENSION_LABELS: { dim: FilterDimension; label: string }[] = [
 ]
 
 export function FilterBar({
-  filters, onChange, trips, dimensions,
+  filters, onChange, trips, dimensions, filterGate,
 }: {
   filters: TripFilters
   onChange: (f: TripFilters) => void
@@ -31,6 +31,10 @@ export function FilterBar({
   // Which filter chips to show. Defaults to all; World omits 'location' since
   // you can already spin the globe to a place.
   dimensions?: FilterDimension[]
+  // Premium gate — same convention as TripDetailModal's joinGate. Returns
+  // false (and typically shows a paywall) to block opening a filter editor;
+  // returns true to allow it. Not applied to the "clear all" button.
+  filterGate?: () => boolean
 }) {
   const [openDim, setOpenDim] = useState<FilterDimension | null>(null)
   const anyActive = activeFilterCount(filters) > 0
@@ -62,7 +66,7 @@ export function FilterBar({
             <button
               key={dim}
               type="button"
-              onClick={() => { haptic(6); setOpenDim(dim) }}
+              onClick={() => { haptic(6); if (filterGate && !filterGate()) return; setOpenDim(dim) }}
               className="shrink-0 whitespace-nowrap font-semibold transition-colors active:scale-95"
               style={{
                 fontSize: 13,

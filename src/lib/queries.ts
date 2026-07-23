@@ -621,6 +621,7 @@ export async function createTrip(data: {
   group_preference: 'everyone' | 'male' | 'female'
   max_group_size: number
   is_flexible_dates: boolean
+  season_label: string | null
   start_date: string | null
   end_date: string | null
   age_min: number | null

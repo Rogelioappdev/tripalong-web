@@ -3,13 +3,19 @@
 export const dynamic = 'force-dynamic'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, useAnimation, AnimatePresence } from 'framer-motion'
 import dynamicImport from 'next/dynamic'
 import { haptic } from '@/lib/haptics'
 import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
+import { FilterBar } from '@/components/filters/FilterBar'
+import { PaywallModal } from '@/components/PaywallModal'
+import {
+  applyTripFilters, activeFilterCount, EMPTY_FILTERS,
+  type TripFilters, type FilterDimension,
+} from '@/lib/tripFilters'
 import { AuthGate } from '@/components/AuthGate'
 import { getTrips, getUserSavedTripIds, saveTrip, getProfile, getHangalongs, getMyHangalongs, getUserJoinedHangalongIds } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
@@ -36,6 +42,18 @@ const HangDetailModal = dynamicImport(() => import('@/components/HangDetailModal
 
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
+
+// First filter dimension whose value differs between two filter states — used
+// to tag the filter_dimension_changed analytics event. Seasons and its custom
+// date range are one dimension ('seasons').
+function changedFilterDimension(a: TripFilters, b: TripFilters): FilterDimension | null {
+  if (JSON.stringify(a.location) !== JSON.stringify(b.location)) return 'location'
+  if (JSON.stringify(a.seasons) !== JSON.stringify(b.seasons) || JSON.stringify(a.dateRange) !== JSON.stringify(b.dateRange)) return 'seasons'
+  if (JSON.stringify(a.styles) !== JSON.stringify(b.styles)) return 'styles'
+  if (JSON.stringify(a.genders) !== JSON.stringify(b.genders)) return 'genders'
+  if (JSON.stringify(a.ageRange) !== JSON.stringify(b.ageRange)) return 'ageRange'
+  return null
+}
 
 function Bone({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
   return <div className={`bg-white/8 rounded-2xl animate-pulse ${className}`} style={style} />
@@ -119,6 +137,22 @@ export default function FeedPage() {
     return new URLSearchParams(window.location.search).get('trial') === 'none'
   })
   const isPlusUser = hasPlus(feedProfile)
+
+  const [filters, setFilters] = useState<TripFilters>(EMPTY_FILTERS)
+  const [showFilterPaywall, setShowFilterPaywall] = useState(false)
+  // Premium gate for the filter bar — same shape as TripDetailModal's joinGate.
+  const filterGate = () => {
+    if (isPlusUser) return true
+    setShowFilterPaywall(true)
+    return false
+  }
+  const handleFiltersChange = (next: TripFilters) => {
+    if (isPlusUser) {
+      const changed = changedFilterDimension(filters, next)
+      if (changed) track('filter_dimension_changed', { dimension: changed, active_count: activeFilterCount(next) })
+    }
+    setFilters(next)
+  }
 
   const [justUpgraded, setJustUpgraded] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
@@ -294,6 +328,8 @@ export default function FeedPage() {
     refetchInterval: 5 * 60 * 1000, // quietly refresh member counts every 5 min
     refetchOnMount: 'always',
   })
+
+  const filteredTrips = useMemo(() => applyTripFilters(trips ?? [], filters), [trips, filters])
 
   // Flip on only once a load has genuinely dragged — on a fast connection
   // this never shows, so it reads as "your connection is slow" rather than
@@ -570,6 +606,16 @@ export default function FeedPage() {
           </button>
         </div>
 
+        {/* Premium feed filters — gated behind Plus via filterGate. The trips
+            prop stays the *unfiltered* list (it feeds FilterSheet's top-country
+            quick-picks; filtering it by the in-progress filters would be circular). */}
+        <FilterBar
+          filters={filters}
+          onChange={handleFiltersChange}
+          trips={trips ?? []}
+          filterGate={filterGate}
+        />
+
         {/* Card + buttons — fills remaining space above tab bar */}
         <div
           className="flex-1 min-h-0 flex items-stretch justify-center px-3 md:pb-8"
@@ -615,7 +661,8 @@ export default function FeedPage() {
           ) : ((trips && trips.length > 0) || (myHangalongs as HangalongWithDetails[]).length > 0 || (hangalongs as HangalongWithDetails[]).length > 0) ? (
             <div className="w-full max-w-sm flex flex-col">
               <SwipeStack
-                trips={trips ?? []}
+                trips={filteredTrips}
+                filtersKey={JSON.stringify(filters)}
                 hangalongs={hangalongs as HangalongWithDetails[]}
                 myHangalongIds={(myHangalongs as HangalongWithDetails[]).map(h => h.id)}
                 joinedHangIds={joinedHangIds}
@@ -711,6 +758,21 @@ export default function FeedPage() {
           onClose={() => setShowSaved(false)}
         />
       )}
+
+      {/* Filters paywall — shown when a non-Plus user taps a filter chip.
+          Mirrors SwipeStack's PaywallModal wiring so a purchase here unlocks
+          filters immediately in the same session. */}
+      <AnimatePresence>
+        {showFilterPaywall && (
+          <PaywallModal
+            trigger="filters"
+            userId={userId ?? undefined}
+            onClose={() => setShowFilterPaywall(false)}
+            onSuccess={() => feedProfile && setFeedProfile({ ...feedProfile, subscription_tier: 'plus' })}
+            onWelcomeDone={(confirmed) => setFeedProfile(confirmed)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Upgrade success toast */}
       <AnimatePresence>

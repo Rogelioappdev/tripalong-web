@@ -122,6 +122,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
         max_group_size: groupSize,
         description: description.trim() || null,
         is_flexible_dates: flexDates || !!season,
+        season_label: season || null,
         start_date: season ? null : startDate || null,
         end_date: season ? null : endDate || null,
         age_min: anyAge ? null : minAge,

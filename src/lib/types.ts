@@ -43,6 +43,7 @@ export type Trip = {
   start_date: string | null
   end_date: string | null
   is_flexible_dates: boolean
+  season_label: string | null
   vibes: string[]
   pace: 'slow' | 'balanced' | 'fast' | null
   group_preference: 'male' | 'female' | 'everyone' | 'mixed' | null

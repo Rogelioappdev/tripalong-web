@@ -51,6 +51,10 @@ function useMidnightCountdown() {
 
 interface SwipeStackProps {
   trips: TripWithDetails[]
+  // Serialized feed filters — changes to this reset the deck to the first
+  // result (see effect below), so applying a filter that shrinks the list
+  // doesn't leave currentIndex pointing past the end.
+  filtersKey?: string
   hangalongs?: HangalongWithDetails[]
   myHangalongIds?: string[]
   joinedHangIds?: string[]
@@ -436,7 +440,7 @@ function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joinedHangIds = [], onHangTap, onHangJoined, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
+export function SwipeStack({ trips, filtersKey, hangalongs = [], myHangalongIds = [], joinedHangIds = [], onHangTap, onHangJoined, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window === 'undefined') return 0
@@ -504,6 +508,18 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   useEffect(() => {
     if (initialProfile) setUserProfile(initialProfile)
   }, [initialProfile])
+
+  // Reset to the first card whenever the feed filters change — a filter can
+  // shrink the deck instantly (e.g. 80 → 6 trips), and a stale currentIndex
+  // would then land past the end and show "You've seen them all!" over unseen
+  // matches. Skip the initial mount so a restored sessionStorage position is
+  // still honored. Mirrors the "Start over" button below.
+  const filtersKeyMounted = useRef(false)
+  useEffect(() => {
+    if (!filtersKeyMounted.current) { filtersKeyMounted.current = true; return }
+    sessionStorage.removeItem('ta_feed_index')
+    setCurrentIndex(0)
+  }, [filtersKey])
 
   // Launch A/B test: 50/50 split on capped-15/day vs unlimited swipes.
   // Prefer the persisted variant so it never flips once assigned; fall back

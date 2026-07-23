@@ -1,4 +1,5 @@
 import posthog from 'posthog-js'
+import type { FilterDimension } from './tripFilters'
 
 // Central, typed product analytics. Before this the app only had PostHog's
 // default auto-events ($pageview / autocapture), so the whole TripAlong+
@@ -18,7 +19,7 @@ export type PaywallSurface =
   | 'profile_views'   // ProfileViewsSheet
 
 // The PaywallModal's contextual trigger (why the wall appeared).
-export type PaywallTrigger = 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins'
+export type PaywallTrigger = 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins' | 'filters'
 
 type EventProps = {
   // ── Conversion funnel ───────────────────────────────────────────────
@@ -36,6 +37,9 @@ type EventProps = {
   // Fires when a user hits the daily join cap on TripAlong World (after the
   // lifetime free-join grace). Top of the join→paywall→purchase funnel.
   join_limit_reached: { limit: number; lifetime: number; rail: Rail }
+  // Fires when a Plus user changes a feed filter dimension — product
+  // visibility into which filters actually get used post-purchase.
+  filter_dimension_changed: { dimension: FilterDimension; active_count: number }
   // ── Activation loop (leading indicators of conversion) ──────────────
   trip_saved: { trip_id: string }
   trip_joined: { trip_id: string; source: 'swipe' | 'detail' }

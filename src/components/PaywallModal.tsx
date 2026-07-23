@@ -11,7 +11,7 @@ import { PlusWelcomeFlow } from './PlusWelcomeFlow'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 interface Props {
-  trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins'
+  trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins' | 'filters'
   context?: string
   matchPct?: number
   trips?: TripWithDetails[]
@@ -105,6 +105,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     trigger === 'joins' && context ? `Join ${context} too` :
     trigger === 'joins' ? 'Join more trips' :
     trigger === 'upgrade' ? 'Go further with TripAlong+' :
+    trigger === 'filters' ? 'Filter trips your way' :
     'See who checked you out'
 
   const subcopy =
@@ -115,6 +116,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     trigger === 'rewind' ? 'Unlock rewind and never lose a great trip again.' :
     trigger === 'joins' ? "You've joined today's trip — go Plus to join as many as you want." :
     trigger === 'upgrade' ? 'Unlimited swipes, no ads, and your compatibility % on every trip.' :
+    trigger === 'filters' ? 'Search by location, dates, style, gender, and age to find exactly what you want.' :
     "You've hit today's limit. Upgrade for unlimited."
 
   const handleUpgrade = async () => {
