@@ -253,6 +253,67 @@ export async function getFriends(): Promise<{ id: string; name: string; profile_
   return (data ?? []) as { id: string; name: string; profile_photo: string | null }[]
 }
 
+// Notification center — reads the existing notifications table (already
+// populated for 'trip_joined' by a pre-existing trigger; 20260723_notification_
+// center.sql adds triggers for 'trip_invite', 'join_request', 'join_accepted'
+// on the same table/shape). body is precomputed server-side, so no client
+// formatting per type is needed.
+export type AppNotification = {
+  id: string
+  type: 'trip_joined' | 'trip_invite' | 'join_request' | 'join_accepted'
+  actor_id: string | null
+  trip_id: string | null
+  chat_id: string | null
+  body: string
+  is_read: boolean
+  created_at: string
+  actor: { name: string; profile_photo: string | null } | null
+  trip: { destination: string } | null
+}
+
+export async function getMyNotifications(limit = 50): Promise<AppNotification[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, type, actor_id, trip_id, chat_id, body, is_read, created_at, actor:users!actor_id(name, profile_photo), trip:trips!trip_id(destination)')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) return []
+  return (data ?? []) as unknown as AppNotification[]
+}
+
+export async function getMyUnreadNotificationCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('is_read', false)
+  if (error) return 0
+  return count ?? 0
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await supabase.from('notifications').update({ is_read: true }).eq('is_read', false)
+}
+
+// Tapping a 'join_request' notification needs the underlying
+// trip_join_requests row id (not stored on the notification itself) to open
+// the same accept/decline flow used from the Messages banner. (trip_id,
+// requester_id) is unique, so this reliably finds the matching pending
+// request without a schema change to the notifications table.
+export async function findPendingJoinRequest(tripId: string, requesterId: string): Promise<{ id: string } | null> {
+  const { data } = await supabase
+    .from('trip_join_requests')
+    .select('id')
+    .eq('trip_id', tripId)
+    .eq('requester_id', requesterId)
+    .eq('status', 'pending')
+    .maybeSingle()
+  return data as { id: string } | null
+}
+
 // Request-to-join for full trips — see 20260722_trip_join_requests.sql.
 // Upsert so re-requesting after a decline resets the row back to pending.
 export async function requestToJoinTrip(tripId: string, userId: string): Promise<string> {

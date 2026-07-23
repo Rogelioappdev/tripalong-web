@@ -14,6 +14,7 @@ import {
   leaveTripFromChat, leaveHangalongFromChat, deleteDMConversation,
   getMyPendingTripInvites, respondToTripInvite,
   getMyPendingJoinRequests,
+  getMyUnreadNotificationCount,
 } from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
 import { hasPlus } from '@/lib/trial'
@@ -25,6 +26,7 @@ import { ConversationActionSheet } from '@/components/ConversationActionSheet'
 import { JoinCelebration } from '@/components/JoinCelebration'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { RequestSentToast } from '@/components/RequestSentToast'
+import { NotificationCenterSheet } from '@/components/NotificationCenterSheet'
 import { isNativeApp } from '@/lib/native-app'
 import { resizedAvatar } from '@/lib/imageUrl'
 import { mediaPreviewLabel } from '@/lib/messagePreview'
@@ -194,6 +196,7 @@ export default function MessagesPage() {
   const [pushLoading, setPushLoading] = useState(false)
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string | null>>({})
   const [showViews, setShowViews] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
   const [isPlus, setIsPlus] = useState(false)
   const onlineUsers = useOnlineUsers()
 
@@ -341,6 +344,14 @@ export default function MessagesPage() {
     queryFn: getMyViewerCount,
     enabled: !!userId,
     refetchInterval: 15_000,
+  })
+
+  const { data: unreadNotifCount = 0, refetch: refetchUnreadNotifCount } = useQuery({
+    queryKey: ['unreadNotifCount', userId],
+    queryFn: getMyUnreadNotificationCount,
+    enabled: !!userId,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
   })
 
   const { data: tripChats = [], isLoading: chatsLoading, isError: chatsError, refetch: refetchChats } = useQuery({
@@ -542,29 +553,55 @@ export default function MessagesPage() {
           />
         )}
       </AnimatePresence>
+      {showNotifications && (
+        <NotificationCenterSheet
+          onClose={() => setShowNotifications(false)}
+          onUnreadChange={refetchUnreadNotifCount}
+        />
+      )}
       <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>
         <div className="max-w-2xl mx-auto">
           {/* Mobile header */}
           <div className="md:hidden flex items-center justify-between px-5 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
             <h1 className="text-white font-extrabold text-2xl">Messages</h1>
-            <button
-              onClick={() => { haptic(8); setShowViews(true) }}
-              className="relative w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-              style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.1)' }}
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="12" cy="12" r="3" stroke="white" strokeWidth="2"/>
-              </svg>
-              {viewerCount > 0 && (
-                <div
-                  className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 rounded-full flex items-center justify-center font-bold text-black px-1"
-                  style={{ backgroundColor: '#F0EBE3', fontSize: 9 }}
-                >
-                  {viewerCount > 99 ? '99+' : viewerCount}
-                </div>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { haptic(8); setShowNotifications(true) }}
+                className="relative w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                {unreadNotifCount > 0 && (
+                  <div
+                    className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 rounded-full flex items-center justify-center font-bold text-black px-1"
+                    style={{ backgroundColor: '#F0EBE3', fontSize: 9 }}
+                  >
+                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                  </div>
+                )}
+              </button>
+              <button
+                onClick={() => { haptic(8); setShowViews(true) }}
+                className="relative w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="12" cy="12" r="3" stroke="white" strokeWidth="2"/>
+                </svg>
+                {viewerCount > 0 && (
+                  <div
+                    className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 rounded-full flex items-center justify-center font-bold text-black px-1"
+                    style={{ backgroundColor: '#F0EBE3', fontSize: 9 }}
+                  >
+                    {viewerCount > 99 ? '99+' : viewerCount}
+                  </div>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Trip invites — stay until accepted/rejected, no dismiss */}
