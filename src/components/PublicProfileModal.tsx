@@ -88,12 +88,18 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
   // Jump the native scroll container to the photo that was tapped in the
   // hero carousel, then keep it there — scrollLeft starts at 0 on mount, so
   // without this it would always open on the first photo instead of the one
-  // the user actually tapped.
+  // the user actually tapped. Must also depend on `mounted`: this component
+  // returns null until then, so the very first run of this effect sees
+  // scrollRef.current as null (nothing rendered yet) and no-ops — since
+  // initialIndex itself never changes afterward, without `mounted` in the
+  // deps the effect would never re-fire once the real DOM element exists,
+  // leaving the scroll position stuck at 0 while the index state (dots,
+  // counter) already correctly shows the tapped photo.
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el || initialIndex === 0) return
     el.scrollLeft = initialIndex * el.offsetWidth
-  }, [initialIndex])
+  }, [initialIndex, mounted])
 
   const navigate = (next: number) => {
     const el = scrollRef.current
