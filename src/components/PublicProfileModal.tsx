@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getProfile, getTrip, getOrCreateDM, recordProfileView, respondToJoinRequest } from '@/lib/queries'
+import { sendJoinAcceptedPush } from '@/lib/push'
 import { BlockReportSheet } from './BlockReportSheet'
 import { getFlag } from '@/lib/countries'
 import { TripDetailModal } from './TripDetailModal'
@@ -286,6 +287,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
     setRespondingRequest(true)
     try {
       await respondToJoinRequest(joinRequest.id, accept)
+      if (accept) sendJoinAcceptedPush({ requestId: joinRequest.id, destination: joinRequest.tripDestination })
       joinRequest.onResponded(accept)
     } catch (e) {
       console.error('respondToJoinRequest error', e)

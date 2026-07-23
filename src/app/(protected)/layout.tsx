@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { ProfileViewToast } from '@/components/ProfileViewToast'
 import { SessionKeeper } from '@/components/SessionKeeper'
 import { NotifReminderHost } from '@/components/NotifReminderHost'
+import { JoinRequestAcceptedListener } from '@/components/JoinRequestAcceptedListener'
 
 // Wraps every protected page so app-wide overlays (currently: the new-profile-
 // view toast) show up regardless of which tab the user is on, instead of
@@ -30,6 +31,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       <SessionKeeper />
       {children}
       {userId && <ProfileViewToast userId={userId} />}
+      {userId && <JoinRequestAcceptedListener userId={userId} />}
       <NotifReminderHost />
     </>
   )
