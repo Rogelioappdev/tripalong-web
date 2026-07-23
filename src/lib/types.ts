@@ -26,6 +26,7 @@ export type UserProfile = {
   trial_start_at: string | null
   swipe_variant: string | null
   is_verified: boolean
+  is_beta_tester: boolean
   created_at: string
   updated_at: string
 }

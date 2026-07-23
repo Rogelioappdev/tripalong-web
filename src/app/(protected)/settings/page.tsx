@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getProfile } from '@/lib/queries'
+import { getProfile, updateProfile } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
 import { getNotificationStatusAsync, type NotificationStatus } from '@/lib/push'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
@@ -124,12 +124,16 @@ export default function SettingsPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState('')
 
-  // Unlisted access code — unlocks TripAlong Earth (currently pulled from the
-  // main tab bar; kept reachable this way for future/internal use rather
-  // than removed outright). Deliberately unlabeled as such anywhere in the UI.
+  // Unlisted access code — unlocks a small member area: TripAlong Earth
+  // (pulled from the main tab bar; kept reachable this way for future/
+  // internal use rather than removed outright) and a beta-features toggle
+  // for trying in-progress features early. Deliberately unlabeled as such
+  // anywhere in the UI.
   const [showMemberCode, setShowMemberCode] = useState(false)
   const [memberCode, setMemberCode] = useState('')
   const [memberCodeError, setMemberCodeError] = useState(false)
+  const [memberVerified, setMemberVerified] = useState(false)
+  const [betaSaving, setBetaSaving] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -182,10 +186,25 @@ export default function SettingsPage() {
   const handleMemberCodeSubmit = () => {
     if (memberCode.trim().toLowerCase() === 'gertrudis') {
       haptic(10)
-      router.push('/world')
+      setMemberVerified(true)
     } else {
       haptic([8, 20, 8])
       setMemberCodeError(true)
+    }
+  }
+
+  const handleToggleBetaTester = async () => {
+    if (!userId || !profile) return
+    const next = !profile.is_beta_tester
+    haptic(8)
+    setBetaSaving(true)
+    setProfile(p => p ? { ...p, is_beta_tester: next } : p)
+    try {
+      await updateProfile(userId, { is_beta_tester: next })
+    } catch {
+      setProfile(p => p ? { ...p, is_beta_tester: !next } : p)
+    } finally {
+      setBetaSaving(false)
     }
   }
 
@@ -375,7 +394,7 @@ export default function SettingsPage() {
               border={false}
               onPress={showMemberCode ? undefined : () => setShowMemberCode(true)}
             />
-            {showMemberCode && (
+            {showMemberCode && !memberVerified && (
               <div className="px-4 pb-4 flex flex-col gap-3" style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
                 <input
                   value={memberCode}
@@ -399,6 +418,17 @@ export default function SettingsPage() {
                     Submit
                   </button>
                 </div>
+              </div>
+            )}
+            {showMemberCode && memberVerified && (
+              <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
+                <Row label="TripAlong Earth" chevron border onPress={() => { haptic(8); router.push('/world') }} />
+                <Row
+                  label="Test New Features"
+                  sub="See in-progress features early"
+                  border={false}
+                  right={<Toggle value={!!profile?.is_beta_tester} onChange={() => handleToggleBetaTester()} />}
+                />
               </div>
             )}
           </Group>
