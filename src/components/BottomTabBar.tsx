@@ -68,17 +68,6 @@ export function BottomTabBar() {
       ),
     },
     {
-      href: '/world',
-      label: 'World',
-      icon: (active: boolean) => (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="9" stroke={active ? '#fff' : 'rgba(255,255,255,0.38)'} strokeWidth="1.8"/>
-          <path d="M3 12h18" stroke={active ? '#fff' : 'rgba(255,255,255,0.38)'} strokeWidth="1.8" strokeLinecap="round"/>
-          <path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18" stroke={active ? '#fff' : 'rgba(255,255,255,0.38)'} strokeWidth="1.8" strokeLinecap="round"/>
-        </svg>
-      ),
-    },
-    {
       href: '/profile',
       label: 'Profile',
       icon: (active: boolean) => (

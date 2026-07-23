@@ -124,6 +124,13 @@ export default function SettingsPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState('')
 
+  // Unlisted access code — unlocks TripAlong Earth (currently pulled from the
+  // main tab bar; kept reachable this way for future/internal use rather
+  // than removed outright). Deliberately unlabeled as such anywhere in the UI.
+  const [showMemberCode, setShowMemberCode] = useState(false)
+  const [memberCode, setMemberCode] = useState('')
+  const [memberCodeError, setMemberCodeError] = useState(false)
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.replace('/'); return }
@@ -170,6 +177,16 @@ export default function SettingsPage() {
     setDeleting(true)
     await supabase.auth.signOut()
     router.replace('/')
+  }
+
+  const handleMemberCodeSubmit = () => {
+    if (memberCode.trim().toLowerCase() === 'gertrudis') {
+      haptic(10)
+      router.push('/world')
+    } else {
+      haptic([8, 20, 8])
+      setMemberCodeError(true)
+    }
   }
 
   const handleManageSubscription = async () => {
@@ -350,7 +367,40 @@ export default function SettingsPage() {
 
           {/* ── App info ── */}
           <Group title="About">
-            <Row label="Version" value="1.0.0" border={false} />
+            <Row label="Version" value="1.0.0" border />
+            <Row
+              label="Are you a TripAlong member?"
+              sub="Enter your code"
+              chevron={!showMemberCode}
+              border={false}
+              onPress={showMemberCode ? undefined : () => setShowMemberCode(true)}
+            />
+            {showMemberCode && (
+              <div className="px-4 pb-4 flex flex-col gap-3" style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
+                <input
+                  value={memberCode}
+                  onChange={e => { setMemberCode(e.target.value); setMemberCodeError(false) }}
+                  placeholder="Code"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  className="w-full bg-white/6 border rounded-2xl px-4 py-3 text-white text-sm outline-none mt-3"
+                  style={{ borderColor: memberCodeError ? '#FF3B30' : 'rgba(255,255,255,0.12)', fontSize: 16 }}
+                />
+                {memberCodeError && <p className="text-red-400 text-xs">Incorrect code</p>}
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => { haptic(8); setShowMemberCode(false); setMemberCode(''); setMemberCodeError(false) }}
+                    className="flex-1 py-3 rounded-2xl text-sm active:scale-95 transition-transform"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={() => { haptic(8); handleMemberCodeSubmit() }}
+                    className="flex-1 py-3 rounded-2xl text-sm font-semibold active:scale-95 transition-transform"
+                    style={{ backgroundColor: '#F0EBE3', color: '#000' }}>
+                    Submit
+                  </button>
+                </div>
+              </div>
+            )}
           </Group>
 
           {/* ── Danger zone ── */}
