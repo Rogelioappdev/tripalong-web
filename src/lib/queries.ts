@@ -253,6 +253,59 @@ export async function getFriends(): Promise<{ id: string; name: string; profile_
   return (data ?? []) as { id: string; name: string; profile_photo: string | null }[]
 }
 
+// Request-to-join for full trips — see 20260722_trip_join_requests.sql.
+// Upsert so re-requesting after a decline resets the row back to pending.
+export async function requestToJoinTrip(tripId: string, userId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('trip_join_requests')
+    .upsert(
+      { trip_id: tripId, requester_id: userId, status: 'pending', responded_at: null },
+      { onConflict: 'trip_id,requester_id' },
+    )
+    .select('id')
+    .single()
+  if (error) throw error
+  return (data as any).id as string
+}
+
+export async function getMyJoinRequestStatus(tripId: string, userId: string): Promise<'pending' | 'accepted' | 'declined' | null> {
+  const { data, error } = await supabase
+    .from('trip_join_requests')
+    .select('status')
+    .eq('trip_id', tripId)
+    .eq('requester_id', userId)
+    .maybeSingle()
+  if (error || !data) return null
+  return (data as any).status
+}
+
+export async function getMyPendingJoinRequests() {
+  const { data, error } = await supabase.rpc('get_my_pending_join_requests')
+  if (error) return []
+  return (data ?? []) as {
+    id: string
+    trip_id: string
+    created_at: string
+    requester_id: string
+    requester_name: string
+    requester_photo: string | null
+    trip_destination: string
+    trip_country: string | null
+    trip_cover_image: string | null
+  }[]
+}
+
+// Only the trip creator may call this (enforced inside the RPC, not RLS —
+// membership inserts require self-insert normally). Returns the chat id on
+// accept so the caller can navigate straight to it if desired.
+export async function respondToJoinRequest(requestId: string, accept: boolean): Promise<{ tripId: string; chatId: string | null } | null> {
+  const { data, error } = await supabase.rpc('respond_to_join_request', { p_request_id: requestId, p_accept: accept })
+  if (error) throw error
+  const result = data as any
+  if (!result?.success) throw new Error(result?.error ?? 'Failed to respond to request')
+  return accept ? { tripId: result.trip_id, chatId: result.chat_id ?? null } : null
+}
+
 // Upsert so re-inviting someone who previously rejected resets them to pending.
 export async function inviteFriendToTrip(tripId: string, invitedUserId: string): Promise<string> {
   const uid = (await supabase.auth.getUser()).data.user?.id

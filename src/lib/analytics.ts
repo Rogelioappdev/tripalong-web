@@ -39,6 +39,7 @@ type EventProps = {
   // ── Activation loop (leading indicators of conversion) ──────────────
   trip_saved: { trip_id: string }
   trip_joined: { trip_id: string; source: 'swipe' | 'detail' }
+  trip_join_requested: { trip_id: string; source: 'swipe' | 'detail' }
   trip_created: { destination?: string; vibes_count?: number }
 }
 

@@ -12,8 +12,10 @@ import { PublicProfileModal } from './PublicProfileModal'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
-import { joinTrip, saveTrip, getTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen, getSwipesToday, incrementSwipesToday } from '@/lib/queries'
+import { joinTrip, saveTrip, getTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen, getSwipesToday, incrementSwipesToday, requestToJoinTrip } from '@/lib/queries'
+import { sendJoinRequestPush } from '@/lib/push'
 import { JoinCelebration } from './JoinCelebration'
+import { RequestSentToast } from './RequestSentToast'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { track } from '@/lib/analytics'
 import { remindNotifications } from '@/lib/notifReminder'
@@ -441,6 +443,8 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     return parseInt(sessionStorage.getItem('ta_feed_index') ?? '0', 10)
   })
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set())
+  const [joinRequestedIds, setJoinRequestedIds] = useState<Set<string>>(new Set())
+  const [showRequestSentToast, setShowRequestSentToast] = useState(false)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [userProfile, setUserProfile] = useState<UserProfile | null>(initialProfile ?? null)
   const [hintVisible, setHintVisible] = useState(false)
@@ -710,6 +714,25 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
           await saveTrip(trip.id, userId)
           qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
         } catch {}
+      }
+      return
+    }
+
+    const isFull = (trip.max_group_size ?? 0) > 0 && (trip.member_count ?? 0) >= trip.max_group_size
+    if (isFull) {
+      if (joinRequestedIds.has(trip.id)) return
+      setJoinRequestedIds(s => new Set([...s, trip.id]))
+      track('trip_join_requested', { trip_id: trip.id, source: 'swipe' })
+      try {
+        const requestId = await requestToJoinTrip(trip.id, userId)
+        haptic(10)
+        setShowRequestSentToast(true)
+        setTimeout(() => setShowRequestSentToast(false), 2200)
+        const profile = localProfile ?? userProfile
+        sendJoinRequestPush({ requestId, requesterName: profile?.name, destination: trip.destination })
+      } catch (e) {
+        setJoinRequestedIds(s => { const n = new Set(s); n.delete(trip.id); return n })
+        console.error('requestToJoinTrip error', e)
       }
       return
     }
@@ -1077,6 +1100,11 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
             onDismiss={dismissProfileNudge}
           />
         )}
+      </AnimatePresence>
+
+      {/* Request-sent confirmation — swiped right on a full trip instead of joining */}
+      <AnimatePresence>
+        {showRequestSentToast && <RequestSentToast />}
       </AnimatePresence>
 
       {/* Join celebration — full screen, shown after swiping right joins the trip */}

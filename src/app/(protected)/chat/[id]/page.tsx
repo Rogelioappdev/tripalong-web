@@ -12,8 +12,9 @@ import { MessageInfoSheet, type MessageReceipt } from '@/components/MessageInfoS
 import { ReportMessageSheet } from '@/components/ReportMessageSheet'
 import { JoinCelebration } from '@/components/JoinCelebration'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
+import { RequestSentToast } from '@/components/RequestSentToast'
 import { supabase } from '@/lib/supabase'
-import { registerPush, sendPushNotification } from '@/lib/push'
+import { registerPush, sendPushNotification, sendJoinRequestPush } from '@/lib/push'
 import { remindNotifications } from '@/lib/notifReminder'
 import { ImageViewer } from '@/components/ImageViewer'
 import { VideoViewer } from '@/components/VideoViewer'
@@ -37,6 +38,8 @@ import {
   joinTrip,
   getChatMemberReadPositions,
   searchChatMessages,
+  requestToJoinTrip,
+  getMyJoinRequestStatus,
 } from '@/lib/queries'
 import type { TripMessage, TripWithDetails, HangalongWithDetails } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
@@ -267,6 +270,15 @@ export default function ChatPage() {
 
   const isFullMember = membership?.status === 'in'
   const showJoinBanner = membershipFetched && !isFullMember && !joinBannerDismissed && !!tripInfo && !showCelebration
+  const isTripFull = !!tripInfo && tripInfo.max_group_size > 0 && (tripInfo.member_count ?? 0) >= tripInfo.max_group_size
+
+  const [joinRequestStatus, setJoinRequestStatus] = useState<'pending' | 'accepted' | 'declined' | null>(null)
+  const [requestingJoin, setRequestingJoin] = useState(false)
+  const [showRequestSentToast, setShowRequestSentToast] = useState(false)
+
+  useEffect(() => {
+    if (tripInfo?.id && userId) getMyJoinRequestStatus(tripInfo.id, userId).then(setJoinRequestStatus)
+  }, [tripInfo?.id, userId])
 
   const joinMutation = useMutation({
     mutationFn: () => joinTrip(tripInfo!.id, userId!),
@@ -277,6 +289,27 @@ export default function ChatPage() {
       setShowCelebration(true)
     },
   })
+
+  // Trip full → ask the creator instead of joining outright. Otherwise the
+  // normal instant-join flow (unchanged).
+  const handleJoinOrRequest = async () => {
+    if (!tripInfo || !userId) return
+    if (!isTripFull) { joinMutation.mutate(); return }
+    if (requestingJoin || joinRequestStatus === 'pending') return
+    haptic(10)
+    setRequestingJoin(true)
+    try {
+      const requestId = await requestToJoinTrip(tripInfo.id, userId)
+      setJoinRequestStatus('pending')
+      setShowRequestSentToast(true)
+      setTimeout(() => setShowRequestSentToast(false), 2200)
+      sendJoinRequestPush({ requestId, requesterName: userName, destination: tripInfo.destination })
+    } catch (e) {
+      console.error('requestToJoinTrip error', e)
+    } finally {
+      setRequestingJoin(false)
+    }
+  }
 
   // ── Mark read ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1300,12 +1333,16 @@ export default function ChatPage() {
               </div>
               <button
                 type="button"
-                onClick={() => { haptic(10); joinMutation.mutate() }}
-                disabled={joinMutation.isPending}
+                onClick={handleJoinOrRequest}
+                disabled={joinMutation.isPending || requestingJoin || (isTripFull && joinRequestStatus === 'pending')}
                 className="shrink-0 font-bold text-sm rounded-2xl active:scale-[0.97] transition-transform disabled:opacity-40 px-4 py-2"
                 style={{ backgroundColor: '#F0EBE3', color: '#000' }}
               >
-                {joinMutation.isPending ? 'Joining…' : 'Join Trip'}
+                {joinMutation.isPending || requestingJoin
+                  ? 'Sending…'
+                  : isTripFull
+                  ? joinRequestStatus === 'pending' ? 'Request Sent' : 'Request to Join'
+                  : 'Join Trip'}
               </button>
               <button
                 type="button"
@@ -1388,7 +1425,9 @@ export default function ChatPage() {
             tripInfo={tripInfo}
             userId={userId}
             isFullMember={isFullMember}
-            onJoinTrip={() => { setShowGroupInfo(false); joinMutation.mutate() }}
+            isTripFull={isTripFull}
+            joinRequestStatus={joinRequestStatus}
+            onJoinTrip={() => { setShowGroupInfo(false); handleJoinOrRequest() }}
             onClose={() => setShowGroupInfo(false)}
             onLeft={() => router.replace('/messages')}
           />
@@ -1470,6 +1509,10 @@ export default function ChatPage() {
           30% { transform: translateY(-4px); }
         }
       `}</style>
+
+      <AnimatePresence>
+        {showRequestSentToast && <RequestSentToast />}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showCelebration && tripInfo && (

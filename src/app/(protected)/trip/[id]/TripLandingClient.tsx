@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getTrip, joinTrip, getTripChat } from '@/lib/queries'
+import { getTrip, joinTrip, getTripChat, requestToJoinTrip, getMyJoinRequestStatus } from '@/lib/queries'
+import { sendJoinRequestPush } from '@/lib/push'
+import { RequestSentToast } from '@/components/RequestSentToast'
+import { AnimatePresence } from 'framer-motion'
 import type { TripWithDetails } from '@/lib/types'
 
 const VIBE_ICONS: Record<string, string> = {
@@ -35,6 +38,8 @@ export default function TripLandingPage() {
   const [alreadyJoined, setAlreadyJoined] = useState(false)
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState('')
+  const [joinRequestStatus, setJoinRequestStatus] = useState<'pending' | 'accepted' | 'declined' | null>(null)
+  const [showRequestSentToast, setShowRequestSentToast] = useState(false)
 
   useEffect(() => {
     // Store this trip URL immediately so login redirects back here
@@ -52,9 +57,29 @@ export default function TripLandingPage() {
         sessionStorage.removeItem('postAuthRedirect')
         const isMember = (tripData.members ?? []).some((m: any) => m.user_id === uid || m.user?.id === uid)
         setAlreadyJoined(isMember)
+        getMyJoinRequestStatus(tripId, uid).then(setJoinRequestStatus)
       }
     })
   }, [tripId])
+
+  const isTripFull = !!trip && trip.max_group_size > 0 && (trip.member_count ?? 0) >= trip.max_group_size
+
+  const handleRequestJoin = async () => {
+    if (!userId || !trip || joining) return
+    setJoining(true)
+    setJoinError('')
+    try {
+      const requestId = await requestToJoinTrip(tripId, userId)
+      setJoinRequestStatus('pending')
+      setShowRequestSentToast(true)
+      setTimeout(() => setShowRequestSentToast(false), 2200)
+      sendJoinRequestPush({ requestId, destination: trip.destination })
+    } catch (e) {
+      setJoinError('Could not send request. Please try again.')
+    } finally {
+      setJoining(false)
+    }
+  }
 
   const handleJoin = async () => {
     if (!userId) {
@@ -63,6 +88,7 @@ export default function TripLandingPage() {
       router.push('/')
       return
     }
+    if (isTripFull) { handleRequestJoin(); return }
     setJoining(true)
     setJoinError('')
     try {
@@ -114,6 +140,10 @@ export default function TripLandingPage() {
 
   return (
     <div className="min-h-screen bg-black flex flex-col" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 180px)' }}>
+
+      <AnimatePresence>
+        {showRequestSentToast && <RequestSentToast />}
+      </AnimatePresence>
 
       {/* Hero */}
       <div className="relative shrink-0" style={{ height: 300 }}>
@@ -306,11 +336,17 @@ export default function TripLandingPage() {
         ) : (
           <button
             onClick={handleJoin}
-            disabled={joining}
+            disabled={joining || (isTripFull && joinRequestStatus === 'pending')}
             className="w-full rounded-2xl font-bold text-base disabled:opacity-55 transition-opacity active:opacity-80"
             style={{ backgroundColor: '#F0EBE3', color: '#000', padding: '16px 0' }}
           >
-            {joining ? 'Joining…' : userId ? 'Join this trip' : 'Sign in to join'}
+            {joining
+              ? (isTripFull ? 'Sending request…' : 'Joining…')
+              : !userId
+              ? 'Sign in to join'
+              : isTripFull
+              ? (joinRequestStatus === 'pending' ? 'Request Sent' : 'Trip Full — Request to Join')
+              : 'Join this trip'}
           </button>
         )}
         {!userId && (

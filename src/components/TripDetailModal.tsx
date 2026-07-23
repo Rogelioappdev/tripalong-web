@@ -5,13 +5,15 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { joinTrip, getTripMembership, getTrip, getTripChat, getProfile } from '@/lib/queries'
+import { joinTrip, getTripMembership, getTrip, getTripChat, getProfile, requestToJoinTrip, getMyJoinRequestStatus } from '@/lib/queries'
 import { remindNotifications } from '@/lib/notifReminder'
+import { sendJoinRequestPush } from '@/lib/push'
 import { getTripMatchBreakdown, getMatchingVibes, memberCompatibility, isTripGenderEligible } from '@/lib/matching'
 import { hasPlus } from '@/lib/trial'
 import { track } from '@/lib/analytics'
 import { PublicProfileModal } from './PublicProfileModal'
 import { JoinCelebration } from './JoinCelebration'
+import { RequestSentToast } from './RequestSentToast'
 import { ProfilePhotoNudge } from './ProfilePhotoNudge'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
@@ -65,11 +67,18 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   const [compatPaywallContext, setCompatPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
   const [showJoinPaywall, setShowJoinPaywall] = useState(false)
   const [showCompatTrialOffer, setShowCompatTrialOffer] = useState(false)
+  const [joinRequestStatus, setJoinRequestStatus] = useState<'pending' | 'accepted' | 'declined' | null>(null)
+  const [requestingJoin, setRequestingJoin] = useState(false)
+  const [showRequestSentToast, setShowRequestSentToast] = useState(false)
   const heroRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
+
+  useEffect(() => {
+    if (userId) getMyJoinRequestStatus(trip.id, userId).then(setJoinRequestStatus)
+  }, [userId, trip.id])
 
   // Only fetch if not provided by parent — avoids duplicate network call
   useEffect(() => {
@@ -117,6 +126,24 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
       }
     },
   })
+
+  const handleRequestJoin = async () => {
+    if (!userId || requestingJoin) return
+    haptic(10)
+    setRequestingJoin(true)
+    try {
+      const requestId = await requestToJoinTrip(displayTrip.id, userId)
+      track('trip_join_requested', { trip_id: displayTrip.id, source: 'detail' })
+      setJoinRequestStatus('pending')
+      setShowRequestSentToast(true)
+      setTimeout(() => setShowRequestSentToast(false), 2200)
+      sendJoinRequestPush({ requestId, requesterName: userProfile?.name, destination: displayTrip.destination })
+    } catch (e) {
+      console.error('requestToJoinTrip error', e)
+    } finally {
+      setRequestingJoin(false)
+    }
+  }
 
   const handleShare = async () => {
     haptic(8)
@@ -580,6 +607,19 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
             >
               Open Group Chat
             </button>
+          ) : spotsLeft <= 0 && !isGuest && isGenderEligible ? (
+            <button
+              onClick={handleRequestJoin}
+              disabled={requestingJoin || joinRequestStatus === 'pending'}
+              className="w-full font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
+              style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: '#000', padding: '16px' }}
+            >
+              {requestingJoin
+                ? 'Sending request...'
+                : joinRequestStatus === 'pending'
+                ? 'Request Sent'
+                : 'Trip Full — Request to Join'}
+            </button>
           ) : (
             <button
               onClick={() => {
@@ -599,7 +639,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                 : !isGuest && !isGenderEligible
                 ? displayTrip.group_preference === 'female' ? 'Women Only' : 'Men Only'
                 : spotsLeft <= 0
-                ? 'Join Trip (Full)'
+                ? 'Trip Full — Request to Join'
                 : 'Join Trip'}
             </button>
           )}
@@ -623,6 +663,10 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
         onAuthRequired={isGuest ? () => { setProfileUserId(null); onAuthRequired?.() } : undefined}
       />
     )}
+
+    <AnimatePresence>
+      {showRequestSentToast && <RequestSentToast />}
+    </AnimatePresence>
 
     <AnimatePresence>
       {showPhotoNudge && userId && (

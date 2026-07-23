@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getProfile, getTrip, getOrCreateDM, recordProfileView } from '@/lib/queries'
+import { getProfile, getTrip, getOrCreateDM, recordProfileView, respondToJoinRequest } from '@/lib/queries'
 import { BlockReportSheet } from './BlockReportSheet'
 import { getFlag } from '@/lib/countries'
 import { TripDetailModal } from './TripDetailModal'
@@ -22,6 +22,15 @@ interface PublicProfileModalProps {
   onRevealRequest?: () => boolean
   onSendMessageLocked?: () => void
   onAuthRequired?: () => void
+  // Present only when this profile is being viewed to review a pending trip
+  // join request — renders a fixed Accept/Decline bar. The requester must be
+  // viewed here before the creator can act, by design (not a shortcut from
+  // the Messages banner).
+  joinRequest?: {
+    id: string
+    tripDestination: string
+    onResponded: (accepted: boolean) => void
+  }
 }
 
 const TRAVEL_STYLES = [
@@ -210,9 +219,10 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
 }
 
 // ── Main modal ──────────────────────────────────────────────────────────────
-export function PublicProfileModal({ userId, onClose, locked = false, onRevealRequest, onSendMessageLocked, onAuthRequired }: PublicProfileModalProps) {
+export function PublicProfileModal({ userId, onClose, locked = false, onRevealRequest, onSendMessageLocked, onAuthRequired, joinRequest }: PublicProfileModalProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [respondingRequest, setRespondingRequest] = useState(false)
   const [photoIndex, setPhotoIndex] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   // Single source of truth for the photo list (profile photo first, then the
@@ -267,6 +277,20 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
       console.error('DM error', e)
     } finally {
       setDmLoading(false)
+    }
+  }
+
+  const handleRespondToJoinRequest = async (accept: boolean) => {
+    if (!joinRequest || respondingRequest) return
+    haptic(accept ? 10 : 8)
+    setRespondingRequest(true)
+    try {
+      await respondToJoinRequest(joinRequest.id, accept)
+      joinRequest.onResponded(accept)
+    } catch (e) {
+      console.error('respondToJoinRequest error', e)
+    } finally {
+      setRespondingRequest(false)
     }
   }
 
@@ -788,6 +812,44 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
           )
         })()}
       </motion.div>
+
+      {/* Join-request review bar — fixed over the scrollable profile so it's
+          always reachable without hunting for it, and is the only place a
+          join request can actually be accepted/declined from. */}
+      {joinRequest && (
+        <div
+          className="fixed left-0 right-0 z-[75] px-5 pt-5"
+          style={{
+            bottom: 0,
+            paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+            background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.85) 30%, #000 65%)',
+          }}
+        >
+          <p className="text-center text-white/50 text-xs mb-3">
+            Wants to join your trip to {joinRequest.tripDestination}
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => handleRespondToJoinRequest(false)}
+              disabled={respondingRequest}
+              className="flex-1 font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50"
+              style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.75)', padding: '14px' }}
+            >
+              Decline
+            </button>
+            <button
+              type="button"
+              onClick={() => handleRespondToJoinRequest(true)}
+              disabled={respondingRequest}
+              className="flex-1 font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50"
+              style={{ backgroundColor: '#F0EBE3', color: '#000', padding: '14px' }}
+            >
+              {respondingRequest ? 'Please wait…' : 'Accept'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 
