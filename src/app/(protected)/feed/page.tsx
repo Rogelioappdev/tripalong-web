@@ -668,6 +668,8 @@ export default function FeedPage() {
               <SwipeStack
                 trips={filteredTrips}
                 filtersKey={JSON.stringify(filters)}
+                filtersActive={activeFilterCount(filters) > 0}
+                onClearFilters={() => setFilters(EMPTY_FILTERS)}
                 hangalongs={hangalongs as HangalongWithDetails[]}
                 myHangalongIds={(myHangalongs as HangalongWithDetails[]).map(h => h.id)}
                 joinedHangIds={joinedHangIds}

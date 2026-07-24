@@ -55,6 +55,11 @@ interface SwipeStackProps {
   // result (see effect below), so applying a filter that shrinks the list
   // doesn't leave currentIndex pointing past the end.
   filtersKey?: string
+  // Whether any feed filter dimension is currently active — swaps the
+  // "you've seen them all" empty state for filter-aware copy so a 0-result
+  // filter doesn't read as the app being broken.
+  filtersActive?: boolean
+  onClearFilters?: () => void
   hangalongs?: HangalongWithDetails[]
   myHangalongIds?: string[]
   joinedHangIds?: string[]
@@ -440,7 +445,7 @@ function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SwipeStack({ trips, filtersKey, hangalongs = [], myHangalongIds = [], joinedHangIds = [], onHangTap, onHangJoined, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
+export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, hangalongs = [], myHangalongIds = [], joinedHangIds = [], onHangTap, onHangJoined, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window === 'undefined') return 0
@@ -1074,18 +1079,35 @@ export function SwipeStack({ trips, filtersKey, hangalongs = [], myHangalongIds 
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
         <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}>
-          <span className="text-5xl">✈️</span>
+          <span className="text-5xl">{filtersActive ? '🔍' : '✈️'}</span>
         </motion.div>
-        <h3 className="text-white text-xl font-bold">You've seen them all!</h3>
-        <p className="text-white/40 text-sm">Check back later for new trips</p>
-        <motion.button
-          whileTap={{ scale: 0.92 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-          onClick={() => { haptic(8); sessionStorage.removeItem('ta_feed_index'); setCurrentIndex(0) }}
-          className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm"
-        >
-          Start over
-        </motion.button>
+        {filtersActive ? (
+          <>
+            <h3 className="text-white text-xl font-bold">No more trips with these filters</h3>
+            <p className="text-white/40 text-sm">Try adjusting or clearing a filter to see more</p>
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              onClick={() => { haptic(8); onClearFilters?.() }}
+              className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm"
+            >
+              Clear filters
+            </motion.button>
+          </>
+        ) : (
+          <>
+            <h3 className="text-white text-xl font-bold">You've seen them all!</h3>
+            <p className="text-white/40 text-sm">Check back later for new trips</p>
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              onClick={() => { haptic(8); sessionStorage.removeItem('ta_feed_index'); setCurrentIndex(0) }}
+              className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm"
+            >
+              Start over
+            </motion.button>
+          </>
+        )}
       </div>
     )
   }
