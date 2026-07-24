@@ -1,8 +1,14 @@
 'use client'
 
-// Bottom sheet that edits one filter dimension at a time. Selections apply live
-// (onChange fires immediately) so the globe re-filters behind the sheet. Modeled
-// on TripClusterSheet's spring slide-up + drag-to-dismiss.
+// Bottom sheet that edits one filter dimension at a time. Selections are
+// staged into a local draft (not applied live) — the caller only sees them
+// via onDone, when the user taps "Done". This lets a non-Plus user freely
+// explore every filter option before hitting a paywall specifically at the
+// point of commitment, rather than being blocked the instant they open a
+// chip — the highest-intent moment to convert. Dismissing via the backdrop
+// or drag-down abandons the draft silently (no paywall, no apply); only
+// "Done" attempts to commit it. Modeled on TripClusterSheet's spring
+// slide-up + drag-to-dismiss.
 
 import { motion } from 'framer-motion'
 import { useMemo, useState, type ReactNode } from 'react'
@@ -43,14 +49,17 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 }
 
 export function FilterSheet({
-  dim, filters, trips, onChange, onClose,
+  dim, filters, trips, onDone, onClose,
 }: {
   dim: FilterDimension
   filters: TripFilters
   trips: TripWithDetails[]
-  onChange: (f: TripFilters) => void
+  // Fires only when the user taps "Done" — the caller decides whether to
+  // apply it or gate it behind a paywall.
+  onDone: (draft: TripFilters) => void
   onClose: () => void
 }) {
+  const [draft, setDraft] = useState<TripFilters>(filters)
   const [locQuery, setLocQuery] = useState(filters.location ?? '')
 
   // Most common countries in the current trip set → quick-pick chips.
@@ -60,24 +69,24 @@ export function FilterSheet({
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(e => e[0])
   }, [trips])
 
-  const age = filters.ageRange ?? [AGE_MIN, AGE_MAX]
+  const age = draft.ageRange ?? [AGE_MIN, AGE_MAX]
   const setAge = (lo: number, hi: number) => {
     const full = lo <= AGE_MIN && hi >= AGE_MAX
-    onChange({ ...filters, ageRange: full ? null : [lo, hi] })
+    setDraft(d => ({ ...d, ageRange: full ? null : [lo, hi] }))
   }
 
   // Custom calendar range for the Date dimension (sits alongside the seasons).
-  const dr = filters.dateRange ?? ['', '']
+  const dr = draft.dateRange ?? ['', '']
   const setDate = (idx: 0 | 1, val: string) => {
     const next: [string, string] = idx === 0 ? [val, dr[1]] : [dr[0], val]
-    onChange({ ...filters, dateRange: next[0] || next[1] ? next : null })
+    setDraft(d => ({ ...d, dateRange: next[0] || next[1] ? next : null }))
   }
 
   const clearDim = () => {
-    if (dim === 'location') { setLocQuery(''); onChange({ ...filters, location: null }) }
-    else if (dim === 'ageRange') onChange({ ...filters, ageRange: null })
-    else if (dim === 'seasons') onChange({ ...filters, seasons: [], dateRange: null })
-    else onChange({ ...filters, [dim]: [] })
+    if (dim === 'location') { setLocQuery(''); setDraft(d => ({ ...d, location: null })) }
+    else if (dim === 'ageRange') setDraft(d => ({ ...d, ageRange: null }))
+    else if (dim === 'seasons') setDraft(d => ({ ...d, seasons: [], dateRange: null }))
+    else setDraft(d => ({ ...d, [dim]: [] }))
   }
 
   if (typeof document === 'undefined') return null
@@ -102,14 +111,14 @@ export function FilterSheet({
         <div className="px-4 pt-4 pb-3 flex items-center justify-between" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.07)' }}>
           <h2 className="text-[#F0EBE3] text-base font-semibold">{TITLES[dim]}</h2>
           <div className="flex items-center gap-2">
-            {isDimensionActive(filters, dim) && (
+            {isDimensionActive(draft, dim) && (
               <button type="button" onClick={() => { haptic(6); clearDim() }} className="text-white/45 text-xs font-medium px-2 py-1 active:opacity-60">
                 Clear
               </button>
             )}
             <button
               type="button"
-              onClick={() => { haptic(8); onClose() }}
+              onClick={() => { haptic(8); onDone(draft) }}
               className="rounded-full font-semibold text-[13px] px-4 py-1.5"
               style={{ background: 'rgba(255,255,255,0.1)', color: '#F0EBE3' }}
             >
@@ -123,7 +132,7 @@ export function FilterSheet({
             <div className="flex flex-col gap-3">
               <input
                 value={locQuery}
-                onChange={e => { setLocQuery(e.target.value); onChange({ ...filters, location: e.target.value || null }) }}
+                onChange={e => { setLocQuery(e.target.value); setDraft(d => ({ ...d, location: e.target.value || null })) }}
                 placeholder="Search a country or city…"
                 className="w-full rounded-2xl px-4 py-3 text-[15px] outline-none"
                 style={{ background: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.12)', color: '#fff' }}
@@ -133,8 +142,8 @@ export function FilterSheet({
                   {topCountries.map(c => (
                     <Chip
                       key={c}
-                      active={(filters.location ?? '').toLowerCase() === c.toLowerCase()}
-                      onClick={() => { setLocQuery(c); onChange({ ...filters, location: c }) }}
+                      active={(draft.location ?? '').toLowerCase() === c.toLowerCase()}
+                      onClick={() => { setLocQuery(c); setDraft(d => ({ ...d, location: c })) }}
                     >
                       {c}
                     </Chip>
@@ -148,7 +157,7 @@ export function FilterSheet({
             <div className="flex flex-col gap-3.5">
               <div className="flex flex-wrap gap-2">
                 {SEASONS.map(s => (
-                  <Chip key={s} active={filters.seasons.includes(s)} onClick={() => onChange({ ...filters, seasons: toggle(filters.seasons, s) })}>
+                  <Chip key={s} active={draft.seasons.includes(s)} onClick={() => setDraft(d => ({ ...d, seasons: toggle(d.seasons, s) }))}>
                     {s}
                   </Chip>
                 ))}
@@ -187,7 +196,7 @@ export function FilterSheet({
           {dim === 'styles' && (
             <div className="flex flex-wrap gap-2">
               {VIBES.map(v => (
-                <Chip key={v.value} active={filters.styles.includes(v.value)} onClick={() => onChange({ ...filters, styles: toggle(filters.styles, v.value) })}>
+                <Chip key={v.value} active={draft.styles.includes(v.value)} onClick={() => setDraft(d => ({ ...d, styles: toggle(d.styles, v.value) }))}>
                   <span className="mr-1">{v.emoji}</span>{v.label}
                 </Chip>
               ))}
@@ -199,7 +208,7 @@ export function FilterSheet({
               <p className="text-white/40 text-xs">Show trips open to…</p>
               <div className="flex flex-wrap gap-2">
                 {GROUP_PREFS.map(g => (
-                  <Chip key={g.value} active={filters.genders.includes(g.value)} onClick={() => onChange({ ...filters, genders: toggle(filters.genders, g.value) })}>
+                  <Chip key={g.value} active={draft.genders.includes(g.value)} onClick={() => setDraft(d => ({ ...d, genders: toggle(d.genders, g.value) }))}>
                     <span className="mr-1">{g.emoji}</span>{g.value === 'everyone' ? 'Open to all' : g.label}
                   </Chip>
                 ))}

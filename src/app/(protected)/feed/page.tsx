@@ -140,6 +140,10 @@ export default function FeedPage() {
 
   const [filters, setFilters] = useState<TripFilters>(EMPTY_FILTERS)
   const [showFilterPaywall, setShowFilterPaywall] = useState(false)
+  // The drafted-but-blocked filters from a "Done" tap that hit the paywall —
+  // applied automatically if the user upgrades, so their exact configured
+  // filter is honored instantly instead of making them redo it post-purchase.
+  const [pendingFilters, setPendingFilters] = useState<TripFilters | null>(null)
   // Premium gate for the filter bar — same shape as TripDetailModal's joinGate.
   const filterGate = () => {
     if (isPlusUser) return true
@@ -614,6 +618,7 @@ export default function FeedPage() {
           onChange={handleFiltersChange}
           trips={trips ?? []}
           filterGate={filterGate}
+          onGateFail={setPendingFilters}
         />
 
         {/* Card + buttons — fills remaining space above tab bar */}
@@ -759,16 +764,20 @@ export default function FeedPage() {
         />
       )}
 
-      {/* Filters paywall — shown when a non-Plus user taps a filter chip.
-          Mirrors SwipeStack's PaywallModal wiring so a purchase here unlocks
-          filters immediately in the same session. */}
+      {/* Filters paywall — shown when a non-Plus user taps "Done" on a filter
+          they've configured. Mirrors SwipeStack's PaywallModal wiring so a
+          purchase here unlocks filters immediately, and also applies
+          whatever they'd already drafted instead of making them redo it. */}
       <AnimatePresence>
         {showFilterPaywall && (
           <PaywallModal
             trigger="filters"
             userId={userId ?? undefined}
             onClose={() => setShowFilterPaywall(false)}
-            onSuccess={() => feedProfile && setFeedProfile({ ...feedProfile, subscription_tier: 'plus' })}
+            onSuccess={() => {
+              if (feedProfile) setFeedProfile({ ...feedProfile, subscription_tier: 'plus' })
+              if (pendingFilters) { setFilters(pendingFilters); setPendingFilters(null) }
+            }}
             onWelcomeDone={(confirmed) => setFeedProfile(confirmed)}
           />
         )}

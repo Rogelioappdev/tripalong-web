@@ -23,7 +23,7 @@ const DIMENSION_LABELS: { dim: FilterDimension; label: string }[] = [
 ]
 
 export function FilterBar({
-  filters, onChange, trips, dimensions, filterGate,
+  filters, onChange, trips, dimensions, filterGate, onGateFail,
 }: {
   filters: TripFilters
   onChange: (f: TripFilters) => void
@@ -31,10 +31,17 @@ export function FilterBar({
   // Which filter chips to show. Defaults to all; World omits 'location' since
   // you can already spin the globe to a place.
   dimensions?: FilterDimension[]
-  // Premium gate — same convention as TripDetailModal's joinGate. Returns
-  // false (and typically shows a paywall) to block opening a filter editor;
-  // returns true to allow it. Not applied to the "clear all" button.
+  // Premium gate — same convention as TripDetailModal's joinGate. Checked
+  // only when the user taps "Done" inside the sheet (not on opening it), so
+  // a free user can freely explore every filter option before hitting a
+  // paywall right at the point they try to commit — the highest-intent
+  // moment to convert. Not applied to the "clear all" button. Returns false
+  // (and typically shows a paywall) to block the commit; true to allow it.
   filterGate?: () => boolean
+  // Fires with the drafted-but-blocked filters when filterGate rejects a
+  // "Done" tap, so the caller can auto-apply that exact draft if the user
+  // upgrades right after.
+  onGateFail?: (draft: TripFilters) => void
 }) {
   const [openDim, setOpenDim] = useState<FilterDimension | null>(null)
   const anyActive = activeFilterCount(filters) > 0
@@ -66,7 +73,7 @@ export function FilterBar({
             <button
               key={dim}
               type="button"
-              onClick={() => { haptic(6); if (filterGate && !filterGate()) return; setOpenDim(dim) }}
+              onClick={() => { haptic(6); setOpenDim(dim) }}
               className="shrink-0 whitespace-nowrap font-semibold transition-colors active:scale-95"
               style={{
                 fontSize: 13,
@@ -89,7 +96,11 @@ export function FilterBar({
             dim={openDim}
             filters={filters}
             trips={trips}
-            onChange={onChange}
+            onDone={(draft) => {
+              setOpenDim(null)
+              if (filterGate && !filterGate()) { onGateFail?.(draft); return }
+              onChange(draft)
+            }}
             onClose={() => setOpenDim(null)}
           />
         )}
