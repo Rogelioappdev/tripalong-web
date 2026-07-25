@@ -198,11 +198,14 @@ export default function ProfilePage() {
   const [fieldDraft, setFieldDraft] = useState<string | string[]>('')
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { router.replace('/'); return }
+    // getSession() reads the locally persisted session — no network round
+    // trip, so a transient blip (e.g. WebView resuming from background)
+    // can't be mistaken for "logged out" and bounce the user to '/'.
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) { router.replace('/'); return }
       const [p, trips] = await Promise.all([
-        getProfile(data.user.id),
-        getMyTrips(data.user.id).catch(() => [] as TripWithDetails[]),
+        getProfile(session.user.id),
+        getMyTrips(session.user.id).catch(() => [] as TripWithDetails[]),
       ])
       if (p) {
         setProfile(p)

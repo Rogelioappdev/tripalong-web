@@ -136,7 +136,11 @@ export default function SettingsPage() {
   const [betaSaving, setBetaSaving] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    // getSession() reads the locally persisted session — no network round
+    // trip, so a transient blip (e.g. WebView resuming from background)
+    // can't be mistaken for "logged out" and bounce the user to '/'.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user
       if (!user) { router.replace('/'); return }
       setEmail(user.email ?? '')
       setUserId(user.id)
