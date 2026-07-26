@@ -47,7 +47,9 @@ export default function TripLandingPage() {
 
     Promise.all([
       getTrip(tripId).catch(() => null),
-      supabase.auth.getUser().then(({ data }) => data.user?.id ?? null),
+      // getSession() reads the locally persisted session — no network round
+      // trip, so a transient blip can't read as "not logged in" here.
+      supabase.auth.getSession().then(({ data }) => data.session?.user?.id ?? null),
     ]).then(([tripData, uid]) => {
       setTrip(tripData)
       setUserId(uid)
