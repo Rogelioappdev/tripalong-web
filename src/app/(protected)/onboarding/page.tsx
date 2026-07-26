@@ -32,6 +32,14 @@ export default function OnboardingPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  // Quick vibe check (step 2) — a condensed, skippable slice of the full
+  // Travel DNA (gender + travel styles only) collected inline during
+  // onboarding instead of only via the post-signup nudge. Roughly half of
+  // signups historically never swiped once and DNA completion sat under 50%;
+  // capturing the two fields that drive matching/filtering here, while it's
+  // still a single tap and the user has momentum, is meant to lift both.
+  const [gender, setGender] = useState('')
+  const [travelStyles, setTravelStyles] = useState<string[]>([])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -79,9 +87,11 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
       await createProfile(user.id, user.email ?? '', name.trim(), age!)
-      if (!skipPhoto && photoUrl) {
-        await updateProfile(user.id, { profile_photo: photoUrl })
-      }
+      const updates: Record<string, unknown> = {}
+      if (!skipPhoto && photoUrl) updates.profile_photo = photoUrl
+      if (gender) updates.gender = gender
+      if (travelStyles.length > 0) updates.travel_styles = travelStyles
+      if (Object.keys(updates).length > 0) await updateProfile(user.id, updates)
       setUserId(user.id)
       setShowNotificationPrompt(true)
     } catch {
@@ -91,11 +101,14 @@ export default function OnboardingPage() {
     }
   }
 
+  const toggleStyle = (v: string) =>
+    setTravelStyles(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
+
   const steps = [
     // Step 0: Name + Birthday
     <div key="step0" className="flex flex-col gap-6">
       <div>
-        <p className="text-white/40 text-sm font-medium mb-2">Step 1 of 2</p>
+        <p className="text-white/40 text-sm font-medium mb-2">Step 1 of 3</p>
         <h1 className="text-white font-extrabold text-3xl leading-tight mb-1">
           Almost there.
         </h1>
@@ -168,7 +181,7 @@ export default function OnboardingPage() {
     // Step 1: Photo
     <div key="step1" className="flex flex-col gap-6">
       <div>
-        <p className="text-white/40 text-sm font-medium mb-2">Step 2 of 2</p>
+        <p className="text-white/40 text-sm font-medium mb-2">Step 2 of 3</p>
         <h1 className="text-white font-extrabold text-3xl leading-tight mb-1">
           Put a face to<br />your adventure.
         </h1>
@@ -207,15 +220,102 @@ export default function OnboardingPage() {
 
       <div className="flex flex-col gap-3 mt-auto">
         <button
+          onClick={() => { haptic(8); setDirection(1); setStep(2) }}
+          disabled={!photoUrl}
+          className="w-full py-4 rounded-2xl font-bold text-sm disabled:opacity-30 active:scale-[0.98] transition-transform"
+          style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+        >
+          Continue →
+        </button>
+        <button
+          onClick={() => { haptic(4); setDirection(1); setStep(2) }}
+          className="w-full py-3 text-sm font-medium active:opacity-60 transition-opacity"
+          style={{ color: 'rgba(255,255,255,0.25)' }}
+        >
+          Skip for now
+        </button>
+      </div>
+    </div>,
+
+    // Step 2: Quick vibe check (gender + travel styles) — condensed Travel DNA,
+    // fully skippable. Feeds matching/filters from day one instead of relying
+    // solely on the post-signup nudge most users never reach.
+    <div key="step2" className="flex flex-col gap-6">
+      <div>
+        <p className="text-white/40 text-sm font-medium mb-2">Step 3 of 3</p>
+        <h1 className="text-white font-extrabold text-3xl leading-tight mb-1">
+          Quick vibe check.
+        </h1>
+        <p className="text-white/38 text-sm">Helps us match you with the right crews and trips.</p>
+      </div>
+
+      <div className="flex flex-col gap-5">
+        <div>
+          <label className="text-white/45 text-xs mb-2.5 block font-semibold uppercase tracking-wider">How do you identify?</label>
+          <div className="flex gap-2">
+            {[
+              { value: 'male', emoji: '👨', label: 'Male' },
+              { value: 'female', emoji: '👩', label: 'Female' },
+              { value: 'other', emoji: '🌟', label: 'Other' },
+            ].map(g => (
+              <button
+                key={g.value}
+                type="button"
+                onClick={() => { haptic(5); setGender(g.value) }}
+                className="flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-2xl text-xs font-semibold transition-colors active:scale-95"
+                style={gender === g.value
+                  ? { background: '#F0EBE3', color: '#0a0a0a' }
+                  : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+              >
+                <span className="text-xl">{g.emoji}</span>
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-white/45 text-xs mb-2.5 block font-semibold uppercase tracking-wider">Your travel style</label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: 'adventure', emoji: '🏔️', label: 'Adventure' },
+              { value: 'luxury', emoji: '✨', label: 'Luxury' },
+              { value: 'backpacking', emoji: '🎒', label: 'Backpacking' },
+              { value: 'cultural', emoji: '🏛️', label: 'Cultural' },
+              { value: 'foodie', emoji: '🍜', label: 'Foodie' },
+              { value: 'relaxed', emoji: '🌴', label: 'Relaxed' },
+              { value: 'party', emoji: '🎉', label: 'Party' },
+              { value: 'budget', emoji: '💸', label: 'Budget' },
+            ].map(s => (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => { haptic(5); toggleStyle(s.value) }}
+                className="px-3.5 py-2 rounded-2xl text-[13px] font-semibold transition-colors active:scale-95"
+                style={travelStyles.includes(s.value)
+                  ? { background: '#F0EBE3', color: '#0a0a0a' }
+                  : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.82)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+              >
+                <span className="mr-1">{s.emoji}</span>{s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+
+      <div className="flex flex-col gap-3 mt-auto">
+        <button
           onClick={() => { haptic(10); handleComplete(false) }}
-          disabled={!photoUrl || loading}
+          disabled={loading}
           className="w-full py-4 rounded-2xl font-bold text-sm disabled:opacity-30 active:scale-[0.98] transition-transform"
           style={{ backgroundColor: '#F0EBE3', color: '#000' }}
         >
           {loading ? 'Setting up...' : "Let's go →"}
         </button>
         <button
-          onClick={() => { haptic(4); handleComplete(true) }}
+          onClick={() => { haptic(4); setGender(''); setTravelStyles([]); handleComplete(false) }}
           disabled={loading}
           className="w-full py-3 text-sm font-medium active:opacity-60 transition-opacity"
           style={{ color: 'rgba(255,255,255,0.25)' }}
@@ -237,7 +337,7 @@ export default function OnboardingPage() {
       >
         {step > 0 && (
           <button
-            onClick={() => { haptic(6); setDirection(-1); setStep(0) }}
+            onClick={() => { haptic(6); setDirection(-1); setStep(s => s - 1) }}
             className="text-white/28 text-sm mb-6 self-start active:opacity-60 transition-opacity"
           >
             ← Back
