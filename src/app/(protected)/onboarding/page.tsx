@@ -293,23 +293,22 @@ export default function OnboardingPage() {
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
                   >
-                    <div className="flex-1 flex flex-col items-stretch justify-center min-h-0">
-                      <motion.div
-                        initial="hidden"
-                        animate="visible"
-                        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } } }}
-                      >
-                        <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-4">
-                          Welcome to
-                        </motion.p>
-                        <motion.h1 variants={fadeUpVariants} className="text-white font-extrabold text-4xl tracking-tight mb-4">
-                          TripAlong
-                        </motion.h1>
-                        <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed">
-                          Find your people.<br />See the world together.
-                        </motion.p>
-                      </motion.div>
-                    </div>
+                    <motion.div
+                      initial="hidden"
+                      animate="visible"
+                      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } } }}
+                      className="mt-8"
+                    >
+                      <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-4">
+                        Welcome to
+                      </motion.p>
+                      <motion.h1 variants={fadeUpVariants} className="text-white font-extrabold text-4xl tracking-tight mb-4">
+                        TripAlong
+                      </motion.h1>
+                      <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed">
+                        Find your people.<br />See the world together.
+                      </motion.p>
+                    </motion.div>
 
                       <motion.div
                         initial={{ opacity: 0, y: 14 }}
