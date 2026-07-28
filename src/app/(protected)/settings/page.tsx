@@ -435,10 +435,10 @@ export default function SettingsPage() {
                 />
                 <Row
                   label="Test Onboarding"
-                  sub="Preview in-progress onboarding changes safely"
+                  sub="Preview the real onboarding flow, only for this account"
                   chevron
                   border={false}
-                  onPress={() => { haptic(8); router.push('/onboarding-test') }}
+                  onPress={() => { haptic(8); sessionStorage.setItem('ta_onboarding_test_mode', '1'); router.push('/onboarding') }}
                 />
               </div>
             )}

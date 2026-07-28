@@ -17,8 +17,16 @@ const slideVariants = {
   exit: (dir: number) => ({ x: dir > 0 ? -300 : 300, opacity: 0 }),
 }
 
+// Set only by Settings' "Test Onboarding" row (member-code-gated, not reachable
+// by a real signup) so this account can preview whatever onboarding is being
+// designed, live in the real /onboarding route, without it ever showing to
+// an actual new user. Placeholder for now — swap the early-return body below
+// for the in-progress design as it's built.
+const TEST_MODE_KEY = 'ta_onboarding_test_mode'
+
 export default function OnboardingPage() {
   const router = useRouter()
+  const [testMode] = useState(() => typeof window !== 'undefined' && sessionStorage.getItem(TEST_MODE_KEY) === '1')
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
   const [name, setName] = useState('')
@@ -225,6 +233,24 @@ export default function OnboardingPage() {
       </div>
     </div>,
   ]
+
+  if (testMode) {
+    return (
+      <main className="min-h-screen bg-black flex flex-col items-center justify-center gap-6 px-6">
+        <p className="text-white/25 text-xs font-semibold uppercase tracking-wider">Onboarding test mode</p>
+        <p className="text-white/40 text-sm text-center max-w-xs">
+          New onboarding hasn't been designed yet — this screen is standing in for it so we can confirm the test flow works end to end.
+        </p>
+        <button
+          onClick={() => { haptic(8); sessionStorage.removeItem(TEST_MODE_KEY); router.push('/settings') }}
+          className="mt-2 py-3 px-8 rounded-2xl text-sm font-semibold active:scale-95 transition-transform"
+          style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#F0EBE3' }}
+        >
+          ← Back to Settings
+        </button>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-black flex flex-col">
