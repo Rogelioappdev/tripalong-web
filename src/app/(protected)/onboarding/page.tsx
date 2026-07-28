@@ -294,12 +294,11 @@ export default function OnboardingPage() {
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
                     className="flex flex-col h-full"
                   >
-                    <div className="flex-1 flex flex-col justify-center">
+                    <div className="flex-1 flex flex-col items-stretch justify-center min-h-0">
                       <motion.div
                         initial="hidden"
                         animate="visible"
                         variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } } }}
-                        className="mb-10"
                       >
                         <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-4">
                           Welcome to
@@ -311,12 +310,13 @@ export default function OnboardingPage() {
                           Find your people.<br />See the world together.
                         </motion.p>
                       </motion.div>
+                    </div>
 
                       <motion.div
                         initial={{ opacity: 0, y: 14 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.45, type: 'spring', stiffness: 300, damping: 28 }}
-                        className="flex flex-col gap-3"
+                        className="mt-auto flex flex-col gap-3"
                       >
                         <button
                           onClick={handleAuthGoogle}
@@ -380,7 +380,6 @@ export default function OnboardingPage() {
                           By continuing you agree to our community guidelines
                         </p>
                       </motion.div>
-                    </div>
                   </motion.div>
                 )}
 
