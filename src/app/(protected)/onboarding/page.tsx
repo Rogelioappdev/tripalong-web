@@ -45,6 +45,23 @@ function QuizContinueButton({ onClick, disabled, label }: { onClick: () => void;
 export default function OnboardingPage() {
   const router = useRouter()
 
+  // Measured in JS rather than trusting 100dvh/100vh alone — the native app's
+  // embedded WebView engine can silently ignore the dvh unit (too new for its
+  // WebKit/Chromium version) and has historically mis-sized vh too, which left
+  // this screen's content stuck at its natural top-aligned height with dead
+  // space below instead of actually filling the visible viewport.
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null)
+  useEffect(() => {
+    const measure = () => setViewportHeight(window.innerHeight)
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+    }
+  }, [])
+
   const [authChecked, setAuthChecked] = useState(false)
   const [newStage, setNewStage] = useState<'auth' | 'welcome' | 'valueprop' | 'quiz' | 'finale'>('auth')
   const [newDirection, setNewDirection] = useState(1)
@@ -248,7 +265,10 @@ export default function OnboardingPage() {
   const quizKey = `quiz-${quizStep}-${dnaIndex}`
 
   return (
-    <main className="bg-black flex flex-col overflow-hidden" style={{ minHeight: '100dvh' }}>
+    <main
+      className="min-h-screen bg-black flex flex-col overflow-hidden"
+      style={{ minHeight: viewportHeight ? `${viewportHeight}px` : '100dvh' }}
+    >
       <div
         className="flex-1 flex flex-col max-w-sm mx-auto w-full px-6 min-h-0"
         style={{
