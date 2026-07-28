@@ -341,7 +341,7 @@ export default function OnboardingPage() {
     const quizKey = `quiz-${quizStep}-${dnaIndex}`
 
     return (
-      <main className="min-h-screen bg-black flex flex-col overflow-hidden">
+      <main className="bg-black flex flex-col overflow-hidden" style={{ minHeight: '100dvh' }}>
         <div
           className="flex-1 flex flex-col max-w-sm mx-auto w-full px-6 min-h-0"
           style={{
@@ -403,6 +403,7 @@ export default function OnboardingPage() {
                     </motion.div>
                   </div>
                   <motion.div
+                    className="mt-auto"
                     initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.65, type: 'spring', stiffness: 300, damping: 28 }}
@@ -441,7 +442,7 @@ export default function OnboardingPage() {
                   </div>
                   <button
                     onClick={() => { haptic(8); goStage('quiz', 1) }}
-                    className="w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
+                    className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
                     style={CTA_STYLE}
                   >
                     Continue →
@@ -724,7 +725,7 @@ export default function OnboardingPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 2.7, type: 'spring', stiffness: 300, damping: 28 }}
                     onClick={enterFeed}
-                    className="w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
+                    className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
                     style={CTA_STYLE}
                   >
                     Enter TripAlong →
