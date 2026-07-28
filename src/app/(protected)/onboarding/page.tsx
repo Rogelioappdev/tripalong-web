@@ -78,6 +78,16 @@ export default function OnboardingPage() {
   const [authError, setAuthError] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
 
+  // Tiny, unlabeled escape hatch (same access code as Settings' hidden member
+  // area) so the flow can be previewed end-to-end without a real account —
+  // skips straight past auth into the rest of onboarding. memberPreview also
+  // tells finishQuiz to skip the real Supabase writes, since there's no
+  // signed-in user to attach them to.
+  const [showMemberCode, setShowMemberCode] = useState(false)
+  const [memberCode, setMemberCode] = useState('')
+  const [memberCodeError, setMemberCodeError] = useState(false)
+  const [memberPreview, setMemberPreview] = useState(false)
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
@@ -150,10 +160,26 @@ export default function OnboardingPage() {
     }
   }
 
+  const handleMemberCodeSubmit = () => {
+    if (memberCode.trim().toLowerCase() === 'gertrudis') {
+      haptic(10)
+      setMemberPreview(true)
+      goStage('welcome', 1)
+    } else {
+      haptic([8, 20, 8])
+      setMemberCodeError(true)
+    }
+  }
+
   const finishQuiz = async () => {
     setFinalizing(true)
     setLoading(true)
     setError('')
+    if (memberPreview) {
+      goStage('finale', 1)
+      setLoading(false)
+      return
+    }
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Please sign in again.')
@@ -377,6 +403,34 @@ export default function OnboardingPage() {
                         <p className="text-white/18 text-xs text-center pt-2">
                           By continuing you agree to our community guidelines
                         </p>
+
+                        {!showMemberCode ? (
+                          <button
+                            onClick={() => { haptic(4); setShowMemberCode(true) }}
+                            className="text-white/10 text-[10px] text-center pt-3 active:opacity-60 transition-opacity"
+                          >
+                            Are you a TripAlong member?
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 pt-3">
+                            <input
+                              type="text"
+                              value={memberCode}
+                              onChange={e => { setMemberCode(e.target.value); setMemberCodeError(false) }}
+                              onKeyDown={e => { if (e.key === 'Enter') handleMemberCodeSubmit() }}
+                              placeholder="Access code"
+                              autoCapitalize="none"
+                              className="flex-1 bg-white/6 border rounded-xl px-3 py-2 text-white text-xs outline-none"
+                              style={{ borderColor: memberCodeError ? '#FF453A' : 'rgba(255,255,255,0.12)' }}
+                            />
+                            <button
+                              onClick={handleMemberCodeSubmit}
+                              className="text-white/40 text-xs font-semibold px-3 py-2 active:opacity-60 transition-opacity"
+                            >
+                              Go
+                            </button>
+                          </div>
+                        )}
                       </motion.div>
                   </motion.div>
                 )}
