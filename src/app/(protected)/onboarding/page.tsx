@@ -70,8 +70,9 @@ export default function OnboardingPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const finaleControls = useAnimation()
 
-  const [authShowEmail, setAuthShowEmail] = useState(false)
-  const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup')
+  const isSigninIntent = () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mode') === 'signin'
+  const [authShowEmail, setAuthShowEmail] = useState(isSigninIntent)
+  const [authMode, setAuthMode] = useState<'signup' | 'signin'>(() => isSigninIntent() ? 'signin' : 'signup')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authError, setAuthError] = useState('')
