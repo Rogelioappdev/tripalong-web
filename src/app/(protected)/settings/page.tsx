@@ -430,8 +430,15 @@ export default function SettingsPage() {
                 <Row
                   label="Test New Features"
                   sub="See in-progress features early"
-                  border={false}
+                  border
                   right={<Toggle value={!!profile?.is_beta_tester} onChange={() => handleToggleBetaTester()} />}
+                />
+                <Row
+                  label="Test Onboarding"
+                  sub="Preview in-progress onboarding changes safely"
+                  chevron
+                  border={false}
+                  onPress={() => { haptic(8); router.push('/onboarding-test') }}
                 />
               </div>
             )}
