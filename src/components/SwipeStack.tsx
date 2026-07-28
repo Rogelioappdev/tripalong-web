@@ -516,15 +516,24 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
 
   // Reset to the first card whenever the feed filters change — a filter can
   // shrink the deck instantly (e.g. 80 → 6 trips), and a stale currentIndex
-  // would then land past the end and show "You've seen them all!" over unseen
-  // matches. Skip the initial mount so a restored sessionStorage position is
-  // still honored. Mirrors the "Start over" button below.
+  // would then land past the end. This used to reset via useEffect, but an
+  // effect runs after the first paint, so React would briefly render (and the
+  // user would see) the "no more trips" screen with the *old* filter's copy
+  // before the reset landed. Doing it here, during render, means React
+  // discards that stale render and re-renders with currentIndex already at 0
+  // before anything reaches the screen. Skip the initial mount so a restored
+  // sessionStorage position is still honored. Mirrors the "Start over" button
+  // below.
   const filtersKeyMounted = useRef(false)
-  useEffect(() => {
-    if (!filtersKeyMounted.current) { filtersKeyMounted.current = true; return }
+  const prevFiltersKey = useRef(filtersKey)
+  if (!filtersKeyMounted.current) {
+    filtersKeyMounted.current = true
+    prevFiltersKey.current = filtersKey
+  } else if (prevFiltersKey.current !== filtersKey) {
+    prevFiltersKey.current = filtersKey
     sessionStorage.removeItem('ta_feed_index')
-    setCurrentIndex(0)
-  }, [filtersKey])
+    if (currentIndex !== 0) setCurrentIndex(0)
+  }
 
   // Launch A/B test: 50/50 split on capped-15/day vs unlimited swipes.
   // Prefer the persisted variant so it never flips once assigned; fall back
