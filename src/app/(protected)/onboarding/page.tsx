@@ -9,12 +9,12 @@ import { supabase } from '@/lib/supabase'
 import { createProfile, updateProfile } from '@/lib/queries'
 import { normalizeImageToJpeg } from '@/lib/image'
 import { haptic } from '@/lib/haptics'
-import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { SEASONS } from '@/lib/tripOptions'
 import { TripPreviewCard } from '@/components/onboarding/TripPreviewCard'
 import { WorldRouteMap } from '@/components/onboarding/WorldRouteMap'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData } from '@/components/onboarding/dnaOptions'
+import type { UserProfile } from '@/lib/types'
 
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
@@ -42,33 +42,11 @@ function QuizContinueButton({ onClick, disabled, label }: { onClick: () => void;
   )
 }
 
-// Set only by Settings' "Test Onboarding" row (member-code-gated, not reachable
-// by a real signup) so this account can preview whatever onboarding is being
-// designed, live in the real /onboarding route, without it ever showing to
-// an actual new user. Placeholder for now — swap the early-return body below
-// for the in-progress design as it's built.
-const TEST_MODE_KEY = 'ta_onboarding_test_mode'
-
 export default function OnboardingPage() {
   const router = useRouter()
-  const [testMode] = useState(() => typeof window !== 'undefined' && sessionStorage.getItem(TEST_MODE_KEY) === '1')
-  const [step, setStep] = useState(0)
-  const [direction, setDirection] = useState(1)
-  const [name, setName] = useState('')
-  const [birthYear, setBirthYear] = useState('')
-  const [birthMonth, setBirthMonth] = useState('')
-  const [birthDay, setBirthDay] = useState('')
-  const [photoUrl, setPhotoUrl] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [userId, setUserId] = useState<string | null>(null)
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
 
-  // ── New onboarding prototype (test-mode only) state ──
-  // All local — nothing here is persisted to Supabase. See testMode branch below.
-  const [newStage, setNewStage] = useState<'welcome' | 'valueprop' | 'quiz' | 'finale'>('welcome')
+  const [authChecked, setAuthChecked] = useState(false)
+  const [newStage, setNewStage] = useState<'auth' | 'welcome' | 'valueprop' | 'quiz' | 'finale'>('auth')
   const [newDirection, setNewDirection] = useState(1)
   const [quizStep, setQuizStep] = useState(0)
   const [dnaIndex, setDnaIndex] = useState(0)
@@ -84,25 +62,45 @@ export default function OnboardingPage() {
   const [newBio, setNewBio] = useState('')
   const [newInstagram, setNewInstagram] = useState('')
   const [newDna, setNewDna] = useState<NewDnaData>(EMPTY_DNA)
+  const [photoUrl, setPhotoUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [finalizing, setFinalizing] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
   const finaleControls = useAnimation()
+
+  const [authShowEmail, setAuthShowEmail] = useState(false)
+  const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user?.user_metadata?.full_name) setName(data.user.user_metadata.full_name)
-      else if (data.user?.user_metadata?.name) setName(data.user.user_metadata.name)
+      if (data.user) {
+        if (data.user.user_metadata?.full_name) setNewName(data.user.user_metadata.full_name)
+        else if (data.user.user_metadata?.name) setNewName(data.user.user_metadata.name)
+        setNewStage('welcome')
+      }
+      setAuthChecked(true)
     })
   }, [])
 
-  const currentYear = new Date().getFullYear()
-  const age = birthYear
-    ? currentYear - parseInt(birthYear) - (
-        birthMonth && birthDay
-          ? new Date(currentYear, parseInt(birthMonth) - 1, parseInt(birthDay)) > new Date() ? 1 : 0
-          : 0
-      )
-    : null
-  const ageValid = age !== null && age >= 16
+  useEffect(() => {
+    ;(window as any).__tripalongGoogleSignInResult = async (result: { success: boolean }) => {
+      if (!result.success) return
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: row } = await supabase.from('users').select('age').eq('id', user.id).single()
+      if (!row || row.age === null) setNewStage('welcome')
+      else router.push('/feed')
+    }
+    return () => { delete (window as any).__tripalongGoogleSignInResult }
+  }, [router])
 
+  const currentYear = new Date().getFullYear()
   const newAge = newBirthYear
     ? currentYear - parseInt(newBirthYear) - (
         newBirthMonth && newBirthDay
@@ -112,23 +110,86 @@ export default function OnboardingPage() {
     : null
   const newAgeValid = newAge !== null && newAge >= 16
 
-  const QUIZ_TOTAL_UNITS = 3 + DNA_DIMENSIONS.length
-  const quizUnitIndex = quizStep < 3 ? quizStep : 3 + dnaIndex
+  const QUIZ_TOTAL_UNITS = 4 + DNA_DIMENSIONS.length
+  const quizUnitIndex = quizStep < 4 ? quizStep : 4 + dnaIndex
   const quizProgressPct = ((quizUnitIndex + 1) / QUIZ_TOTAL_UNITS) * 100
 
   const goStage = (stage: typeof newStage, dir: number) => { setNewDirection(dir); setNewStage(stage) }
 
+  const handleAuthGoogle = () => {
+    haptic(8)
+    if ((window as any).ReactNativeWebView) {
+      ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'google_signin' }))
+      return
+    }
+    supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    })
+  }
+
+  const handleAuthEmailSubmit = async () => {
+    if (!authEmail || !authPassword) return
+    setAuthError('')
+    setAuthLoading(true)
+    try {
+      if (authMode === 'signup') {
+        const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword })
+        if (error) throw error
+        goStage('welcome', 1)
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword })
+        if (error) throw error
+        router.push('/feed')
+      }
+    } catch (e: any) {
+      setAuthError(e.message)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const finishQuiz = async () => {
+    setFinalizing(true)
+    setLoading(true)
+    setError('')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Please sign in again.')
+      await createProfile(user.id, user.email ?? '', newName.trim(), newAge!)
+      await updateProfile(user.id, {
+        gender: (newGender || null) as UserProfile['gender'],
+        country: newCountry.trim(),
+        city: newCity.trim(),
+        bio: newBio.trim() || null,
+        instagram_handle: newInstagram.trim() || null,
+        profile_photo: photoUrl || undefined,
+        travel_styles: newDna.travel_styles,
+        travel_pace: (newDna.travel_pace || null) as UserProfile['travel_pace'],
+        social_energy: (newDna.social_energy || null) as UserProfile['social_energy'],
+        planning_style: (newDna.planning_style || null) as UserProfile['planning_style'],
+        experience_level: (newDna.experience_level || null) as UserProfile['experience_level'],
+        travel_with: (newDna.travel_with || null) as UserProfile['travel_with'],
+      })
+      goStage('finale', 1)
+    } catch (e: any) {
+      setError(e?.message ?? 'Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const quizNext = () => {
     haptic(8)
-    if (quizStep < 2) { setNewDirection(1); setQuizStep(s => s + 1); return }
-    if (quizStep === 2) { setNewDirection(1); setQuizStep(3); setDnaIndex(0); return }
+    if (quizStep < 3) { setNewDirection(1); setQuizStep(s => s + 1); return }
+    if (quizStep === 3) { setNewDirection(1); setQuizStep(4); setDnaIndex(0); return }
     if (dnaIndex < DNA_DIMENSIONS.length - 1) { setNewDirection(1); setDnaIndex(d => d + 1); return }
-    goStage('finale', 1)
+    finishQuiz()
   }
 
   const quizBack = () => {
     haptic(6)
-    if (quizStep === 3 && dnaIndex > 0) { setNewDirection(-1); setDnaIndex(d => d - 1); return }
+    if (quizStep === 4 && dnaIndex > 0) { setNewDirection(-1); setDnaIndex(d => d - 1); return }
     if (quizStep === 0) { goStage('valueprop', -1); return }
     setNewDirection(-1)
     setQuizStep(s => s - 1)
@@ -136,8 +197,9 @@ export default function OnboardingPage() {
 
   const canQuizContinue = () => {
     if (quizStep === 0) return newName.trim().length >= 2 && newAgeValid && !!newGender
-    if (quizStep === 1) return newCountry.trim().length > 0 && newCity.trim().length > 0
-    if (quizStep === 2) return true
+    if (quizStep === 1) return true
+    if (quizStep === 2) return newCountry.trim().length > 0 && newCity.trim().length > 0
+    if (quizStep === 3) return true
     const dim = DNA_DIMENSIONS[dnaIndex]
     const v = newDna[dim.key]
     return Array.isArray(v) ? v.length > 0 : v !== ''
@@ -156,7 +218,6 @@ export default function OnboardingPage() {
   const enterFeed = async () => {
     haptic(10)
     await finaleControls.start({ scale: 1.5, opacity: 0, transition: { duration: 0.5, ease: 'easeInOut' } })
-    sessionStorage.removeItem(TEST_MODE_KEY)
     router.push('/feed')
   }
 
@@ -182,565 +243,11 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleComplete = async (skipPhoto = false) => {
-    setLoading(true)
-    setError('')
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-      await createProfile(user.id, user.email ?? '', name.trim(), age!)
-      if (!skipPhoto && photoUrl) {
-        await updateProfile(user.id, { profile_photo: photoUrl })
-      }
-      setUserId(user.id)
-      setShowNotificationPrompt(true)
-    } catch {
-      setError('Something went wrong. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const steps = [
-    // Step 0: Name + Birthday
-    <div key="step0" className="flex flex-col gap-6">
-      <div>
-        <p className="text-white/40 text-sm font-medium mb-2">Step 1 of 2</p>
-        <h1 className="text-white font-extrabold text-3xl leading-tight mb-1">
-          Almost there.
-        </h1>
-        <p className="text-white/38 text-sm">Let your travel crew know who's coming.</p>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        <div>
-          <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Your name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="What should they call you?"
-            className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
-            autoFocus
-          />
-        </div>
-
-        <div>
-          <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Birthday</label>
-          <div className="grid grid-cols-3 gap-2">
-            <select
-              value={birthDay}
-              onChange={e => setBirthDay(e.target.value)}
-              className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
-            >
-              <option value="">Day</option>
-              {Array.from({ length: 31 }, (_, i) => (
-                <option key={i + 1} value={String(i + 1)}>{i + 1}</option>
-              ))}
-            </select>
-            <select
-              value={birthMonth}
-              onChange={e => setBirthMonth(e.target.value)}
-              className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
-            >
-              <option value="">Month</option>
-              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                <option key={i} value={String(i + 1)}>{m}</option>
-              ))}
-            </select>
-            <select
-              value={birthYear}
-              onChange={e => setBirthYear(e.target.value)}
-              className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
-            >
-              <option value="">Year</option>
-              {Array.from({ length: 80 }, (_, i) => currentYear - 16 - i).map(y => (
-                <option key={y} value={String(y)}>{y}</option>
-              ))}
-            </select>
-          </div>
-          {birthYear && !ageValid && (
-            <p className="text-red-400 text-xs mt-2">Must be 16 or older to use TripAlong</p>
-          )}
-        </div>
-      </div>
-
-      <button
-        onClick={() => { haptic(8); setDirection(1); setStep(1) }}
-        disabled={!name.trim() || name.trim().length < 2 || !ageValid}
-        className="w-full py-4 rounded-2xl font-bold text-sm disabled:opacity-30 active:scale-[0.98] transition-transform mt-2"
-        style={{ backgroundColor: '#F0EBE3', color: '#000' }}
-      >
-        Continue →
-      </button>
-    </div>,
-
-    // Step 1: Photo
-    <div key="step1" className="flex flex-col gap-6">
-      <div>
-        <p className="text-white/40 text-sm font-medium mb-2">Step 2 of 2</p>
-        <h1 className="text-white font-extrabold text-3xl leading-tight mb-1">
-          Put a face to<br />your adventure.
-        </h1>
-        <p className="text-white/38 text-sm">Profiles with photos get 3× more connections.</p>
-      </div>
-
-      {/* Photo picker */}
-      <button
-        onClick={() => fileRef.current?.click()}
-        className="mx-auto w-44 aspect-[3/4] rounded-3xl border-2 border-dashed overflow-hidden flex flex-col items-center justify-center gap-3 relative active:scale-[0.97] transition-transform"
-        style={{ borderColor: photoUrl ? 'rgba(240,235,227,0.4)' : 'rgba(255,255,255,0.15)' }}
-      >
-        {photoUrl ? (
-          <>
-            <img src={photoUrl} alt="" className="w-full h-full object-cover" />
-            <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ backgroundColor: '#30D158' }}>✓</div>
-          </>
-        ) : uploading ? (
-          <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-        ) : (
-          <>
-            <span className="text-3xl">📷</span>
-            <span className="text-white/35 text-sm">Add your photo</span>
-          </>
-        )}
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }}
-      />
-
-      {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-
-      <div className="flex flex-col gap-3 mt-auto">
-        <button
-          onClick={() => { haptic(10); handleComplete(false) }}
-          disabled={!photoUrl || loading}
-          className="w-full py-4 rounded-2xl font-bold text-sm disabled:opacity-30 active:scale-[0.98] transition-transform"
-          style={{ backgroundColor: '#F0EBE3', color: '#000' }}
-        >
-          {loading ? 'Setting up...' : "Let's go →"}
-        </button>
-        <button
-          onClick={() => { haptic(4); handleComplete(true) }}
-          disabled={loading}
-          className="w-full py-3 text-sm font-medium active:opacity-60 transition-opacity"
-          style={{ color: 'rgba(255,255,255,0.25)' }}
-        >
-          Skip for now
-        </button>
-      </div>
-    </div>,
-  ]
-
-  if (testMode) {
-    const dim = DNA_DIMENSIONS[dnaIndex]
-    const quizKey = `quiz-${quizStep}-${dnaIndex}`
-
-    return (
-      <main className="bg-black flex flex-col overflow-hidden" style={{ minHeight: '100dvh' }}>
-        <div
-          className="flex-1 flex flex-col max-w-sm mx-auto w-full px-6 min-h-0"
-          style={{
-            paddingTop: 'calc(env(safe-area-inset-top) + 36px)',
-            paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
-          }}
-        >
-          {newStage === 'quiz' && (
-            <div className="shrink-0">
-              <div className="flex items-center justify-between mb-5">
-                <button onClick={quizBack} className="text-white/28 text-sm active:opacity-60 transition-opacity">← Back</button>
-                <span className="text-white/25 text-xs font-medium">
-                  {quizStep < 3 ? `Step ${quizStep + 1} of 4` : `Travel DNA · ${dnaIndex + 1} of ${DNA_DIMENSIONS.length}`}
-                </span>
-              </div>
-              <div className="w-full h-1 bg-white/10 rounded-full mb-7 overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ backgroundColor: '#F0EBE3' }}
-                  animate={{ width: `${quizProgressPct}%` }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <AnimatePresence custom={newDirection} mode="wait">
-              {newStage === 'welcome' && (
-                <motion.div
-                  key="welcome"
-                  custom={newDirection}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="flex flex-col h-full relative"
-                >
-                  <div
-                    className="absolute inset-0 pointer-events-none"
-                    style={{ background: 'radial-gradient(circle at 50% 38%, rgba(240,235,227,0.09), transparent 55%)' }}
-                  />
-                  <div className="flex-1 flex flex-col items-center justify-center text-center">
-                    <motion.div
-                      initial="hidden"
-                      animate="visible"
-                      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.14, delayChildren: 0.1 } } }}
-                    >
-                      <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-5">
-                        Welcome to
-                      </motion.p>
-                      <motion.h1 variants={fadeUpVariants} className="text-white font-extrabold text-5xl tracking-tight mb-5">
-                        TripAlong
-                      </motion.h1>
-                      <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed max-w-[260px] mx-auto">
-                        Find your people.<br />See the world together.
-                      </motion.p>
-                    </motion.div>
-                  </div>
-                  <motion.div
-                    className="mt-auto"
-                    initial={{ opacity: 0, y: 14 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.65, type: 'spring', stiffness: 300, damping: 28 }}
-                  >
-                    <button
-                      onClick={() => { haptic(8); goStage('valueprop', 1) }}
-                      className="w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
-                      style={CTA_STYLE}
-                    >
-                      Get started
-                    </button>
-                  </motion.div>
-                </motion.div>
-              )}
-
-              {newStage === 'valueprop' && (
-                <motion.div
-                  key="valueprop"
-                  custom={newDirection}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="flex flex-col h-full gap-6"
-                >
-                  <div>
-                    <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-2">The idea</p>
-                    <h1 className="text-white font-extrabold text-3xl leading-tight mb-2">A new way of<br />traveling.</h1>
-                    <p className="text-white/38 text-sm leading-relaxed">
-                      Real trips, real people. Swipe right on a trip, join the group chat, and start planning with people who match your vibe.
-                    </p>
-                  </div>
-                  <div className="flex-1 flex items-center justify-center py-2 min-h-0">
-                    <TripPreviewCard />
-                  </div>
-                  <button
-                    onClick={() => { haptic(8); goStage('quiz', 1) }}
-                    className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
-                    style={CTA_STYLE}
-                  >
-                    Continue →
-                  </button>
-                </motion.div>
-              )}
-
-              {newStage === 'quiz' && quizStep === 0 && (
-                <motion.div
-                  key={quizKey}
-                  custom={newDirection}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.22, ease: 'easeInOut' }}
-                  className="flex flex-col h-full"
-                >
-                  <div>
-                    <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Let's build your profile.</h1>
-                    <p className="text-white/38 text-sm">This is what other travelers will see.</p>
-                  </div>
-
-                  <div className="flex flex-col gap-4 mt-6">
-                    <div>
-                      <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Your name</label>
-                      <input
-                        type="text"
-                        value={newName}
-                        onChange={e => setNewName(e.target.value)}
-                        placeholder="What should they call you?"
-                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
-                        autoFocus
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Birthday</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <select
-                          value={newBirthDay}
-                          onChange={e => setNewBirthDay(e.target.value)}
-                          className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
-                        >
-                          <option value="">Day</option>
-                          {Array.from({ length: 31 }, (_, i) => (
-                            <option key={i + 1} value={String(i + 1)}>{i + 1}</option>
-                          ))}
-                        </select>
-                        <select
-                          value={newBirthMonth}
-                          onChange={e => setNewBirthMonth(e.target.value)}
-                          className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
-                        >
-                          <option value="">Month</option>
-                          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                            <option key={i} value={String(i + 1)}>{m}</option>
-                          ))}
-                        </select>
-                        <select
-                          value={newBirthYear}
-                          onChange={e => setNewBirthYear(e.target.value)}
-                          className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
-                        >
-                          <option value="">Year</option>
-                          {Array.from({ length: 80 }, (_, i) => currentYear - 16 - i).map(y => (
-                            <option key={y} value={String(y)}>{y}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {newBirthYear && !newAgeValid && (
-                        <p className="text-red-400 text-xs mt-2">Must be 16 or older to use TripAlong</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Gender</label>
-                      <div className="flex gap-2">
-                        {([
-                          { v: 'male' as const, e: '👨', l: 'Male' },
-                          { v: 'female' as const, e: '👩', l: 'Female' },
-                          { v: 'other' as const, e: '🌟', l: 'Other' },
-                        ]).map(g => (
-                          <button
-                            key={g.v}
-                            onClick={() => { haptic(8); setNewGender(g.v) }}
-                            className="flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors"
-                            style={newGender === g.v
-                              ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
-                              : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.12)' }}
-                          >
-                            {g.e} {g.l}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
-                </motion.div>
-              )}
-
-              {newStage === 'quiz' && quizStep === 1 && (
-                <motion.div
-                  key={quizKey}
-                  custom={newDirection}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.22, ease: 'easeInOut' }}
-                  className="flex flex-col h-full"
-                >
-                  <div>
-                    <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Where are you based?</h1>
-                    <p className="text-white/38 text-sm">Helps travelers nearby find you.</p>
-                  </div>
-
-                  <div className="flex flex-col gap-3 mt-6">
-                    <input
-                      value={newCountry}
-                      onChange={e => setNewCountry(e.target.value)}
-                      placeholder="Country"
-                      className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
-                      autoFocus
-                    />
-                    <input
-                      value={newCity}
-                      onChange={e => setNewCity(e.target.value)}
-                      placeholder="City"
-                      className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
-                    />
-                  </div>
-
-                  <div className="mt-8">
-                    <h2 className="text-white font-bold text-lg mb-1">Got a trip coming up?</h2>
-                    <p className="text-white/30 text-xs mb-4">Totally optional — you can always add this later.</p>
-                    <input
-                      value={newTripDestination}
-                      onChange={e => setNewTripDestination(e.target.value)}
-                      placeholder="Where to?"
-                      className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30 mb-3"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      {SEASONS.slice(0, 4).map(s => (
-                        <button
-                          key={s}
-                          onClick={() => { haptic(8); setNewTripWhen(w => w === s ? '' : s) }}
-                          className="px-3.5 py-2 rounded-full text-xs font-semibold border transition-colors"
-                          style={newTripWhen === s
-                            ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
-                            : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.12)' }}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
-                </motion.div>
-              )}
-
-              {newStage === 'quiz' && quizStep === 2 && (
-                <motion.div
-                  key={quizKey}
-                  custom={newDirection}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.22, ease: 'easeInOut' }}
-                  className="flex flex-col h-full"
-                >
-                  <div>
-                    <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Tell your story.</h1>
-                    <p className="text-white/38 text-sm">A few words go a long way.</p>
-                  </div>
-
-                  <div className="flex flex-col gap-4 mt-6">
-                    <div>
-                      <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Bio</label>
-                      <textarea
-                        value={newBio}
-                        onChange={e => setNewBio(e.target.value)}
-                        placeholder="What's your travel style? What are you looking for?"
-                        rows={4}
-                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30 resize-none"
-                        autoFocus
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Instagram</label>
-                      <div className="flex items-center gap-2 bg-white/6 border border-white/12 rounded-2xl px-4 py-3.5 focus-within:border-white/30">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
-                          <rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="2" />
-                          <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2" />
-                          <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" />
-                        </svg>
-                        <span className="text-white/35 text-sm select-none">@</span>
-                        <input
-                          value={newInstagram}
-                          onChange={e => setNewInstagram(e.target.value.replace(/^@/, ''))}
-                          placeholder="your_username"
-                          className="flex-1 bg-transparent text-white text-sm outline-none placeholder-white/20"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <QuizContinueButton onClick={quizNext} label="Continue →" />
-                </motion.div>
-              )}
-
-              {newStage === 'quiz' && quizStep === 3 && (
-                <motion.div
-                  key={quizKey}
-                  custom={newDirection}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.22, ease: 'easeInOut' }}
-                  className="flex flex-col h-full"
-                >
-                  <TravelDnaStep
-                    dimension={dim}
-                    value={newDna[dim.key]}
-                    onToggle={v => toggleDna(dim.key, v, dim.multi)}
-                  />
-                  <QuizContinueButton
-                    onClick={quizNext}
-                    disabled={!canQuizContinue()}
-                    label={dnaIndex === DNA_DIMENSIONS.length - 1 ? 'Finish →' : 'Next →'}
-                  />
-                </motion.div>
-              )}
-
-              {newStage === 'finale' && (
-                <motion.div
-                  key="finale"
-                  custom={newDirection}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  className="flex flex-col h-full items-center text-center"
-                >
-                  <motion.div animate={finaleControls} className="w-full flex-1 flex flex-col items-center justify-center">
-                    <motion.p
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.15 }}
-                      className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-2"
-                    >
-                      Welcome to
-                    </motion.p>
-                    <motion.h1
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.25 }}
-                      className="text-white font-extrabold text-3xl tracking-tight mb-6"
-                    >
-                      TripAlong
-                    </motion.h1>
-                    <WorldRouteMap />
-                    <motion.p
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 2.2 }}
-                      className="text-white/40 text-sm leading-relaxed max-w-[260px] mx-auto mt-6"
-                    >
-                      A world of trips is waiting for you{newName.trim() ? `, ${newName.trim()}` : ''}.
-                    </motion.p>
-                  </motion.div>
-                  <motion.button
-                    initial={{ opacity: 0, y: 14 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 2.7, type: 'spring', stiffness: 300, damping: 28 }}
-                    onClick={enterFeed}
-                    className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
-                    style={CTA_STYLE}
-                  >
-                    Enter TripAlong →
-                  </motion.button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </main>
-    )
-  }
+  const dim = DNA_DIMENSIONS[dnaIndex]
+  const quizKey = `quiz-${quizStep}-${dnaIndex}`
 
   return (
-    <main className="min-h-screen bg-black flex flex-col">
+    <main className="bg-black flex flex-col overflow-hidden" style={{ minHeight: '100dvh' }}>
       <div
         className="flex-1 flex flex-col max-w-sm mx-auto w-full px-6 min-h-0"
         style={{
@@ -748,36 +255,597 @@ export default function OnboardingPage() {
           paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
         }}
       >
-        {step > 0 && (
-          <button
-            onClick={() => { haptic(6); setDirection(-1); setStep(0) }}
-            className="text-white/28 text-sm mb-6 self-start active:opacity-60 transition-opacity"
-          >
-            ← Back
-          </button>
+        {!authChecked ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+          </div>
+        ) : (
+          <>
+            {newStage === 'quiz' && !finalizing && (
+              <div className="shrink-0">
+                <div className="flex items-center justify-between mb-5">
+                  <button onClick={quizBack} className="text-white/28 text-sm active:opacity-60 transition-opacity">← Back</button>
+                  <span className="text-white/25 text-xs font-medium">
+                    {quizStep < 4 ? `Step ${quizStep + 1} of 4` : `Travel DNA · ${dnaIndex + 1} of ${DNA_DIMENSIONS.length}`}
+                  </span>
+                </div>
+                <div className="w-full h-1 bg-white/10 rounded-full mb-7 overflow-hidden">
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: '#F0EBE3' }}
+                    animate={{ width: `${quizProgressPct}%` }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <AnimatePresence custom={newDirection} mode="wait">
+                {newStage === 'auth' && (
+                  <motion.div
+                    key="auth"
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="flex flex-col h-full"
+                  >
+                    <div className="flex-1 flex flex-col justify-center">
+                      <motion.div
+                        initial="hidden"
+                        animate="visible"
+                        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } } }}
+                        className="mb-10"
+                      >
+                        <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-4">
+                          Welcome to
+                        </motion.p>
+                        <motion.h1 variants={fadeUpVariants} className="text-white font-extrabold text-4xl tracking-tight mb-4">
+                          TripAlong
+                        </motion.h1>
+                        <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed">
+                          Find your people.<br />See the world together.
+                        </motion.p>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 14 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.45, type: 'spring', stiffness: 300, damping: 28 }}
+                        className="flex flex-col gap-3"
+                      >
+                        <button
+                          onClick={handleAuthGoogle}
+                          className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-black text-base active:scale-[0.98] transition-transform"
+                          style={{ backgroundColor: '#F0EBE3' }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                          </svg>
+                          Continue with Google
+                        </button>
+
+                        {!authShowEmail ? (
+                          <button
+                            onClick={() => { haptic(6); setAuthShowEmail(true) }}
+                            className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.55)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+                          >
+                            Continue with Email
+                          </button>
+                        ) : (
+                          <div className="flex flex-col gap-3">
+                            <input
+                              type="email"
+                              placeholder="Email"
+                              value={authEmail}
+                              onChange={e => setAuthEmail(e.target.value)}
+                              className="bg-white/6 border border-white/12 rounded-2xl px-4 py-3.5 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
+                              autoFocus
+                            />
+                            <input
+                              type="password"
+                              placeholder="Password"
+                              value={authPassword}
+                              onChange={e => setAuthPassword(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleAuthEmailSubmit() }}
+                              className="bg-white/6 border border-white/12 rounded-2xl px-4 py-3.5 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
+                            />
+                            {authError && <p className="text-red-400 text-xs">{authError}</p>}
+                            <button
+                              onClick={handleAuthEmailSubmit}
+                              disabled={authLoading || !authEmail || !authPassword}
+                              className="w-full py-4 rounded-2xl font-bold text-black text-sm disabled:opacity-40 active:scale-[0.98] transition-transform"
+                              style={{ backgroundColor: '#F0EBE3' }}
+                            >
+                              {authLoading ? 'One sec...' : authMode === 'signup' ? 'Create free account' : 'Sign in'}
+                            </button>
+                            <button
+                              onClick={() => setAuthMode(m => m === 'signup' ? 'signin' : 'signup')}
+                              className="text-white/28 text-xs text-center py-1 active:opacity-60 transition-opacity"
+                            >
+                              {authMode === 'signup' ? 'Already have an account? Sign in' : 'No account? Sign up free'}
+                            </button>
+                          </div>
+                        )}
+
+                        <p className="text-white/18 text-xs text-center pt-2">
+                          By continuing you agree to our community guidelines
+                        </p>
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {newStage === 'welcome' && (
+                  <motion.div
+                    key="welcome"
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="flex flex-col h-full relative"
+                  >
+                    <div
+                      className="absolute inset-0 pointer-events-none"
+                      style={{ background: 'radial-gradient(circle at 50% 38%, rgba(240,235,227,0.09), transparent 55%)' }}
+                    />
+                    <div className="flex-1 flex flex-col items-center justify-center text-center">
+                      <motion.div
+                        initial="hidden"
+                        animate="visible"
+                        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.14, delayChildren: 0.1 } } }}
+                      >
+                        <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-5">
+                          Welcome to
+                        </motion.p>
+                        <motion.h1 variants={fadeUpVariants} className="text-white font-extrabold text-5xl tracking-tight mb-5">
+                          TripAlong
+                        </motion.h1>
+                        <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed max-w-[260px] mx-auto">
+                          Find your people.<br />See the world together.
+                        </motion.p>
+                      </motion.div>
+                    </div>
+                    <motion.div
+                      className="mt-auto"
+                      initial={{ opacity: 0, y: 14 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.65, type: 'spring', stiffness: 300, damping: 28 }}
+                    >
+                      <button
+                        onClick={() => { haptic(8); goStage('valueprop', 1) }}
+                        className="w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
+                        style={CTA_STYLE}
+                      >
+                        Get started
+                      </button>
+                    </motion.div>
+                  </motion.div>
+                )}
+
+                {newStage === 'valueprop' && (
+                  <motion.div
+                    key="valueprop"
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="flex flex-col h-full gap-6"
+                  >
+                    <div>
+                      <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-2">The idea</p>
+                      <h1 className="text-white font-extrabold text-3xl leading-tight mb-2">A new way of<br />traveling.</h1>
+                      <p className="text-white/38 text-sm leading-relaxed">
+                        Real trips, real people. Swipe right on a trip, join the group chat, and start planning with people who match your vibe.
+                      </p>
+                    </div>
+                    <div className="flex-1 flex items-center justify-center py-2 min-h-0">
+                      <TripPreviewCard />
+                    </div>
+                    <button
+                      onClick={() => { haptic(8); goStage('quiz', 1) }}
+                      className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
+                      style={CTA_STYLE}
+                    >
+                      Continue →
+                    </button>
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && quizStep === 0 && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex flex-col h-full"
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Let's build your profile.</h1>
+                      <p className="text-white/38 text-sm">This is what other travelers will see.</p>
+                    </div>
+
+                    <div className="flex flex-col gap-4 mt-6">
+                      <div>
+                        <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Your name</label>
+                        <input
+                          type="text"
+                          value={newName}
+                          onChange={e => setNewName(e.target.value)}
+                          placeholder="What should they call you?"
+                          className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
+                          autoFocus
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Birthday</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <select
+                            value={newBirthDay}
+                            onChange={e => setNewBirthDay(e.target.value)}
+                            className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
+                          >
+                            <option value="">Day</option>
+                            {Array.from({ length: 31 }, (_, i) => (
+                              <option key={i + 1} value={String(i + 1)}>{i + 1}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={newBirthMonth}
+                            onChange={e => setNewBirthMonth(e.target.value)}
+                            className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
+                          >
+                            <option value="">Month</option>
+                            {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                              <option key={i} value={String(i + 1)}>{m}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={newBirthYear}
+                            onChange={e => setNewBirthYear(e.target.value)}
+                            className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
+                          >
+                            <option value="">Year</option>
+                            {Array.from({ length: 80 }, (_, i) => currentYear - 16 - i).map(y => (
+                              <option key={y} value={String(y)}>{y}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {newBirthYear && !newAgeValid && (
+                          <p className="text-red-400 text-xs mt-2">Must be 16 or older to use TripAlong</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Gender</label>
+                        <div className="flex gap-2">
+                          {([
+                            { v: 'male' as const, e: '👨', l: 'Male' },
+                            { v: 'female' as const, e: '👩', l: 'Female' },
+                            { v: 'other' as const, e: '🌟', l: 'Other' },
+                          ]).map(g => (
+                            <button
+                              key={g.v}
+                              onClick={() => { haptic(8); setNewGender(g.v) }}
+                              className="flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors"
+                              style={newGender === g.v
+                                ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
+                                : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.12)' }}
+                            >
+                              {g.e} {g.l}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && quizStep === 1 && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex flex-col h-full"
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Put a face to<br />your adventure.</h1>
+                      <p className="text-white/38 text-sm">Profiles with photos get 3× more connections.</p>
+                    </div>
+
+                    <div className="flex-1 flex items-center justify-center py-4">
+                      <button
+                        onClick={() => fileRef.current?.click()}
+                        className="w-44 aspect-[3/4] rounded-3xl border-2 border-dashed overflow-hidden flex flex-col items-center justify-center gap-3 relative active:scale-[0.97] transition-transform"
+                        style={{ borderColor: photoUrl ? 'rgba(240,235,227,0.4)' : 'rgba(255,255,255,0.15)' }}
+                      >
+                        {photoUrl ? (
+                          <>
+                            <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+                            <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ backgroundColor: '#30D158' }}>✓</div>
+                          </>
+                        ) : uploading ? (
+                          <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <span className="text-3xl">📷</span>
+                            <span className="text-white/35 text-sm">Add your photo</span>
+                          </>
+                        )}
+                      </button>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }}
+                      />
+                    </div>
+
+                    {error && <p className="text-red-400 text-sm text-center mb-2">{error}</p>}
+
+                    <QuizContinueButton onClick={quizNext} disabled={!photoUrl || uploading} label="Continue →" />
+                    <button
+                      onClick={() => { haptic(4); quizNext() }}
+                      disabled={uploading}
+                      className="w-full py-3 text-sm font-medium active:opacity-60 transition-opacity"
+                      style={{ color: 'rgba(255,255,255,0.25)' }}
+                    >
+                      Skip for now
+                    </button>
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && quizStep === 2 && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex flex-col h-full"
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Where are you based?</h1>
+                      <p className="text-white/38 text-sm">Helps travelers nearby find you.</p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 mt-6">
+                      <input
+                        value={newCountry}
+                        onChange={e => setNewCountry(e.target.value)}
+                        placeholder="Country"
+                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
+                        autoFocus
+                      />
+                      <input
+                        value={newCity}
+                        onChange={e => setNewCity(e.target.value)}
+                        placeholder="City"
+                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
+                      />
+                    </div>
+
+                    <div className="mt-8">
+                      <h2 className="text-white font-bold text-lg mb-1">Got a trip coming up?</h2>
+                      <p className="text-white/30 text-xs mb-4">Totally optional — you can always add this later.</p>
+                      <input
+                        value={newTripDestination}
+                        onChange={e => setNewTripDestination(e.target.value)}
+                        placeholder="Where to?"
+                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30 mb-3"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {SEASONS.slice(0, 4).map(s => (
+                          <button
+                            key={s}
+                            onClick={() => { haptic(8); setNewTripWhen(w => w === s ? '' : s) }}
+                            className="px-3.5 py-2 rounded-full text-xs font-semibold border transition-colors"
+                            style={newTripWhen === s
+                              ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
+                              : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.12)' }}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && quizStep === 3 && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex flex-col h-full"
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Tell your story.</h1>
+                      <p className="text-white/38 text-sm">A few words go a long way.</p>
+                    </div>
+
+                    <div className="flex flex-col gap-4 mt-6">
+                      <div>
+                        <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Bio</label>
+                        <textarea
+                          value={newBio}
+                          onChange={e => setNewBio(e.target.value)}
+                          placeholder="What's your travel style? What are you looking for?"
+                          rows={4}
+                          className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30 resize-none"
+                          autoFocus
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Instagram</label>
+                        <div className="flex items-center gap-2 bg-white/6 border border-white/12 rounded-2xl px-4 py-3.5 focus-within:border-white/30">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+                            <rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="2" />
+                            <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2" />
+                            <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" />
+                          </svg>
+                          <span className="text-white/35 text-sm select-none">@</span>
+                          <input
+                            value={newInstagram}
+                            onChange={e => setNewInstagram(e.target.value.replace(/^@/, ''))}
+                            placeholder="your_username"
+                            className="flex-1 bg-transparent text-white text-sm outline-none placeholder-white/20"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <QuizContinueButton onClick={quizNext} label="Continue →" />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && quizStep === 4 && !finalizing && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex flex-col h-full"
+                  >
+                    <TravelDnaStep
+                      dimension={dim}
+                      value={newDna[dim.key]}
+                      onToggle={v => toggleDna(dim.key, v, dim.multi)}
+                    />
+                    <QuizContinueButton
+                      onClick={quizNext}
+                      disabled={!canQuizContinue()}
+                      label={dnaIndex === DNA_DIMENSIONS.length - 1 ? 'Finish →' : 'Next →'}
+                    />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && finalizing && (
+                  <motion.div
+                    key="finalizing"
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex flex-col h-full items-center justify-center text-center"
+                  >
+                    {error ? (
+                      <>
+                        <p className="text-red-400 text-sm mb-5">{error}</p>
+                        <button
+                          onClick={finishQuiz}
+                          className="px-6 py-3.5 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform mb-3"
+                          style={CTA_STYLE}
+                        >
+                          Try again
+                        </button>
+                        <button
+                          onClick={() => { setFinalizing(false); setError('') }}
+                          className="text-white/30 text-xs active:opacity-60 transition-opacity"
+                        >
+                          ← Back to Travel DNA
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-8 h-8 border-2 border-white/20 border-t-white/70 rounded-full animate-spin mb-4" />
+                        <p className="text-white/40 text-sm">Setting up your profile...</p>
+                      </>
+                    )}
+                  </motion.div>
+                )}
+
+                {newStage === 'finale' && (
+                  <motion.div
+                    key="finale"
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className="flex flex-col h-full items-center text-center"
+                  >
+                    <motion.div animate={finaleControls} className="w-full flex-1 flex flex-col items-center justify-center">
+                      <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15 }}
+                        className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-2"
+                      >
+                        Welcome to
+                      </motion.p>
+                      <motion.h1
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25 }}
+                        className="text-white font-extrabold text-3xl tracking-tight mb-6"
+                      >
+                        TripAlong
+                      </motion.h1>
+                      <WorldRouteMap />
+                      <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 2.2 }}
+                        className="text-white/40 text-sm leading-relaxed max-w-[260px] mx-auto mt-6"
+                      >
+                        A world of trips is waiting for you{newName.trim() ? `, ${newName.trim()}` : ''}.
+                      </motion.p>
+                    </motion.div>
+                    <motion.button
+                      initial={{ opacity: 0, y: 14 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 2.7, type: 'spring', stiffness: 300, damping: 28 }}
+                      onClick={enterFeed}
+                      className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
+                      style={CTA_STYLE}
+                    >
+                      Enter TripAlong →
+                    </motion.button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </>
         )}
-
-        <div className="flex-1 overflow-y-auto">
-          <AnimatePresence custom={direction} mode="wait">
-            <motion.div
-              key={step}
-              custom={direction}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="flex flex-col h-full"
-            >
-              {steps[step]}
-            </motion.div>
-          </AnimatePresence>
-        </div>
       </div>
-
-      {showNotificationPrompt && userId && (
-        <NotificationPrompt userId={userId} onDone={() => router.replace('/feed')} />
-      )}
     </main>
   )
 }

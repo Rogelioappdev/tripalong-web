@@ -433,13 +433,6 @@ export default function SettingsPage() {
                   border
                   right={<Toggle value={!!profile?.is_beta_tester} onChange={() => handleToggleBetaTester()} />}
                 />
-                <Row
-                  label="Test Onboarding"
-                  sub="Preview the real onboarding flow, only for this account"
-                  chevron
-                  border={false}
-                  onPress={() => { haptic(8); sessionStorage.setItem('ta_onboarding_test_mode', '1'); router.push('/onboarding') }}
-                />
               </div>
             )}
           </Group>
