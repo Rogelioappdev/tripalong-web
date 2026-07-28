@@ -150,7 +150,7 @@ export function HangGroupInfoSheet({ chatId, hangInfo, userId, onClose, onLeft }
           >
             {hangInfo.photo_url ? (
               <>
-                <img src={hangInfo.photo_url} alt={hangInfo.title} className="absolute inset-0 w-full h-full object-cover" />
+                <img src={hangInfo.photo_url} alt={hangInfo.title} className="absolute inset-0 w-full h-full object-cover min-w-0 min-h-0" />
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 35%, rgba(0,0,0,0.88) 100%)' }} />
               </>
             ) : (
@@ -315,7 +315,7 @@ export function HangGroupInfoSheet({ chatId, hangInfo, userId, onClose, onLeft }
                 >
                   <div className="w-11 h-11 rounded-full bg-white/10 overflow-hidden shrink-0">
                     {u.profile_photo ? (
-                      <img src={u.profile_photo} alt="" className="w-full h-full object-cover" />
+                      <img src={u.profile_photo} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center font-bold" style={{ color: 'rgba(255,255,255,0.45)', fontSize: 16 }}>
                         {u.name?.[0]?.toUpperCase() ?? '?'}

@@ -39,7 +39,9 @@ export default function HangLandingClient() {
 
     Promise.all([
       getHangalong(hangId).catch(() => null),
-      supabase.auth.getUser().then(({ data }) => data.user?.id ?? null),
+      // getSession() reads the locally persisted session — no network round
+      // trip, so a transient blip can't read as "not logged in" here.
+      supabase.auth.getSession().then(({ data }) => data.session?.user?.id ?? null),
     ]).then(([hangData, uid]) => {
       setHang(hangData)
       setUserId(uid)

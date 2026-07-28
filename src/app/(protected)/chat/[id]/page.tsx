@@ -1,25 +1,34 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState, useCallback, useMemo, Fragment } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { TripGroupInfoSheet } from '@/components/TripGroupInfoSheet'
 import { HangGroupInfoSheet } from '@/components/HangGroupInfoSheet'
 import { MessageActionSheet } from '@/components/MessageActionSheet'
+import { MessageInfoSheet, type MessageReceipt } from '@/components/MessageInfoSheet'
 import { ReportMessageSheet } from '@/components/ReportMessageSheet'
 import { JoinCelebration } from '@/components/JoinCelebration'
+import { PublicProfileModal } from '@/components/PublicProfileModal'
+import { RequestSentToast } from '@/components/RequestSentToast'
 import { supabase } from '@/lib/supabase'
-import { registerPush, sendPushNotification } from '@/lib/push'
+import { registerPush, sendPushNotification, sendJoinRequestPush } from '@/lib/push'
+import { remindNotifications } from '@/lib/notifReminder'
+import { ImageViewer } from '@/components/ImageViewer'
+import { VideoViewer } from '@/components/VideoViewer'
 import { initPresence, useOnlineUsers } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
+import { displayName } from '@/lib/displayName'
+import { useSwipeBack } from '@/lib/useSwipeBack'
 import {
   getChatMessages,
+  getUsersByIds,
+  getProfile,
   getOlderChatMessages,
   sendMessage,
-  uploadChatImage,
+  uploadChatMedia,
   deleteMessage,
   toggleReaction,
   markTripChatRead,
@@ -29,9 +38,14 @@ import {
   joinTrip,
   getChatMemberReadPositions,
   searchChatMessages,
+  requestToJoinTrip,
+  getMyJoinRequestStatus,
 } from '@/lib/queries'
 import type { TripMessage, TripWithDetails, HangalongWithDetails } from '@/lib/types'
 import { isNativeApp } from '@/lib/native-app'
+import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
+import { mediaPreviewLabel } from '@/lib/messagePreview'
+import { getVideoDuration } from '@/lib/videoDuration'
 
 const HANG_ACTIVITY_EMOJI: Record<string, string> = {
   hike: '🥾', road_trip: '🚗', beach: '🏖️', climbing: '🧗',
@@ -56,6 +70,28 @@ function highlightText(text: string, query: string) {
 
 function formatTime(d: string) {
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
+// Day label for chat date separators: Today / Yesterday / weekday+date, with the
+// year appended once the message is from a prior year.
+function formatDateSeparator(d: string): string {
+  const date = new Date(d)
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  if (date.toDateString() === today.toDateString()) return 'Today'
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  const opts: Intl.DateTimeFormatOptions =
+    date.getFullYear() === today.getFullYear()
+      ? { weekday: 'short', month: 'short', day: 'numeric' }
+      : { month: 'short', day: 'numeric', year: 'numeric' }
+  return date.toLocaleDateString('en-US', opts)
+}
+
+// True when two ISO timestamps fall on different calendar days.
+function isNewDay(cur: string, prev: string | null): boolean {
+  if (!prev) return true
+  return new Date(cur).toDateString() !== new Date(prev).toDateString()
 }
 
 function CheckTick({ seen }: { seen: boolean }) {
@@ -131,6 +167,15 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false)
   const [replyTo, setReplyTo] = useState<TripMessage | null>(null)
 
+  // Auto-grow the composer as the message wraps to more lines, capped so it
+  // doesn't swallow the whole screen on a very long message.
+  useEffect(() => {
+    const el = composerRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [input])
+
   // Typing indicators
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({})
   const typingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -138,14 +183,36 @@ export default function ChatPage() {
 
   // Long-press / action sheet
   const [actionMsg, setActionMsg] = useState<TripMessage | null>(null)
+  const [infoMsg, setInfoMsg] = useState<TripMessage | null>(null)
   const [reportMsg, setReportMsg] = useState<TripMessage | null>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdFired = useRef(false)
 
   // Image
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [viewingImage, setViewingImage] = useState<string | null>(null)
+  // Single combined "sending N photos" placeholder shown while a multi-photo
+  // batch uploads, instead of one bubble per photo popping in individually.
+  const [uploadingBatch, setUploadingBatch] = useState<{ count: number; preview: string } | null>(null)
+  const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null)
+  const [viewingVideo, setViewingVideo] = useState<string | null>(null)
+  const [showAppBanner, setShowAppBanner] = useState(false)
+
+  // Shown once, only on web, right after joining a trip via a shared link —
+  // the highest-intent moment to prompt an app install, not before they've
+  // even seen the trip.
+  useEffect(() => {
+    if (isNativeApp) return
+    if (sessionStorage.getItem('showAppDownloadBanner')) {
+      sessionStorage.removeItem('showAppDownloadBanner')
+      setShowAppBanner(true)
+    }
+  }, [])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+  const composerFormRef = useRef<HTMLFormElement>(null)
+
+  // Sender profile (tap avatar/name to view)
+  const [profileUserId, setProfileUserId] = useState<string | null>(null)
 
   // Join from chat
   const [showCelebration, setShowCelebration] = useState(false)
@@ -203,6 +270,15 @@ export default function ChatPage() {
 
   const isFullMember = membership?.status === 'in'
   const showJoinBanner = membershipFetched && !isFullMember && !joinBannerDismissed && !!tripInfo && !showCelebration
+  const isTripFull = !!tripInfo && tripInfo.max_group_size > 0 && (tripInfo.member_count ?? 0) >= tripInfo.max_group_size
+
+  const [joinRequestStatus, setJoinRequestStatus] = useState<'pending' | 'accepted' | 'declined' | null>(null)
+  const [requestingJoin, setRequestingJoin] = useState(false)
+  const [showRequestSentToast, setShowRequestSentToast] = useState(false)
+
+  useEffect(() => {
+    if (tripInfo?.id && userId) getMyJoinRequestStatus(tripInfo.id, userId).then(setJoinRequestStatus)
+  }, [tripInfo?.id, userId])
 
   const joinMutation = useMutation({
     mutationFn: () => joinTrip(tripInfo!.id, userId!),
@@ -214,12 +290,36 @@ export default function ChatPage() {
     },
   })
 
+  // Trip full → ask the creator instead of joining outright. Otherwise the
+  // normal instant-join flow (unchanged).
+  const handleJoinOrRequest = async () => {
+    if (!tripInfo || !userId) return
+    if (!isTripFull) { joinMutation.mutate(); return }
+    if (requestingJoin || joinRequestStatus === 'pending') return
+    haptic(10)
+    setRequestingJoin(true)
+    try {
+      const requestId = await requestToJoinTrip(tripInfo.id, userId)
+      setJoinRequestStatus('pending')
+      setShowRequestSentToast(true)
+      setTimeout(() => setShowRequestSentToast(false), 2200)
+      sendJoinRequestPush({ requestId, requesterName: userName, destination: tripInfo.destination })
+    } catch (e) {
+      console.error('requestToJoinTrip error', e)
+    } finally {
+      setRequestingJoin(false)
+    }
+  }
+
   // ── Mark read ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (userId && chatId) {
       markTripChatRead(chatId)
       queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
       queryClient.invalidateQueries({ queryKey: ['tripChats'] })
+      // Refresh read receipts on open so your own view status (and everyone
+      // else's latest) reflects immediately rather than on the next poll.
+      queryClient.invalidateQueries({ queryKey: ['chatReadPositions', chatId] })
     }
   }, [userId, chatId, queryClient])
 
@@ -250,6 +350,7 @@ export default function ChatPage() {
     },
     enabled: !!chatId,
     staleTime: 30_000,
+    refetchInterval: 3000,
   })
 
   // ── Read positions ────────────────────────────────────────────────────────
@@ -270,8 +371,23 @@ export default function ChatPage() {
   })
 
   // ── Scroll to bottom on new messages ─────────────────────────────────────
+  // The very first scroll (on opening the chat) must be instant, not smooth —
+  // an animated scroll from the top over a long history, combined with
+  // images still loading and pushing the content taller mid-animation, was
+  // landing partway up instead of at the bottom. A second instant snap
+  // shortly after catches any late image-driven layout shift. Only later
+  // updates (new incoming messages) get the smooth animation.
+  const initialScrollDoneRef = useRef(false)
+  useEffect(() => { initialScrollDoneRef.current = false }, [chatId])
   useEffect(() => {
-    if (!searchOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (searchOpen || messages.length === 0) return
+    if (!initialScrollDoneRef.current) {
+      initialScrollDoneRef.current = true
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior })
+      const t = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior }), 300)
+      return () => clearTimeout(t)
+    }
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, searchOpen])
 
   // ── Realtime channel ──────────────────────────────────────────────────────
@@ -307,6 +423,17 @@ export default function ChatPage() {
       }, () => {
         queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
       })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'trip_chat_members',
+        filter: `trip_chat_id=eq.${chatId}`,
+      }, () => {
+        // Another member advanced their last_read_at (opened/viewed the chat) —
+        // refresh read receipts immediately so "seen by" / the Info sheet update
+        // in realtime instead of waiting on the 30s poll.
+        queryClient.invalidateQueries({ queryKey: ['chatReadPositions', chatId] })
+      })
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
         const { userId: typerId, name: typerName } = payload as { userId: string; name: string }
         if (typerId === userIdRef.current) return
@@ -332,10 +459,18 @@ export default function ChatPage() {
     })
   }, [userName])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
     if (typingDebounce.current) clearTimeout(typingDebounce.current)
     typingDebounce.current = setTimeout(broadcastTyping, 300)
+  }
+
+  // Enter sends, Shift+Enter inserts a newline — matches iMessage behavior.
+  const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      composerFormRef.current?.requestSubmit()
+    }
   }
 
   // ── Send ──────────────────────────────────────────────────────────────────
@@ -370,7 +505,14 @@ export default function ChatPage() {
     try {
       await sendMessage(chatId, userId, content, replyId)
       queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+      // Sending a message means you've seen the thread — advance last_read_at
+      // past it and clear the unread badge / Messages-tab dot immediately,
+      // rather than waiting on the realtime round-trip or the next poll.
+      markTripChatRead(chatId)
+      queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
+      queryClient.invalidateQueries({ queryKey: ['tripChats'] })
       sendPushNotification({ chatId, senderId: userId, senderName: userName, content, type: 'text', url: `/chat/${chatId}` })
+      remindNotifications('message')
     } catch {
       // Roll back optimistic on failure and restore input
       queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
@@ -383,46 +525,82 @@ export default function ChatPage() {
   }
 
   // ── Image pick & upload ───────────────────────────────────────────────────
+  // Multiple photos upload in parallel behind a single "sending N photos"
+  // placeholder, then reveal together — instead of one bubble per photo
+  // popping in individually as each upload finishes in turn, which read as
+  // slow/janky next to WhatsApp/Instagram's combined send-in-progress tile.
   const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !userId) return
+    const picked = Array.from(e.target.files ?? [])
+    if (picked.length === 0 || !userId) return
     e.target.value = ''
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Image must be under 10 MB')
-      return
+    const files: File[] = []
+    for (const file of picked) {
+      const isVideo = file.type.startsWith('video/')
+      const limit = isVideo ? 20 * 1024 * 1024 : 10 * 1024 * 1024
+      if (file.size > limit) {
+        alert(`"${file.name}" is over ${isVideo ? '20 MB' : '10 MB'} and was skipped`)
+        continue
+      }
+      if (isVideo) {
+        try {
+          const duration = await getVideoDuration(file)
+          if (duration > 60) {
+            alert(`"${file.name}" is longer than 60 seconds and was skipped`)
+            continue
+          }
+        } catch {
+          alert(`"${file.name}" couldn't be read and was skipped`)
+          continue
+        }
+      }
+      files.push(file)
     }
+    if (files.length === 0) return
 
+    // Videos can't render as an <img> preview blob — fall back to a generic
+    // icon placeholder for the batch preview when the first file is a video.
+    const firstIsVideo = files[0].type.startsWith('video/')
+    const preview = firstIsVideo ? '' : URL.createObjectURL(files[0])
+    setUploadingBatch({ count: files.length, preview })
     setUploadingImage(true)
-    const localUrl = URL.createObjectURL(file)
-    const optimisticId = `optimistic-img-${Date.now()}`
-    const optimistic: TripMessage = {
-      id: optimisticId,
-      trip_chat_id: chatId,
-      sender_id: userId,
-      content: localUrl,
-      type: 'image',
-      reply_to_id: null,
-      is_edited: false,
-      created_at: new Date().toISOString(),
-      sender: { id: userId, name: userName, profile_photo: null },
-      reply_to: null,
-      reactions: [],
-    }
-    queryClient.setQueryData<TripMessage[]>(['messages', chatId], old => [...(old ?? []), optimistic])
 
     try {
-      const publicUrl = await uploadChatImage(chatId, file)
-      await sendMessage(chatId, userId, publicUrl, null, 'image')
-      await queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
-      URL.revokeObjectURL(localUrl)
-      sendPushNotification({ chatId, senderId: userId, senderName: userName, content: publicUrl, type: 'image', url: `/chat/${chatId}` })
-    } catch {
-      queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
-        (old ?? []).filter(m => m.id !== optimisticId)
-      )
-      URL.revokeObjectURL(localUrl)
+      // Upload is the slow, bandwidth-bound part — run it in parallel so a
+      // batch takes as long as the slowest single upload, not the sum of all.
+      const uploaded = await Promise.allSettled(files.map(file => uploadChatMedia(chatId, file)))
+
+      // Sending is a lightweight DB insert — do it in order so the messages
+      // land in the sequence the user picked them.
+      let sentCount = 0
+      for (let i = 0; i < uploaded.length; i++) {
+        const result = uploaded[i]
+        if (result.status !== 'fulfilled') continue
+        const mediaType = files[i].type.startsWith('video/') ? 'video' : 'image'
+        try {
+          await sendMessage(chatId, userId, result.value, null, mediaType)
+          sentCount++
+          sendPushNotification({ chatId, senderId: userId, senderName: userName, content: result.value, type: mediaType, url: `/chat/${chatId}` })
+        } catch (err) {
+          console.error('Failed to send message', err)
+        }
+      }
+
+      const failedCount = uploaded.length - sentCount
+      if (failedCount > 0) alert(`${failedCount} item${failedCount > 1 ? 's' : ''} failed to send`)
+
+      if (sentCount > 0) {
+        haptic(10)
+        await queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+        // Sending a photo also counts as seeing the thread — clear unread state.
+        markTripChatRead(chatId)
+        queryClient.invalidateQueries({ queryKey: ['unreadCount'] })
+        queryClient.invalidateQueries({ queryKey: ['tripChats'] })
+        remindNotifications('message')
+      }
     } finally {
+      URL.revokeObjectURL(preview)
+      setUploadingBatch(null)
       setUploadingImage(false)
     }
   }
@@ -467,7 +645,18 @@ export default function ChatPage() {
   }
 
   const handleDelete = async (msg: TripMessage) => {
-    await deleteMessage(msg.id)
+    // Optimistically drop it from the local list so it disappears instantly
+    // for the sender (matches the DM page). Other participants pick it up via
+    // the realtime DELETE subscription (REPLICA IDENTITY FULL) and the 3s poll.
+    queryClient.setQueryData<TripMessage[]>(['messages', chatId], old =>
+      (old ?? []).filter(m => m.id !== msg.id)
+    )
+    try {
+      await deleteMessage(msg.id)
+    } catch {
+      // Server delete failed — refetch to restore the message rather than
+      // leaving a phantom local deletion.
+    }
     queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
   }
 
@@ -482,6 +671,17 @@ export default function ChatPage() {
   // ── Read receipt helpers ──────────────────────────────────────────────────
   const allMessages = [...olderMessages, ...messages]
   const otherReadPositions = readPositions.filter(r => r.user_id !== userId)
+
+  // Full per-member breakdown for the "Info" sheet — everyone else in the
+  // chat, split into read (with when) vs delivered-but-not-read-yet.
+  const infoReceipts: MessageReceipt[] = infoMsg
+    ? otherReadPositions.map(r => ({
+        id: r.user_id,
+        name: r.user?.name ?? 'Someone',
+        photo: r.user?.profile_photo ?? null,
+        seenAt: r.last_read_at && new Date(r.last_read_at) >= new Date(infoMsg.created_at) ? r.last_read_at : null,
+      }))
+    : []
 
   // For each message I sent, find who has seen it
   const getSeenBy = (msg: TripMessage) => {
@@ -503,6 +703,98 @@ export default function ChatPage() {
   const typingNames = Object.values(typingUsers)
   const isSearchMode = searchOpen && debouncedQuery.length >= 2
   const displayMessages = isSearchMode ? searchResults : allMessages
+  // Reply-quote fallback: the reply_to embed comes back empty on refetch/realtime,
+  // so resolve the quoted message from the already-loaded list by reply_to_id.
+  const messagesById = useMemo(() => new Map(allMessages.map(m => [m.id, m])), [allMessages])
+
+  // Every user id referenced in the chat — message senders and reply-quote
+  // senders alike. Embedded `sender:users(...)` joins come back empty on the
+  // client, so we resolve names via a direct batched read instead.
+  const referencedUserIds = useMemo(() => {
+    const ids = new Set<string>()
+    allMessages.forEach((m: any) => {
+      if (m.sender_id) ids.add(m.sender_id)
+      if (m.reply_to?.sender_id) ids.add(m.reply_to.sender_id)
+    })
+    return Array.from(ids).sort()
+  }, [allMessages])
+  const referencedUserIdsKey = referencedUserIds.join(',')
+
+  const { data: fetchedProfiles = [], isFetching: profilesFetching } = useQuery({
+    queryKey: ['chatSenderProfiles', chatId, referencedUserIdsKey],
+    queryFn: () => getUsersByIds(referencedUserIds),
+    enabled: referencedUserIds.length > 0,
+    staleTime: 60_000,
+    // Older pages loading / realtime inserts add new ids, which changes the
+    // key above and would otherwise reset `data` to [] mid-fetch — flashing
+    // previously-resolved names off. Keep last-known data until the refetch
+    // for the new id set lands.
+    placeholderData: keepPreviousData,
+  })
+
+  // Per-id fallback for any sender the batched read above still misses (e.g.
+  // a transient error on that request). Not the common path — getUsersByIds
+  // is the source of truth — but this guarantees no sender is ever stuck
+  // unresolved.
+  const [fallbackProfiles, setFallbackProfiles] = useState<Map<string, { name: string | null; profile_photo: string | null }>>(new Map())
+  const pendingFallbackIds = useRef<Set<string>>(new Set())
+
+  // Authoritative sender lookup. Direct profile reads (fetchedProfiles) are the
+  // reliable source — the same mechanism the public profile modal uses — with
+  // the trip/hangout roster and the per-id fallback fetch as secondary sources.
+  // Resolving by sender_id here avoids depending on the flaky per-message
+  // `sender` embed, so names never fall back to "Unknown"/"Traveler" when the
+  // name is actually known.
+  const senderById = useMemo(() => {
+    const map = new Map<string, { name: string | null; profile_photo: string | null }>()
+    const add = (u: any) => {
+      if (u?.id && !map.has(u.id)) map.set(u.id, { name: u.name ?? null, profile_photo: u.profile_photo ?? null })
+    }
+    fetchedProfiles.forEach((u: any) => add(u))
+    tripInfo?.members?.forEach((m: any) => add(m.user))
+    if (tripInfo?.creator) add(tripInfo.creator)
+    hangInfo?.members?.forEach((m: any) => add(m.user))
+    if (hangInfo?.creator) add(hangInfo.creator)
+    fallbackProfiles.forEach((v, id) => { if (!map.has(id)) map.set(id, v) })
+    return map
+  }, [fetchedProfiles, tripInfo, hangInfo, fallbackProfiles])
+
+  useEffect(() => {
+    // Wait for the batched read to settle before falling back — otherwise
+    // this fires for every referenced id on first render (before
+    // fetchedProfiles has data), turning one batched request into N
+    // redundant individual ones.
+    if (profilesFetching) return
+    const missing = referencedUserIds.filter(id => !senderById.has(id) && !pendingFallbackIds.current.has(id))
+    if (missing.length === 0) return
+    missing.forEach(id => pendingFallbackIds.current.add(id))
+    let cancelled = false
+    Promise.all(missing.map(id => getProfile(id))).then(results => {
+      missing.forEach(id => pendingFallbackIds.current.delete(id))
+      if (cancelled) return
+      setFallbackProfiles(prev => {
+        let changed = false
+        const next = new Map(prev)
+        results.forEach(p => {
+          if (p?.id && !next.has(p.id)) {
+            next.set(p.id, { name: p.name ?? null, profile_photo: p.profile_photo ?? null })
+            changed = true
+          }
+        })
+        return changed ? next : prev
+      })
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [referencedUserIdsKey, senderById, profilesFetching])
+
+  // ── Swipe-back ────────────────────────────────────────────────────────────
+  // Disabled while any sheet/overlay is on top so the gesture doesn't
+  // navigate the whole screen away underneath it.
+  useSwipeBack(
+    () => router.back(),
+    !searchOpen && !showGroupInfo && !actionMsg && !infoMsg && !reportMsg && !viewingImage && !viewingVideo && !showCelebration && !profileUserId
+  )
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -544,7 +836,7 @@ export default function ChatPage() {
               <button type="button" onClick={() => setShowGroupInfo(true)} className="flex-1 flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-white/10 overflow-hidden shrink-0">
                   {tripInfo.cover_image
-                    ? <img src={tripInfo.cover_image} alt="" className="w-full h-full object-cover" />
+                    ? <img src={resizedAvatar(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                     : <div className="w-full h-full flex items-center justify-center text-sm">🌍</div>}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
@@ -578,7 +870,7 @@ export default function ChatPage() {
                   style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
                 >
                   {hangInfo.photo_url
-                    ? <img src={hangInfo.photo_url} alt="" className="w-full h-full object-cover" />
+                    ? <img src={resizedAvatar(hangInfo.photo_url, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                     : <span style={{ fontSize: 18 }}>{HANG_ACTIVITY_EMOJI[hangInfo.activity_type] ?? '✨'}</span>}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
@@ -622,8 +914,37 @@ export default function ChatPage() {
             )}
           </div>
 
+          {/* Get-the-app banner — only shown once, right after joining via a shared link on web */}
+          {showAppBanner && (
+            <div className="mt-3 flex items-center gap-3 px-4 py-3 rounded-2xl shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}>
+              <span className="text-xl shrink-0">📲</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-semibold">Get the TripAlong app</p>
+                <p className="text-white/40 text-xs">Never miss a message from this trip</p>
+              </div>
+              <a
+                href="/get"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 font-semibold text-xs px-3 py-1.5 rounded-xl active:scale-95 transition-all"
+                style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+              >
+                Get app
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowAppBanner(false)}
+                className="shrink-0 text-white/30"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+          )}
+
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-y-contain py-4 flex flex-col gap-1.5" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-4 flex flex-col gap-1.5" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
 
             {/* Search results count */}
             {searchOpen && (
@@ -650,7 +971,7 @@ export default function ChatPage() {
                   style={{ height: 110 }}
                 >
                   {tripInfo.cover_image
-                    ? <img src={tripInfo.cover_image} alt="" className="w-full h-full object-cover" />
+                    ? <img src={resizedImage(tripInfo.cover_image, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                     : <div className="w-full h-full flex items-center justify-center text-4xl" style={{ backgroundColor: '#111' }}>🌍</div>}
                   <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.88) 100%)' }} />
                   <div className="absolute bottom-0 left-0 px-4 pb-3">
@@ -672,7 +993,7 @@ export default function ChatPage() {
                 style={{ height: 110, backgroundColor: '#111' }}
               >
                 {hangInfo.photo_url
-                  ? <img src={hangInfo.photo_url} alt="" className="w-full h-full object-cover" />
+                  ? <img src={hangInfo.photo_url} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                   : <div className="w-full h-full flex items-center justify-center" style={{ fontSize: 60, opacity: 0.1 }}>
                       {HANG_ACTIVITY_EMOJI[hangInfo.activity_type] ?? '✨'}
                     </div>}
@@ -704,19 +1025,53 @@ export default function ChatPage() {
             {!isLoading && !!userId && displayMessages.map((msg, idx) => {
               const isMe = msg.sender_id === userId
               const isSystem = msg.type === 'system'
+              const rosterSender = senderById.get(msg.sender_id)
+              const senderName = displayName(rosterSender?.name ?? msg.sender?.name)
+              const senderPhoto = rosterSender?.profile_photo ?? msg.sender?.profile_photo ?? null
+              // The name label is only rendered when a REAL name resolved — no
+              // placeholder ("Traveler") and no empty box for senders we couldn't resolve.
+              const resolvedName = (rosterSender?.name ?? msg.sender?.name ?? '').trim()
+              const hasRealName = resolvedName !== '' && resolvedName.toLowerCase() !== 'unknown'
               const reactionGroups = groupReactions(msg.reactions)
-              const isLastInGroup = idx === displayMessages.length - 1 || displayMessages[idx + 1].sender_id !== msg.sender_id
+              // System messages ("X joined the trip") carry that user's sender_id, so a
+              // plain sender_id comparison would treat them as part of the same run —
+              // suppressing the name label/avatar on the next real message from that
+              // sender. Exclude system messages from the run so grouping always
+              // reflects visible chat bubbles only.
+              const isLastInGroup = idx === displayMessages.length - 1
+                || displayMessages[idx + 1].type === 'system'
+                || displayMessages[idx + 1].sender_id !== msg.sender_id
+              const isFirstInGroup = idx === 0
+                || displayMessages[idx - 1].type === 'system'
+                || displayMessages[idx - 1].sender_id !== msg.sender_id
               const seenBy = msg.id === myLastSeenMsgId ? getSeenBy(msg) : []
+
+              // Day separator when this message starts a new calendar day.
+              const prevMsg = idx > 0 ? displayMessages[idx - 1] : null
+              const dateSep = isNewDay(msg.created_at, prevMsg?.created_at ?? null) ? (
+                <div className="flex justify-center py-2">
+                  <span
+                    className="text-[11px] font-semibold px-3 py-1 rounded-full"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}
+                  >
+                    {formatDateSeparator(msg.created_at)}
+                  </span>
+                </div>
+              ) : null
 
               if (isSystem) {
                 return (
-                  <div key={msg.id} className="text-center text-white/30 text-xs py-1">{msg.content}</div>
+                  <Fragment key={msg.id}>
+                    {dateSep}
+                    <div className="text-center text-white/30 text-xs py-1">{msg.content}</div>
+                  </Fragment>
                 )
               }
 
               return (
+                <Fragment key={msg.id}>
+                {dateSep}
                 <div
-                  key={msg.id}
                   className={`flex items-end gap-2 select-none ${isMe ? 'flex-row-reverse' : ''}`}
                   onPointerDown={() => handlePointerDown(msg)}
                   onPointerUp={handlePointerUp}
@@ -724,41 +1079,60 @@ export default function ChatPage() {
                   onPointerCancel={handlePointerUp}
                   onContextMenu={e => { e.preventDefault(); setActionMsg(msg) }}
                 >
-                  {/* Avatar */}
+                  {/* Avatar — tap to view sender's full profile */}
                   {!isMe && isLastInGroup && (
-                    <div className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs">
-                      {msg.sender?.profile_photo
-                        ? <img src={msg.sender.profile_photo} alt="" className="w-full h-full object-cover" />
-                        : msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); haptic(6); setProfileUserId(msg.sender_id) }}
+                      className="w-7 h-7 rounded-full bg-white/10 shrink-0 overflow-hidden flex items-center justify-center text-xs active:opacity-70 transition-opacity"
+                    >
+                      {senderPhoto
+                        // Plain center-crop, not .ta-avatar's top-biased crop — at this tiny
+                        // 28px size the top bias crops in too tight on the face, unlike the
+                        // Group Info member rows (44px, plain object-cover) it should match.
+                        ? <img src={resizedAvatar(senderPhoto, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0" />
+                        : senderName[0].toUpperCase()}
+                    </button>
                   )}
                   {!isMe && !isLastInGroup && <div className="w-7 shrink-0" />}
 
                   {/* Bubble column */}
-                  <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-                    {!isMe && idx > 0 && displayMessages[idx - 1].sender_id !== msg.sender_id && (
-                      <span className="text-white/30 text-xs px-1">{msg.sender?.name}</span>
-                    )}
-                    {!isMe && idx === 0 && (
-                      <span className="text-white/30 text-xs px-1">{msg.sender?.name}</span>
-                    )}
-
-                    {/* Reply-to quote */}
-                    {msg.reply_to && (
-                      <div
-                        className={`px-3 py-1.5 rounded-xl text-xs max-w-full ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
-                        style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
+                  <div className={`max-w-[72%] min-w-0 flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+                    {!isMe && hasRealName && isFirstInGroup && (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); haptic(6); setProfileUserId(msg.sender_id) }}
+                        className="text-white/50 text-xs font-medium px-1 active:opacity-70 transition-opacity"
                       >
-                        <p className="text-white/50 font-medium truncate">{msg.reply_to.sender?.name ?? 'Unknown'}</p>
-                        <p className="text-white/35 truncate">{msg.reply_to.content?.startsWith('https://') ? '📷 Photo' : msg.reply_to.content}</p>
-                      </div>
+                        {resolvedName}
+                      </button>
                     )}
+                    {/* Reply-to quote — guard on content, not just object truthiness:
+                        the self-referencing reply_to embed can come back as a
+                        truthy-but-empty object when reply_to_id is null. */}
+                    {(() => {
+                      const rc = msg.reply_to?.content ?? (msg.reply_to_id ? messagesById.get(msg.reply_to_id)?.content : null)
+                      if (!rc) return null
+                      return (
+                        <div
+                          className={`px-3 py-1.5 rounded-xl text-xs max-w-full ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
+                          style={{ backgroundColor: 'rgba(255,255,255,0.07)', borderLeft: '2px solid rgba(255,255,255,0.25)' }}
+                        >
+                          <p className="text-white/35 truncate">{mediaPreviewLabel(rc) ?? rc}</p>
+                        </div>
+                      )
+                    })()}
 
                     {/* Bubble */}
                     {msg.type === 'image' ? (
                       <button
                         type="button"
-                        onClick={e => { e.stopPropagation(); if (!holdFired.current) setViewingImage(msg.content) }}
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (holdFired.current) return
+                          const imgs = displayMessages.filter(m => m.type === 'image').map(m => m.content)
+                          setViewingImage({ images: imgs, index: Math.max(0, imgs.indexOf(msg.content)) })
+                        }}
                         className={`overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
                         style={{ maxWidth: 220, display: 'block' }}
                       >
@@ -766,13 +1140,41 @@ export default function ChatPage() {
                           src={msg.content}
                           alt="Image"
                           className="w-full h-auto block"
-                          style={{ maxHeight: 280, objectFit: 'cover' }}
+                          style={{ maxHeight: 280, objectFit: 'contain' }}
                         />
                       </button>
+                    ) : msg.type === 'video' ? (
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (holdFired.current) return
+                          setViewingVideo(msg.content)
+                        }}
+                        className={`relative overflow-hidden rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'} active:opacity-80 transition-opacity`}
+                        style={{ maxWidth: 220, display: 'block' }}
+                      >
+                        <video
+                          src={`${msg.content}#t=0.1`}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="w-full h-full block"
+                          style={{ maxHeight: 280, objectFit: 'cover', backgroundColor: '#000' }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="flex items-center justify-center rounded-full" style={{ width: 44, height: 44, background: 'rgba(0,0,0,0.45)' }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+                          </div>
+                        </div>
+                      </button>
                     ) : (
-                      <div className={`px-4 py-2.5 rounded-2xl text-sm ${
-                        isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'
-                      }`}>
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl text-sm max-w-full ${
+                          isMe ? 'bg-[#E0DEDA] text-black rounded-br-sm' : 'bg-[#141414] text-white rounded-bl-sm'
+                        }`}
+                        style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                      >
                         {isSearchMode ? highlightText(msg.content, debouncedQuery) : msg.content}
                       </div>
                     )}
@@ -811,7 +1213,7 @@ export default function ChatPage() {
                           {seenBy.slice(0, 3).map(r => (
                             <div key={r.user_id} className="w-4 h-4 rounded-full bg-white/20 overflow-hidden">
                               {r.user?.profile_photo
-                                ? <img src={r.user.profile_photo} alt="" className="w-full h-full object-cover" />
+                                ? <img src={resizedAvatar(r.user.profile_photo, 100)} alt="" className="w-full h-full object-cover min-w-0 min-h-0 ta-avatar" />
                                 : <div className="w-full h-full flex items-center justify-center" style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)' }}>
                                     {r.user?.name?.[0]?.toUpperCase()}
                                   </div>}
@@ -825,8 +1227,44 @@ export default function ChatPage() {
                     </div>
                   </div>
                 </div>
+                </Fragment>
               )
             })}
+
+            {/* Sending-multiple-photos placeholder — one combined tile
+                instead of a bubble per photo, matching WhatsApp/Instagram's
+                single in-flight indicator. Swaps out for the real bubbles,
+                all at once, as soon as the whole batch lands. */}
+            <AnimatePresence>
+              {uploadingBatch && (
+                <motion.div
+                  key="upload-batch"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-end justify-end"
+                >
+                  <div className="relative overflow-hidden rounded-2xl rounded-br-sm shrink-0" style={{ width: 120, height: 120, backgroundColor: '#1a1a1a' }}>
+                    {uploadingBatch.preview ? (
+                      <img src={uploadingBatch.preview} alt="" className="w-full h-full object-cover" style={{ opacity: 0.45 }} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center" style={{ opacity: 0.45 }}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M23 7l-7 5 7 5V7z" fill="white"/><rect x="1" y="5" width="15" height="14" rx="2" fill="white"/></svg>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>
+                      <div className="w-7 h-7 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {uploadingBatch.count > 1 && (
+                        <span className="text-white font-bold text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}>
+                          {uploadingBatch.count} items
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Typing indicator */}
             {!searchOpen && typingNames.length > 0 && (
@@ -862,7 +1300,7 @@ export default function ChatPage() {
               style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderTop: '0.5px solid rgba(255,255,255,0.08)' }}
             >
               <div className="flex-1 min-w-0" style={{ borderLeft: '2px solid rgba(255,255,255,0.3)', paddingLeft: 10 }}>
-                <p className="text-white/50 text-xs font-medium truncate">{replyTo.sender?.name ?? 'Unknown'}</p>
+                <p className="text-white/50 text-xs font-medium truncate">{displayName(senderById.get(replyTo.sender_id)?.name ?? replyTo.sender?.name)}</p>
                 <p className="text-white/35 text-xs truncate">{replyTo.content?.startsWith('https://') ? '📷 Photo' : replyTo.content}</p>
               </div>
               <button
@@ -895,12 +1333,16 @@ export default function ChatPage() {
               </div>
               <button
                 type="button"
-                onClick={() => { haptic(10); joinMutation.mutate() }}
-                disabled={joinMutation.isPending}
+                onClick={handleJoinOrRequest}
+                disabled={joinMutation.isPending || requestingJoin || (isTripFull && joinRequestStatus === 'pending')}
                 className="shrink-0 font-bold text-sm rounded-2xl active:scale-[0.97] transition-transform disabled:opacity-40 px-4 py-2"
                 style={{ backgroundColor: '#F0EBE3', color: '#000' }}
               >
-                {joinMutation.isPending ? 'Joining…' : 'Join Trip'}
+                {joinMutation.isPending || requestingJoin
+                  ? 'Sending…'
+                  : isTripFull
+                  ? joinRequestStatus === 'pending' ? 'Request Sent' : 'Request to Join'
+                  : 'Join Trip'}
               </button>
               <button
                 type="button"
@@ -918,15 +1360,17 @@ export default function ChatPage() {
 
           {/* Input */}
           <form
+            ref={composerFormRef}
             onSubmit={handleSend}
-            className="shrink-0 pt-3 border-t border-white/8 flex gap-2 md:pb-4"
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' } as React.CSSProperties}
+            className="shrink-0 pt-3 border-t border-white/8 flex gap-2 items-end md:pb-4"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' } as React.CSSProperties}
           >
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+              multiple
               className="hidden"
               onChange={handleImagePick}
             />
@@ -951,16 +1395,20 @@ export default function ChatPage() {
                 </svg>
               )}
             </button>
-            <input
+            <textarea
+              ref={composerRef}
+              rows={1}
               value={input}
               onChange={handleInputChange}
+              onKeyDown={handleComposerKeyDown}
               placeholder="Message…"
-              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25"
+              className="flex-1 bg-white/8 border border-white/12 rounded-2xl px-4 py-3 text-white placeholder-white/30 text-sm outline-none focus:border-white/25 resize-none overflow-y-auto"
+              style={{ maxHeight: 120 }}
             />
             <button
               type="submit"
               disabled={!input.trim() || sending}
-              className="bg-white text-black font-semibold px-5 rounded-2xl text-sm hover:bg-white/90 transition-colors disabled:opacity-30"
+              className="bg-white text-black font-semibold px-5 py-3 rounded-2xl text-sm hover:bg-white/90 transition-colors disabled:opacity-30"
             >
               Send
             </button>
@@ -977,7 +1425,9 @@ export default function ChatPage() {
             tripInfo={tripInfo}
             userId={userId}
             isFullMember={isFullMember}
-            onJoinTrip={() => { setShowGroupInfo(false); joinMutation.mutate() }}
+            isTripFull={isTripFull}
+            joinRequestStatus={joinRequestStatus}
+            onJoinTrip={() => { setShowGroupInfo(false); handleJoinOrRequest() }}
             onClose={() => setShowGroupInfo(false)}
             onLeft={() => router.replace('/messages')}
           />
@@ -1008,6 +1458,22 @@ export default function ChatPage() {
             onCopy={() => handleCopy(actionMsg)}
             onDelete={() => handleDelete(actionMsg)}
             onReport={() => { setActionMsg(null); handleReport(actionMsg) }}
+            onInfo={() => { setInfoMsg(actionMsg); setActionMsg(null) }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Message info (read receipts) */}
+      <AnimatePresence>
+        {infoMsg && (
+          <MessageInfoSheet
+            key="info"
+            content={infoMsg.content}
+            isImage={infoMsg.type === 'image'}
+            isVideo={infoMsg.type === 'video'}
+            sentAt={infoMsg.created_at}
+            receipts={infoReceipts}
+            onClose={() => setInfoMsg(null)}
           />
         )}
       </AnimatePresence>
@@ -1024,31 +1490,17 @@ export default function ChatPage() {
       </AnimatePresence>
 
       {/* Full-screen image viewer */}
-      {viewingImage && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed inset-0 z-[90] flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.96)' }}
-          onClick={() => setViewingImage(null)}
-        >
-          <img
-            src={viewingImage}
-            alt=""
-            className="max-w-full max-h-full object-contain"
-            style={{ maxWidth: '100vw', maxHeight: '100dvh', padding: 16 }}
-            onClick={e => e.stopPropagation()}
-          />
-          <button
-            type="button"
-            onClick={() => setViewingImage(null)}
-            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full"
-            style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff' }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-            </svg>
-          </button>
-        </div>,
-        document.body
+      {viewingImage && (
+        <ImageViewer
+          images={viewingImage.images}
+          startIndex={viewingImage.index}
+          onClose={() => setViewingImage(null)}
+        />
+      )}
+
+      {/* Full-screen video player */}
+      {viewingVideo && (
+        <VideoViewer src={viewingVideo} onClose={() => setViewingVideo(null)} />
       )}
 
       <style>{`
@@ -1057,6 +1509,10 @@ export default function ChatPage() {
           30% { transform: translateY(-4px); }
         }
       `}</style>
+
+      <AnimatePresence>
+        {showRequestSentToast && <RequestSentToast />}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showCelebration && tripInfo && (
@@ -1074,6 +1530,10 @@ export default function ChatPage() {
           />
         )}
       </AnimatePresence>
+
+      {profileUserId && (
+        <PublicProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      )}
     </>
   )
 }

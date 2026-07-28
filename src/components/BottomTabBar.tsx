@@ -28,7 +28,12 @@ export function BottomTabBar() {
     refetchInterval: 60_000,
   })
 
-  if (HIDE_ON.some(p => pathname === p) || pathname.startsWith('/auth')) return null
+  if (
+    HIDE_ON.some(p => pathname === p) ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/chat/') ||
+    pathname.startsWith('/dm/')
+  ) return null
 
   const tabs = [
     {
@@ -51,9 +56,14 @@ export function BottomTabBar() {
         <img
           src="/tagalong-icon.png"
           alt="TripAlong"
-          width={34}
-          height={34}
-          style={{ opacity: active ? 1 : 0.38, objectFit: 'contain' }}
+          // Tailwind's preflight resets `img { max-width: 100%; height: auto }`,
+          // which — being a stylesheet rule — beats the plain width/height HTML
+          // attributes (just presentational hints). Setting the size via `style`
+          // wins against the stylesheet. Sized larger than the other tabs' 20x20
+          // svg icons because the source PNG has a lot of transparent padding
+          // around the hiking-figures mark — at equal box size the visible mark
+          // reads noticeably smaller than the edge-to-edge svg icons.
+          style={{ width: 40, height: 40, maxWidth: 40, opacity: active ? 1 : 0.38, objectFit: 'contain' }}
         />
       ),
     },
@@ -101,7 +111,9 @@ export function BottomTabBar() {
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
               className="flex flex-col items-center justify-center gap-1 flex-1 h-full"
             >
-              <div className="relative flex items-center justify-center" style={{ height: tab.isCenter ? 38 : 22 }}>
+              {/* Uniform icon-row height across all tabs so every label sits at the
+                  same y — otherwise the taller center icon pushed "TripAlong" down. */}
+              <div className="relative flex items-center justify-center" style={{ height: 34 }}>
                 {tab.icon(active)}
                 {tab.showBadge && (
                   <span

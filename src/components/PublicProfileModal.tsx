@@ -1,16 +1,19 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getProfile, getTrip, getOrCreateDM, recordProfileView } from '@/lib/queries'
+import { getProfile, getTrip, getOrCreateDM, recordProfileView, respondToJoinRequest } from '@/lib/queries'
+import { sendJoinAcceptedPush } from '@/lib/push'
 import { BlockReportSheet } from './BlockReportSheet'
 import { getFlag } from '@/lib/countries'
 import { TripDetailModal } from './TripDetailModal'
 import { haptic } from '@/lib/haptics'
 import { hasPlus } from '@/lib/trial'
+import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
+import { resizedImage } from '@/lib/imageUrl'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
 interface PublicProfileModalProps {
@@ -20,6 +23,20 @@ interface PublicProfileModalProps {
   onRevealRequest?: () => boolean
   onSendMessageLocked?: () => void
   onAuthRequired?: () => void
+  // Present only when this profile is being viewed to review a pending trip
+  // join request — renders a fixed Accept/Decline bar with a tappable trip
+  // card (opens the full TripDetailModal) so the creator can actually see
+  // which trip and what it involves, not just the requester's profile. The
+  // requester must be viewed here before the creator can act, by design (not
+  // a shortcut from the Messages banner).
+  joinRequest?: {
+    id: string
+    tripId: string
+    tripDestination: string
+    tripCountry?: string | null
+    tripCoverImage?: string | null
+    onResponded: (accepted: boolean) => void
+  }
 }
 
 const TRAVEL_STYLES = [
@@ -37,9 +54,6 @@ const PACE_OPTIONS    = [{ id: 'slow', label: 'Slow & Steady', emoji: '🐢' }, 
 const PLANNING_OPT    = [{ id: 'planner', label: 'Planner', emoji: '📋' }, { id: 'spontaneous', label: 'Spontaneous', emoji: '🎲' }, { id: 'flexible', label: 'Flexible', emoji: '🤸' }]
 const PERSONALITY_OPT = [{ id: 'introvert', label: 'Introvert', emoji: '🌙' }, { id: 'extrovert', label: 'Extrovert', emoji: '☀️' }, { id: 'ambivert', label: 'Ambivert', emoji: '🌗' }]
 const EXPERIENCE_OPT  = [{ id: 'beginner', label: 'Beginner', emoji: '🌱' }, { id: 'intermediate', label: 'Intermediate', emoji: '🌿' }, { id: 'experienced', label: 'Experienced', emoji: '🌳' }, { id: 'expert', label: 'Expert', emoji: '🌍' }]
-
-const SWIPE_THRESHOLD = 50
-const VELOCITY_THRESHOLD = 400
 
 function label(opts: { id: string; label: string; emoji: string }[], id: string | null | undefined) {
   if (!id) return null
@@ -65,33 +79,76 @@ interface LightboxProps {
 
 function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
   const [index, setIndex] = useState(initialIndex)
-  const [direction, setDirection] = useState(0)
   const [mounted, setMounted] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const slideRefs = useRef<Array<HTMLDivElement | null>>([])
 
   useEffect(() => { setMounted(true) }, [])
+
+  // Jump the native scroll container to the photo that was tapped in the
+  // hero carousel, then keep it there — scrollLeft starts at 0 on mount, so
+  // without this it would always open on the first photo instead of the one
+  // the user actually tapped. Must also depend on `mounted`: this component
+  // returns null until then, so the very first run of this effect sees
+  // scrollRef.current as null (nothing rendered yet) and no-ops — since
+  // initialIndex itself never changes afterward, without `mounted` in the
+  // deps the effect would never re-fire once the real DOM element exists,
+  // leaving the scroll position stuck at 0 while the index state (dots,
+  // counter) already correctly shows the tapped photo.
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || initialIndex === 0) return
+    el.scrollLeft = initialIndex * el.offsetWidth
+  }, [initialIndex, mounted])
+
+  const navigate = (next: number) => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ left: next * el.offsetWidth, behavior: 'smooth' })
+  }
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowLeft' && index > 0) navigate(index - 1, -1)
-      if (e.key === 'ArrowRight' && index < photos.length - 1) navigate(index + 1, 1)
+      if (e.key === 'ArrowLeft' && index > 0) navigate(index - 1)
+      if (e.key === 'ArrowRight' && index < photos.length - 1) navigate(index + 1)
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [index, photos.length, onClose])
 
-  const navigate = (next: number, dir: number) => {
-    setDirection(dir)
-    setIndex(next)
-  }
+  // Same reasoning as the hero carousel's IntersectionObserver: reliable
+  // regardless of how the browser paces scroll events during native momentum.
+  // Depends on `mounted` too, same reason as the scrollLeft-jump effect
+  // above: this component renders null until then, so without it the
+  // observer would never actually attach to the real slide elements and the
+  // dots/counter would never update as you swipe.
+  useLayoutEffect(() => {
+    const root = scrollRef.current
+    if (!root || photos.length === 0) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        const mostVisible = entries.reduce((best, e) => (e.intersectionRatio > (best?.intersectionRatio ?? 0) ? e : best), entries[0])
+        if (!mostVisible || mostVisible.intersectionRatio < 0.5) return
+        const idx = slideRefs.current.indexOf(mostVisible.target as HTMLDivElement)
+        if (idx !== -1) setIndex(prev => (prev === idx ? prev : idx))
+      },
+      { root, threshold: [0.5] }
+    )
+    slideRefs.current.slice(0, photos.length).forEach(el => { if (el) io.observe(el) })
+    return () => io.disconnect()
+  }, [photos, mounted])
 
-  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    if (info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
-      if (index < photos.length - 1) navigate(index + 1, 1)
-    } else if (info.offset.x > SWIPE_THRESHOLD || info.velocity.x > VELOCITY_THRESHOLD) {
-      if (index > 0) navigate(index - 1, -1)
-    }
-  }
+  // Same preload-adjacent-photos fix as the hero swipe above. Loads the
+  // original, un-resized photo — see the note by the <img> below for why.
+  useEffect(() => {
+    if (photos.length < 2) return
+    ;[index - 1, index + 1].forEach(i => {
+      if (i < 0 || i >= photos.length) return
+      const img = new window.Image()
+      img.src = photos[i]
+    })
+  }, [index, photos])
 
   if (!mounted) return null
 
@@ -118,34 +175,42 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
         </button>
       </div>
 
-      {/* Swipeable image area */}
-      <motion.div
-        className="flex-1 overflow-hidden relative"
-        drag={photos.length > 1 ? 'x' : false}
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.15}
-        onDragEnd={handleDragEnd}
-        style={{ touchAction: 'pan-y' } as React.CSSProperties}
+      {/* Swipeable image area — native horizontal scroll-snap, same mechanism
+          as the hero carousel, so both feel identical to swipe. */}
+      <div
+        ref={scrollRef}
+        className="flex-1 flex overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
+        style={{ scrollSnapType: 'x mandatory', touchAction: 'pan-x', scrollbarWidth: 'none' } as React.CSSProperties}
       >
-        <AnimatePresence initial={false} custom={direction} mode="popLayout">
-          <motion.div
-            key={index}
-            className="absolute inset-0 flex items-center justify-center"
-            custom={direction}
-            initial={{ x: direction * 80, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: direction * -80, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.8 }}
+        {photos.map((photo, i) => (
+          <div
+            key={photo}
+            ref={el => { slideRefs.current[i] = el }}
+            className="relative shrink-0 w-full h-full flex items-center justify-center"
+            style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as React.CSSProperties}
           >
             <img
-              src={photos[index]}
+              // Full-screen, object-contain viewer: load the original photo
+              // rather than resizedImage's width-only transform. Verified live
+              // that Supabase's transform endpoint ignores height when only
+              // width is set (ignores requested proportions, returns the
+              // source's untouched original height) — for a fixed-aspect crop
+              // (avatars) that's fixed by requesting an explicit square height,
+              // but here we don't know each photo's true aspect ratio up
+              // front, and getting it wrong makes object-contain shrink the
+              // whole image down to a narrow sliver to avoid "cropping" a
+              // photo that was never actually the reported shape. Uploads are
+              // already capped at ~1440px, so this isn't a meaningful
+              // bandwidth cost for a "view this person's actual photo" screen.
+              src={photo}
               alt=""
               className="w-full h-full object-contain"
               draggable={false}
+              loading={Math.abs(i - index) <= 1 ? 'eager' : 'lazy'}
             />
-          </motion.div>
-        </AnimatePresence>
-      </motion.div>
+          </div>
+        ))}
+      </div>
 
       {/* Dots */}
       {photos.length > 1 && (
@@ -154,7 +219,7 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
           style={{ paddingTop: 16, paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
         >
           {photos.map((_, i) => (
-            <button key={i} onClick={() => { haptic(4); navigate(i, i > index ? 1 : -1) }}>
+            <button key={i} onClick={() => { haptic(4); navigate(i) }}>
               <div
                 className="rounded-full transition-all duration-200"
                 style={{ width: i === index ? 24 : 8, height: 8, backgroundColor: i === index ? '#F0EBE3' : 'rgba(255,255,255,0.3)' }}
@@ -170,18 +235,40 @@ function PhotoLightbox({ photos, initialIndex, onClose }: LightboxProps) {
 }
 
 // ── Main modal ──────────────────────────────────────────────────────────────
-export function PublicProfileModal({ userId, onClose, locked = false, onRevealRequest, onSendMessageLocked, onAuthRequired }: PublicProfileModalProps) {
+export function PublicProfileModal({ userId, onClose, locked = false, onRevealRequest, onSendMessageLocked, onAuthRequired, joinRequest }: PublicProfileModalProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [respondingRequest, setRespondingRequest] = useState(false)
   const [photoIndex, setPhotoIndex] = useState(0)
-  const [photoDirection, setPhotoDirection] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  // Single source of truth for the photo list (profile photo first, then the
+  // rest deduped). Both the swipe handler and the render use this — previously
+  // they computed it differently, so the swipe boundary was wrong and you
+  // couldn't reach every photo without opening the fullscreen lightbox.
+  const allPhotos = useMemo(() => {
+    if (!profile) return [] as string[]
+    const base = profile.profile_photo?.split('?')[0]
+    return [
+      ...(profile.profile_photo ? [profile.profile_photo] : []),
+      ...(profile.photos ?? []).filter(p => p.split('?')[0] !== base),
+    ]
+  }, [profile])
   const [savedTrips, setSavedTrips] = useState<any[]>([])
   const [mounted, setMounted] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showBlockReport, setShowBlockReport] = useState(false)
   const router = useRouter()
-  const heroPtrRef = useRef({ x: 0, y: 0 })
+  const heroRef = useRef<HTMLDivElement>(null)
+  // Native horizontal scroll-snap container for the photo carousel — no more
+  // hand-rolled drag physics. The browser's own touch stack (iOS/Android)
+  // disambiguates "swiping the photo" vs. "scrolling the page" far better
+  // than anything hand-tuned in JS: touch-action: pan-x tells it this
+  // element only wants horizontal gestures, so a vertical touch is simply
+  // never captured here in the first place and falls through to the page's
+  // normal vertical scroll — this is the same mechanism Instagram's own web
+  // carousel uses.
+  const carouselScrollRef = useRef<HTMLDivElement>(null)
+  const slideRefs = useRef<Array<HTMLDivElement | null>>([])
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
   const [dmLoading, setDmLoading] = useState(false)
   const [revealed, setRevealed] = useState(!locked)
@@ -209,6 +296,21 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
     }
   }
 
+  const handleRespondToJoinRequest = async (accept: boolean) => {
+    if (!joinRequest || respondingRequest) return
+    haptic(accept ? 10 : 8)
+    setRespondingRequest(true)
+    try {
+      await respondToJoinRequest(joinRequest.id, accept)
+      if (accept) sendJoinAcceptedPush({ requestId: joinRequest.id, destination: joinRequest.tripDestination })
+      joinRequest.onResponded(accept)
+    } catch (e) {
+      console.error('respondToJoinRequest error', e)
+    } finally {
+      setRespondingRequest(false)
+    }
+  }
+
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
@@ -228,6 +330,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
   useEffect(() => {
     setLoading(true)
     setPhotoIndex(0)
+    if (carouselScrollRef.current) carouselScrollRef.current.scrollLeft = 0
     setSavedTrips([])
     getProfile(userId).then(p => { setProfile(p); setLoading(false) })
     supabase
@@ -239,20 +342,55 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
       .then(({ data }) => setSavedTrips((data ?? []).map((r: any) => r.trip).filter(Boolean)))
   }, [userId])
 
+  // Swipe down anywhere on the hero to dismiss. Safe to run unconditionally
+  // alongside the carousel's native horizontal scroll-snap below: this hook's
+  // listeners are passive (never preventDefault) and only ever fire for a
+  // gesture that's clearly more vertical than horizontal, so a horizontal
+  // photo swipe never triggers it. Must run before the `!mounted` early
+  // return so hook order stays stable across renders.
+  useSwipeDownDismiss(heroRef, onClose, !lightboxOpen && !showBlockReport && !selectedTrip)
+
+  // Preload the neighboring photos so swiping to them is instant instead of
+  // waiting on a fresh network fetch mid-gesture — this was the actual cause
+  // of "photos take so long to load" while sliding.
+  useEffect(() => {
+    if (allPhotos.length < 2) return
+    ;[photoIndex - 1, photoIndex + 1].forEach(i => {
+      if (i < 0 || i >= allPhotos.length) return
+      const img = new window.Image()
+      img.src = resizedImage(allPhotos[i], 900, 78)
+    })
+  }, [photoIndex, allPhotos])
+
+  // Keep `photoIndex` (dots, lightbox initial photo, eager/lazy loading) in
+  // sync with whichever slide is actually visible in the native scroll-snap
+  // carousel. Driven by IntersectionObserver rather than computing from
+  // scrollLeft/width — scroll events during native momentum scrolling are
+  // throttled/coalesced inconsistently across browsers, which was making the
+  // dots lag or miss updates; visibility crossing a threshold is reliable
+  // regardless of how the browser paces scroll events.
+  useLayoutEffect(() => {
+    const root = carouselScrollRef.current
+    if (!root || allPhotos.length === 0) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        const mostVisible = entries.reduce((best, e) => (e.intersectionRatio > (best?.intersectionRatio ?? 0) ? e : best), entries[0])
+        if (!mostVisible || mostVisible.intersectionRatio < 0.5) return
+        const idx = slideRefs.current.indexOf(mostVisible.target as HTMLDivElement)
+        if (idx !== -1) setPhotoIndex(prev => (prev === idx ? prev : idx))
+      },
+      { root, threshold: [0.5] }
+    )
+    slideRefs.current.slice(0, allPhotos.length).forEach(el => { if (el) io.observe(el) })
+    return () => io.disconnect()
+  }, [allPhotos, loading, profile])
+
   if (!mounted) return null
 
-  const navigatePhoto = (next: number, dir: number) => {
-    setPhotoDirection(dir)
-    setPhotoIndex(next)
-  }
-
-  const handleHeroDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const allPhotos = profile?.photos?.length ? profile.photos : profile?.profile_photo ? [profile.profile_photo] : []
-    if (info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -VELOCITY_THRESHOLD) {
-      if (photoIndex < allPhotos.length - 1) navigatePhoto(photoIndex + 1, 1)
-    } else if (info.offset.x > SWIPE_THRESHOLD || info.velocity.x > VELOCITY_THRESHOLD) {
-      if (photoIndex > 0) navigatePhoto(photoIndex - 1, -1)
-    }
+  // Native scroll-snap suppresses the click event that would otherwise fire
+  // after a drag-scroll, so this only ever fires for a genuine tap.
+  const handleCarouselTap = () => {
+    if (!isLocked) setLightboxOpen(true)
   }
 
   const content = (
@@ -263,19 +401,21 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.9 }}
-        className="relative w-full sm:max-w-lg flex flex-col overflow-hidden"
-        style={{ backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh' }}
+        className="relative w-full sm:max-w-lg flex flex-col overflow-y-auto overflow-x-hidden overscroll-y-none"
+        style={{
+          backgroundColor: '#000', borderRadius: '20px 20px 0 0', height: '100dvh',
+          // The join-request bar is a fixed overlay (trip card + buttons),
+          // not part of this scroll flow, so nothing here reserves space for
+          // it — without this the bar just covers the bottom of the profile
+          // (Send Message, Block/Report) and it's unreachable by scrolling.
+          paddingBottom: joinRequest ? 260 : undefined,
+        }}
       >
         {loading || !profile ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
           </div>
         ) : (() => {
-          const profilePhotoBase = profile.profile_photo?.split('?')[0]
-          const allPhotos = [
-            ...(profile.profile_photo ? [profile.profile_photo] : []),
-            ...(profile.photos ?? []).filter(p => p.split('?')[0] !== profilePhotoBase),
-          ]
           const mainPhoto = allPhotos[photoIndex] ?? null
           const travelStyles = profile.travel_styles ?? []
           const languages = profile.languages ?? []
@@ -288,33 +428,48 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
           return (
             <>
               {/* ── Hero ── */}
-              <div className="relative shrink-0" style={{ height: '45dvh' }}>
+              <div ref={heroRef} className="relative shrink-0 w-full overflow-hidden" style={{ height: '66dvh', backgroundColor: '#111' }}>
 
-                {/* Photo with slide animation */}
-                <AnimatePresence initial={false} custom={photoDirection} mode="popLayout">
-                  {mainPhoto ? (
-                    <motion.img
-                      key={photoIndex}
-                      src={mainPhoto}
-                      alt={profile.name}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      custom={photoDirection}
-                      initial={{ x: photoDirection * 60, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      exit={{ x: photoDirection * -60, opacity: 0 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.8 }}
-                      draggable={false}
-                    />
-                  ) : (
-                    <motion.div
-                      key="placeholder"
-                      className="absolute inset-0 flex items-center justify-center"
-                      style={{ backgroundColor: '#111' }}
-                    >
-                      <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* Carousel — native horizontal scroll-snap, the same
+                    mechanism Instagram's own web carousel uses. touch-action:
+                    pan-x tells the browser this element only wants horizontal
+                    gestures, so a vertical touch is simply never captured
+                    here and falls straight through to the page's normal
+                    scroll — no JS guessing which axis a gesture belongs to,
+                    the platform's own touch stack (which is far better tuned
+                    than anything hand-rolled) does it for free. Native scroll
+                    also means real momentum/rubber-banding at the ends. */}
+                {mainPhoto ? (
+                  <div
+                    ref={carouselScrollRef}
+                    className="absolute inset-y-0 left-0 w-full flex h-full overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollSnapType: 'x mandatory', touchAction: 'pan-x', scrollbarWidth: 'none' } as React.CSSProperties}
+                    onClick={handleCarouselTap}
+                  >
+                    {allPhotos.map((photo, i) => (
+                      <div
+                        key={photo}
+                        ref={el => { slideRefs.current[i] = el }}
+                        className="relative shrink-0 h-full w-full"
+                        style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as React.CSSProperties}
+                      >
+                        <img
+                          src={resizedImage(photo, 900, 78)}
+                          alt={profile.name}
+                          className="w-full h-full object-cover"
+                          draggable={false}
+                          // Only the current + adjacent slides need to be eager —
+                          // the rest can wait until they're swiped near.
+                          loading={Math.abs(i - photoIndex) <= 1 ? 'eager' : 'lazy'}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-white font-bold" style={{ fontSize: 64 }}>{profile.name?.[0]?.toUpperCase()}</span>
+                  </div>
+                )}
 
                 {/* Blur overlay — only when locked, fades out on reveal */}
                 <AnimatePresence>
@@ -334,41 +489,29 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   )}
                 </AnimatePresence>
 
-                {/* Gradient */}
-                <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 20%, rgba(0,0,0,0.95) 100%)' }} />
+                {/* Light top-only gradient — just enough for the close button
+                    to stay legible. */}
+                <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: '22%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 100%)' }} />
 
-                {/* Swipe + tap drag layer — sits above gradient, below close button */}
-                {allPhotos.length > 0 && (
-                  <motion.div
-                    className="absolute inset-0"
-                    drag={allPhotos.length > 1 ? 'x' : false}
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.12}
-                    onDragEnd={handleHeroDragEnd}
-                    onPointerDown={(e) => { heroPtrRef.current = { x: e.clientX, y: e.clientY } }}
-                    onPointerUp={(e) => {
-                      const dx = Math.abs(e.clientX - heroPtrRef.current.x)
-                      const dy = Math.abs(e.clientY - heroPtrRef.current.y)
-                      if (dx < 6 && dy < 6 && !isLocked) setLightboxOpen(true)
-                    }}
-                    style={{ touchAction: 'pan-y', cursor: 'pointer' } as React.CSSProperties}
-                  />
-                )}
+                {/* Bottom gradient fades all the way to solid black so the
+                    photo blends smoothly into the page below it instead of
+                    cutting hard from image to flat black at the seam. */}
+                <div className="absolute inset-x-0 bottom-0 pointer-events-none" style={{ height: '45%', background: 'linear-gradient(to top, #000 0%, rgba(0,0,0,0.55) 45%, transparent 100%)' }} />
 
                 {/* Photo dots */}
                 {allPhotos.length > 1 && (
-                  <div className="absolute flex justify-center gap-1.5 pointer-events-none" style={{ bottom: 88, left: 0, right: 0 }}>
+                  <div className="absolute flex justify-center gap-1.5 pointer-events-none" style={{ bottom: 10, left: 0, right: 0, zIndex: 6 }}>
                     {allPhotos.map((_, i) => (
                       <div
                         key={i}
                         className="rounded-full transition-all duration-200"
-                        style={{ width: i === photoIndex ? 24 : 8, height: 8, backgroundColor: i === photoIndex ? '#F0EBE3' : 'rgba(255,255,255,0.35)' }}
+                        style={{ width: i === photoIndex ? 24 : 8, height: 8, backgroundColor: i === photoIndex ? '#F0EBE3' : 'rgba(255,255,255,0.4)' }}
                       />
                     ))}
                   </div>
                 )}
 
-                {/* Chevron-down close — z-index keeps it above drag layer */}
+                {/* Chevron-down close — z-index keeps it above the carousel track */}
                 <button
                   onClick={() => { haptic(8); onClose() }}
                   className="absolute flex items-center justify-center active:scale-90 transition-transform"
@@ -379,39 +522,56 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                   </svg>
                 </button>
 
-                {/* Verified badge */}
-                {profile.is_verified && (
-                  <div className="absolute flex items-center gap-1 rounded-full px-3 py-1.5" style={{ top: 'calc(env(safe-area-inset-top) + 56px)', right: 16, backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.35)', zIndex: 10 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    <span className="text-white text-xs font-semibold">Verified</span>
-                  </div>
-                )}
-
-                {/* Name / age / location */}
-                <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 pointer-events-none" style={{ zIndex: 5 }}>
-                  <div className="flex items-baseline gap-3 mb-1">
-                    <span className="text-white font-bold" style={{ fontSize: 36 }}>{profile.name}</span>
-                    {profile.age && <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 28, fontWeight: 300 }}>{profile.age}</span>}
-                    {hasPlus(profile) && (
-                      <span
-                        className="font-bold rounded-full px-2.5 py-1"
-                        style={{ backgroundColor: 'rgba(240,235,227,0.18)', border: '0.5px solid rgba(240,235,227,0.4)', color: '#F0EBE3', fontSize: 12, letterSpacing: 0.2 }}
-                      >
-                        TripAlong+
-                      </span>
+                {/* Name / age / verified / location — liquid-glass card
+                    overlaid bottom-left on the photo, so the photo still
+                    fills the frame instead of getting pushed down by text.
+                    pointer-events-none so a swipe starting on this card (a
+                    real chunk of the photo, right where a thumb often lands)
+                    passes through to the carousel's drag layer underneath
+                    instead of being captured by this plain div and falling
+                    back to native page scroll. */}
+                <div className="absolute pointer-events-none" style={{ left: 16, bottom: 34, right: 20, zIndex: 6 }}>
+                  <div
+                    className="inline-flex flex-col rounded-2xl px-4 py-3"
+                    style={{
+                      backgroundColor: 'rgba(20,20,20,0.35)',
+                      backdropFilter: 'blur(20px) saturate(180%)',
+                      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                      border: '0.5px solid rgba(255,255,255,0.2)',
+                      boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+                    } as React.CSSProperties}
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white font-bold" style={{ fontSize: 22 }}>{profile.name}</span>
+                      {profile.age && <span className="text-white font-bold" style={{ fontSize: 22 }}>{profile.age}</span>}
+                      {profile.is_verified && (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="11" fill="#3B82F6"/>
+                          <path d="M8 12.5l2.5 2.5L16 9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                      {hasPlus(profile) && (
+                        <span
+                          className="font-bold rounded-full px-2.5 py-1"
+                          style={{ backgroundColor: 'rgba(240,235,227,0.16)', border: '0.5px solid rgba(240,235,227,0.4)', color: '#F0EBE3', fontSize: 11, letterSpacing: 0.2 }}
+                        >
+                          TripAlong+
+                        </span>
+                      )}
+                    </div>
+                    {(profile.city || profile.country) && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="rgba(255,255,255,0.65)" strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.65)" strokeWidth="2"/></svg>
+                        <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13 }}>{[profile.city, profile.country].filter(Boolean).join(', ')}</span>
+                      </div>
                     )}
                   </div>
-                  {(profile.city || profile.country) && (
-                    <div className="flex items-center gap-1">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="#F0EBE3" strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke="#F0EBE3" strokeWidth="2"/></svg>
-                      <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14 }}>{[profile.city, profile.country].filter(Boolean).join(', ')}</span>
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* ── Scrollable body ── */}
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+              {/* ── Body — flows under the hero now; the whole sheet scrolls
+                  as one page instead of pinning the photo in place. ── */}
+              <div className="shrink-0">
                 <div className="px-6 pt-6 pb-6 flex flex-col gap-7">
 
                   {/* Bio + Instagram */}
@@ -464,7 +624,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                     <div>
                       <p className="text-white font-semibold text-lg mb-3">Travel Preferences</p>
                       <div className="flex flex-wrap gap-2" style={contentBlur}>
-                        {profile.gender && <PrefTile title="Gender" value={profile.gender === 'male' ? '👨 Man' : profile.gender === 'female' ? '👩 Woman' : '🌟 Non-binary'} />}
+                        {profile.gender && <PrefTile title="Gender" value={profile.gender === 'male' ? '👨 Male' : profile.gender === 'female' ? '👩 Female' : '🌟 Other'} />}
                         {profile.travel_with && <PrefTile title="Travels With" value={profile.travel_with === 'everyone' ? '🌍 Everyone' : profile.travel_with === 'female' ? '👩 Women Only' : '👨 Men Only'} />}
                         {label(PERSONALITY_OPT, profile.social_energy) && <PrefTile title="Personality" value={label(PERSONALITY_OPT, profile.social_energy)!} />}
                         {label(PACE_OPTIONS, profile.travel_pace) && <PrefTile title="Daily Pace" value={label(PACE_OPTIONS, profile.travel_pace)!} />}
@@ -566,7 +726,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                             className="relative rounded-2xl overflow-hidden shrink-0 flex items-end active:scale-[0.97] transition-transform"
                             style={{ width: 110, height: 150, backgroundColor: '#111' }}
                           >
-                            {t.cover_image && <img src={t.cover_image} alt={t.destination} className="absolute inset-0 w-full h-full object-cover" />}
+                            {t.cover_image && <img src={resizedImage(t.cover_image, 400, 70)} alt={t.destination} className="absolute inset-0 w-full h-full object-cover" />}
                             <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.85) 100%)' }} />
                             <p className="relative text-white font-bold text-xs p-2.5 leading-tight" style={{ letterSpacing: -0.2 }}>{t.destination}</p>
                           </button>
@@ -676,6 +836,61 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
           )
         })()}
       </motion.div>
+
+      {/* Join-request review bar — fixed over the scrollable profile so it's
+          always reachable without hunting for it, and is the only place a
+          join request can actually be accepted/declined from. */}
+      {joinRequest && (
+        <div
+          className="fixed left-0 right-0 z-[75] px-5 pt-5"
+          style={{
+            bottom: 0,
+            paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+            background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.85) 30%, #000 65%)',
+          }}
+        >
+          <p className="text-center text-white/50 text-xs mb-2.5">Wants to join</p>
+          <button
+            type="button"
+            onClick={() => { haptic(8); getTrip(joinRequest.tripId).then(trip => { if (trip) setSelectedTrip(trip) }) }}
+            className="w-full flex items-center gap-3 mb-3 p-2.5 rounded-2xl active:opacity-75 transition-opacity"
+            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+          >
+            <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
+              {joinRequest.tripCoverImage ? (
+                <img src={resizedImage(joinRequest.tripCoverImage, 100)} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span style={{ fontSize: 18 }}>🌍</span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-white font-semibold text-sm truncate">{joinRequest.tripDestination}</p>
+              {joinRequest.tripCountry && <p className="text-white/40 text-xs truncate">{joinRequest.tripCountry}</p>}
+            </div>
+            <span className="shrink-0 text-white/30 text-xs font-medium">View trip →</span>
+          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => handleRespondToJoinRequest(false)}
+              disabled={respondingRequest}
+              className="flex-1 font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50"
+              style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.75)', padding: '14px' }}
+            >
+              Decline
+            </button>
+            <button
+              type="button"
+              onClick={() => handleRespondToJoinRequest(true)}
+              disabled={respondingRequest}
+              className="flex-1 font-bold text-sm rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50"
+              style={{ backgroundColor: '#F0EBE3', color: '#000', padding: '14px' }}
+            >
+              {respondingRequest ? 'Please wait…' : 'Accept'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 

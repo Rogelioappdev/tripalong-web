@@ -26,6 +26,7 @@ export type UserProfile = {
   trial_start_at: string | null
   swipe_variant: string | null
   is_verified: boolean
+  is_beta_tester: boolean
   created_at: string
   updated_at: string
 }
@@ -42,6 +43,7 @@ export type Trip = {
   start_date: string | null
   end_date: string | null
   is_flexible_dates: boolean
+  season_label: string | null
   vibes: string[]
   pace: 'slow' | 'balanced' | 'fast' | null
   group_preference: 'male' | 'female' | 'everyone' | 'mixed' | null
@@ -50,6 +52,8 @@ export type Trip = {
   age_min: number | null
   age_max: number | null
   status: 'planning' | 'confirmed' | 'completed' | 'cancelled'
+  latitude: number | null
+  longitude: number | null
   created_at: string
   updated_at: string
 }
@@ -101,11 +105,11 @@ export type DMMessage = {
   conversation_id: string
   sender_id: string
   content: string
-  type: 'text' | 'image'
+  type: 'text' | 'image' | 'video'
   reply_to_id: string | null
   created_at: string
   sender?: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
-  reply_to?: { id: string; content: string; sender?: { name: string } } | null
+  reply_to?: { id: string; content: string; sender_id?: string; sender?: { name: string } } | null
   reactions?: MessageReaction[]
 }
 
@@ -120,12 +124,12 @@ export type TripMessage = {
   trip_chat_id: string
   sender_id: string
   content: string
-  type: 'text' | 'image' | 'system'
+  type: 'text' | 'image' | 'video' | 'system'
   reply_to_id: string | null
   is_edited: boolean
   created_at: string
   sender?: Pick<UserProfile, 'id' | 'name' | 'profile_photo'>
-  reply_to?: { id: string; content: string; sender?: { name: string } } | null
+  reply_to?: { id: string; content: string; sender_id?: string; sender?: { name: string } } | null
   reactions?: MessageReaction[]
 }
 

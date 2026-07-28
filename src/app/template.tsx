@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import { motion } from 'framer-motion'
 import { getTabDir } from '@/lib/tab-direction'
 
@@ -7,7 +8,12 @@ const isNativeApp =
   typeof navigator !== 'undefined' && navigator.userAgent.includes('TripAlong')
 
 export default function Template({ children }: { children: React.ReactNode }) {
-  const dir = getTabDir()
+  // getTabDir() consumes the flag (resets it to 0), so it must only be read
+  // once per navigation instance — a ref (not a plain call in the render
+  // body) guarantees that even under StrictMode's double-render.
+  const dirRef = useRef<number | null>(null)
+  if (dirRef.current === null) dirRef.current = getTabDir()
+  const dir = dirRef.current
 
   // No animation for direct navigation (non-tab-switch)
   if (dir === 0) return <>{children}</>

@@ -80,7 +80,77 @@ export async function sendPushNotification(params: {
   senderId: string
   senderName: string
   content: string
-  type: 'text' | 'image' | 'join'
+  type: 'text' | 'image' | 'video' | 'join'
+  url: string
+}): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    await fetch('/api/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(params),
+    })
+  } catch {}
+}
+
+export async function sendTripInvitePush(params: { inviteId: string; destination?: string }): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    await fetch('/api/push/send-trip-invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(params),
+    })
+  } catch {}
+}
+
+export async function sendJoinRequestPush(params: { requestId: string; requesterName?: string; destination?: string }): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    await fetch('/api/push/send-join-request', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(params),
+    })
+  } catch {}
+}
+
+export async function sendJoinAcceptedPush(params: { requestId: string; destination?: string }): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    await fetch('/api/push/send-join-accepted', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(params),
+    })
+  } catch {}
+}
+
+// DM equivalent of sendPushNotification — same /api/push/send endpoint, keyed
+// by conversationId instead of chatId so it resolves recipients via
+// conversation_members rather than trip_chat_members.
+export async function sendDMPushNotification(params: {
+  conversationId: string
+  senderId: string
+  senderName: string
+  content: string
+  type: 'text' | 'image' | 'video'
   url: string
 }): Promise<void> {
   try {

@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { trialDaysLeft, getTrialStatus, claimFoundingTrial } from '@/lib/trial'
 import { startCheckout } from '@/lib/subscription'
+import { track } from '@/lib/analytics'
+import { isNativeApp } from '@/lib/purchase'
 import type { UserProfile } from '@/lib/types'
 import { useRouter } from 'next/navigation'
 
@@ -33,6 +35,10 @@ export function PlusDetailsSheet({ profile, userId, onClose }: Props) {
   const daysLeft = trialDaysLeft(profile)
   const noTrial = trialStatus === 'none'
 
+  useEffect(() => {
+    track('paywall_viewed', { surface: 'plus_details', rail: isNativeApp() ? 'native' : 'web' })
+  }, [])
+
   const handleCTA = async () => {
     haptic(12)
     setLoading(true)
@@ -43,7 +49,7 @@ export function PlusDetailsSheet({ profile, userId, onClose }: Props) {
         onClose()
         router.push('/feed')
       } else {
-        await startCheckout(billing === 'annual' ? 'plus_annual' : 'plus_monthly')
+        await startCheckout(billing === 'annual' ? 'plus_annual' : 'plus_monthly', 'upgrade')
       }
     } catch (err: any) {
       setError(err?.message ?? 'Something went wrong.')

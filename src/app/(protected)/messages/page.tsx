@@ -2,19 +2,36 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
-import { AnimatePresence } from 'framer-motion'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'framer-motion'
 import { NavBar } from '@/components/NavBar'
 import { supabase } from '@/lib/supabase'
-import { getUserTripChats, getDMConversations, getProfileViewers, getProfile } from '@/lib/queries'
+import {
+  getUserTripChats, getDMConversations, getMyViewerCount, getProfile,
+  setTripChatPinned, setDMPinned, setTripChatMuted, setDMMuted,
+  leaveTripFromChat, leaveHangalongFromChat, deleteDMConversation,
+  getMyPendingTripInvites, respondToTripInvite,
+  getMyPendingJoinRequests,
+  getMyUnreadNotificationCount,
+} from '@/lib/queries'
 import { getPushState, registerPush } from '@/lib/push'
 import { hasPlus } from '@/lib/trial'
 import { initPresence, useOnlineUsers, formatLastSeen } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
+import { displayName } from '@/lib/displayName'
 import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
+import { ConversationActionSheet } from '@/components/ConversationActionSheet'
+import { JoinCelebration } from '@/components/JoinCelebration'
+import { PublicProfileModal } from '@/components/PublicProfileModal'
+import { RequestSentToast } from '@/components/RequestSentToast'
+import { NotificationCenterSheet } from '@/components/NotificationCenterSheet'
 import { isNativeApp } from '@/lib/native-app'
+import { resizedAvatar } from '@/lib/imageUrl'
+import { mediaPreviewLabel } from '@/lib/messagePreview'
+
+const MESSAGES_SCROLL_KEY = 'ta-messages-scroll-y'
 
 function CheckTick({ seen }: { seen: boolean }) {
   const c = seen ? '#53bdeb' : 'rgba(255,255,255,0.55)'
@@ -73,6 +90,85 @@ function MessagesSkeleton() {
   )
 }
 
+function PinIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"
+        fill={filled ? '#F0EBE3' : 'none'}
+        stroke={filled ? '#F0EBE3' : 'rgba(255,255,255,0.4)'}
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function SelectCheckbox({ checked }: { checked: boolean }) {
+  return (
+    <div
+      className="shrink-0 rounded-full flex items-center justify-center transition-colors"
+      style={{
+        width: 22,
+        height: 22,
+        backgroundColor: checked ? '#F0EBE3' : 'transparent',
+        border: checked ? 'none' : '1.5px solid rgba(255,255,255,0.3)',
+      }}
+    >
+      {checked && (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+          <path d="M20 6L9 17l-5-5" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )}
+    </div>
+  )
+}
+
+function SelectionHeader({
+  count, confirming, confirmLabel, onCancel, onMute, onConfirmRequest, onConfirm,
+}: {
+  count: number
+  confirming: boolean
+  confirmLabel: string
+  onCancel: () => void
+  onMute: () => void
+  onConfirmRequest: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between px-5 py-3 border-b border-white/6" style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
+      <button type="button" onClick={onCancel} className="text-white/60 text-sm font-medium active:opacity-60">
+        Cancel
+      </button>
+      {confirming ? (
+        <span className="text-white text-sm font-semibold">Sure? This can't be undone</span>
+      ) : (
+        <span className="text-white/80 text-sm font-semibold">{count} selected</span>
+      )}
+      {confirming ? (
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={count === 0}
+          className="text-sm font-semibold disabled:opacity-40"
+          style={{ color: '#FF453A' }}
+        >
+          {confirmLabel}
+        </button>
+      ) : (
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={onMute} disabled={count === 0} className="text-white/70 text-xs font-semibold disabled:opacity-30 active:opacity-60">
+            Mute
+          </button>
+          <button type="button" onClick={onConfirmRequest} disabled={count === 0} className="text-sm font-semibold disabled:opacity-30 active:opacity-60" style={{ color: '#FF453A' }}>
+            {confirmLabel}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function UnreadBadge({ count }: { count: number }) {
   if (count <= 0) return null
   return (
@@ -93,15 +189,131 @@ function UnreadBadge({ count }: { count: number }) {
 
 export default function MessagesPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [pageLoading, setPageLoading] = useState(true)
   const [pushState, setPushState] = useState<'unsupported' | 'granted' | 'denied' | 'default' | null>(null)
   const [pushLoading, setPushLoading] = useState(false)
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string | null>>({})
   const [showViews, setShowViews] = useState(false)
-  const [viewerCount, setViewerCount] = useState(0)
+  const [showNotifications, setShowNotifications] = useState(false)
   const [isPlus, setIsPlus] = useState(false)
   const onlineUsers = useOnlineUsers()
+
+  // Trip invites — persistent (no dismiss) until accepted or rejected.
+  const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null)
+  const [celebrationTrip, setCelebrationTrip] = useState<any | null>(null)
+  const [celebrationChatId, setCelebrationChatId] = useState<string | null>(null)
+
+  const { data: pendingInvites = [] } = useQuery({
+    queryKey: ['pendingTripInvites', userId],
+    queryFn: getMyPendingTripInvites,
+    enabled: !!userId,
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+  })
+
+  const handleAcceptInvite = async (invite: any) => {
+    setRespondingInviteId(invite.id)
+    haptic(10)
+    try {
+      const result = await respondToTripInvite(invite.id, true)
+      queryClient.invalidateQueries({ queryKey: ['pendingTripInvites', userId] })
+      queryClient.invalidateQueries({ queryKey: ['tripChats', userId] })
+      setCelebrationChatId(result?.chatId ?? null)
+      setCelebrationTrip(invite.trip)
+    } catch (e) {
+      console.error('Accept trip invite error', e)
+      alert("Couldn't join this trip — it may no longer be available.")
+    } finally {
+      setRespondingInviteId(null)
+    }
+  }
+
+  const handleRejectInvite = async (invite: any) => {
+    setRespondingInviteId(invite.id)
+    haptic(8)
+    try {
+      await respondToTripInvite(invite.id, false)
+      queryClient.invalidateQueries({ queryKey: ['pendingTripInvites', userId] })
+    } catch (e) {
+      console.error('Reject trip invite error', e)
+    } finally {
+      setRespondingInviteId(null)
+    }
+  }
+
+  // Join requests (trip full) — unlike invites, these have no inline
+  // accept/decline. The top banner just shows a count; tapping it opens the
+  // full list, and only from a person's own profile (opened from that list)
+  // can the creator actually respond, by design.
+  const [viewingJoinRequest, setViewingJoinRequest] = useState<any | null>(null)
+  const [showJoinRequestsList, setShowJoinRequestsList] = useState(false)
+  const [joinRequestAcceptedMsg, setJoinRequestAcceptedMsg] = useState<string | null>(null)
+
+  const { data: pendingJoinRequests = [] } = useQuery({
+    queryKey: ['pendingJoinRequests', userId],
+    queryFn: getMyPendingJoinRequests,
+    enabled: !!userId,
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+  })
+
+  // Long-press → per-row action sheet (mirrors the message-bubble long-press
+  // pattern in the chat page: a timer armed on pointerdown, cancelled on any
+  // move/up, with holdFired gating the click that follows pointerup so the
+  // row doesn't also navigate).
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdFired = useRef(false)
+  const [actionSheetChat, setActionSheetChat] = useState<any | null>(null)
+  const [actionSheetDM, setActionSheetDM] = useState<any | null>(null)
+
+  // Bulk select mode — scoped to one section at a time (can't mix leaving
+  // group chats with deleting DMs in one bulk action).
+  const [selectMode, setSelectMode] = useState<'chats' | 'dms' | null>(null)
+  const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(new Set())
+  const [selectedDmIds, setSelectedDmIds] = useState<Set<string>>(new Set())
+  const [bulkConfirming, setBulkConfirming] = useState(false)
+
+  const exitSelectMode = () => {
+    setSelectMode(null)
+    setSelectedChatIds(new Set())
+    setSelectedDmIds(new Set())
+    setBulkConfirming(false)
+  }
+
+  const toggleChatSelected = (chatId: string) => {
+    haptic(6)
+    setSelectedChatIds(prev => {
+      const next = new Set(prev)
+      if (next.has(chatId)) next.delete(chatId); else next.add(chatId)
+      return next
+    })
+  }
+
+  const toggleDmSelected = (dmId: string) => {
+    haptic(6)
+    setSelectedDmIds(prev => {
+      const next = new Set(prev)
+      if (next.has(dmId)) next.delete(dmId); else next.add(dmId)
+      return next
+    })
+  }
+
+  const handleRowPointerDown = (kind: 'chat' | 'dm', item: any) => {
+    if (selectMode) return
+    holdFired.current = false
+    holdTimer.current = setTimeout(() => {
+      holdFired.current = true
+      haptic(15)
+      if (kind === 'chat') setActionSheetChat(item)
+      else setActionSheetDM(item)
+    }, 420)
+  }
+
+  const handleRowPointerCancel = () => {
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null }
+  }
 
   useEffect(() => {
     setPushState(getPushState())
@@ -121,16 +333,33 @@ export default function MessagesPage() {
       setUserId(session.user.id)
       setPageLoading(false)
       initPresence(session.user.id)
-      getProfileViewers(50).then(v => setViewerCount(v.length))
       getProfile(session.user.id).then(p => setIsPlus(hasPlus(p)))
     })
   }, [router])
+
+  // Real COUNT(*), not capped at 50 like getProfileViewers, and polled so a
+  // new view shows up without needing to reload the tab.
+  const { data: viewerCount = 0 } = useQuery({
+    queryKey: ['viewerCount', userId],
+    queryFn: getMyViewerCount,
+    enabled: !!userId,
+    refetchInterval: 15_000,
+  })
+
+  const { data: unreadNotifCount = 0, refetch: refetchUnreadNotifCount } = useQuery({
+    queryKey: ['unreadNotifCount', userId],
+    queryFn: getMyUnreadNotificationCount,
+    enabled: !!userId,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
 
   const { data: tripChats = [], isLoading: chatsLoading, isError: chatsError, refetch: refetchChats } = useQuery({
     queryKey: ['tripChats', userId],
     queryFn: () => getUserTripChats(userId!),
     enabled: !!userId,
     staleTime: 30_000,
+    refetchInterval: 5000,
   })
 
   const { data: dms = [], isLoading: dmsLoading, isError: dmsError, refetch: refetchDms } = useQuery({
@@ -138,7 +367,117 @@ export default function MessagesPage() {
     queryFn: () => getDMConversations(userId!),
     enabled: !!userId,
     staleTime: 30_000,
+    refetchInterval: 5000,
   })
+
+  // Pin/unpin — optimistically re-sort the cached list (pinned first, each
+  // group otherwise in its existing order) so the row jumps to the top
+  // immediately instead of waiting on a refetch.
+  const handleTogglePinChat = (chatId: string, currentlyPinned: boolean) => {
+    haptic(8)
+    queryClient.setQueryData<any[]>(['tripChats', userId], old => {
+      if (!old) return old
+      const next = old.map(item =>
+        item.trip_chat?.id === chatId ? { ...item, is_pinned: !currentlyPinned } : item
+      )
+      return [...next].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
+    })
+    setTripChatPinned(chatId, !currentlyPinned).catch(() => {
+      queryClient.invalidateQueries({ queryKey: ['tripChats', userId] })
+    })
+  }
+
+  const handleTogglePinDM = (dmId: string, currentlyPinned: boolean) => {
+    haptic(8)
+    queryClient.setQueryData<any[]>(['dms', userId], old => {
+      if (!old) return old
+      const next = old.map(item =>
+        item.id === dmId ? { ...item, is_pinned: !currentlyPinned } : item
+      )
+      return [...next].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
+    })
+    setDMPinned(dmId, !currentlyPinned).catch(() => {
+      queryClient.invalidateQueries({ queryKey: ['dms', userId] })
+    })
+  }
+
+  const handleToggleMuteChat = (chatId: string, currentlyMuted: boolean) => {
+    haptic(8)
+    queryClient.setQueryData<any[]>(['tripChats', userId], old =>
+      (old ?? []).map(item => item.trip_chat?.id === chatId ? { ...item, is_muted: !currentlyMuted } : item)
+    )
+    setTripChatMuted(chatId, !currentlyMuted).catch(() => {
+      queryClient.invalidateQueries({ queryKey: ['tripChats', userId] })
+    })
+  }
+
+  const handleToggleMuteDM = (dmId: string, currentlyMuted: boolean) => {
+    haptic(8)
+    queryClient.setQueryData<any[]>(['dms', userId], old =>
+      (old ?? []).map(item => item.id === dmId ? { ...item, is_muted: !currentlyMuted } : item)
+    )
+    setDMMuted(dmId, !currentlyMuted).catch(() => {
+      queryClient.invalidateQueries({ queryKey: ['dms', userId] })
+    })
+  }
+
+  // Leave one or more group chats. Optimistically drops them from the cached
+  // list, then leaves each on the server — a trip chat vs. a hangalong chat
+  // hits a different membership table, so branch per item.
+  const handleLeaveChats = async (items: any[]) => {
+    const ids = new Set(items.map(i => i.trip_chat?.id).filter(Boolean))
+    queryClient.setQueryData<any[]>(['tripChats', userId], old => (old ?? []).filter(i => !ids.has(i.trip_chat?.id)))
+    try {
+      await Promise.all(items.map(item => {
+        const chat = item.trip_chat
+        return chat.trip ? leaveTripFromChat(chat.trip.id, chat.id) : leaveHangalongFromChat(chat.hangalong.id, chat.id)
+      }))
+    } catch (e) {
+      console.error('Leave chat(s) failed', e)
+      queryClient.invalidateQueries({ queryKey: ['tripChats', userId] })
+    }
+  }
+
+  // Delete one or more DMs from the current user's own list only.
+  const handleDeleteDMs = async (items: any[]) => {
+    const ids = new Set(items.map(i => i.id))
+    queryClient.setQueryData<any[]>(['dms', userId], old => (old ?? []).filter(i => !ids.has(i.id)))
+    try {
+      await Promise.all(items.map(item => deleteDMConversation(item.id)))
+    } catch (e) {
+      console.error('Delete DM(s) failed', e)
+      queryClient.invalidateQueries({ queryKey: ['dms', userId] })
+    }
+  }
+
+  const handleBulkConfirm = async () => {
+    if (selectMode === 'chats') {
+      const items = (tripChats as any[]).filter(i => selectedChatIds.has(i.trip_chat?.id))
+      await handleLeaveChats(items)
+    } else if (selectMode === 'dms') {
+      const items = (dms as any[]).filter(i => selectedDmIds.has(i.id))
+      await handleDeleteDMs(items)
+    }
+    exitSelectMode()
+  }
+
+  const handleBulkMute = async () => {
+    haptic(8)
+    if (selectMode === 'chats') {
+      const items = (tripChats as any[]).filter(i => selectedChatIds.has(i.trip_chat?.id))
+      queryClient.setQueryData<any[]>(['tripChats', userId], old =>
+        (old ?? []).map(i => selectedChatIds.has(i.trip_chat?.id) ? { ...i, is_muted: true } : i)
+      )
+      await Promise.all(items.map(i => setTripChatMuted(i.trip_chat.id, true).catch(() => {})))
+    } else if (selectMode === 'dms') {
+      const items = (dms as any[]).filter(i => selectedDmIds.has(i.id))
+      queryClient.setQueryData<any[]>(['dms', userId], old =>
+        (old ?? []).map(i => selectedDmIds.has(i.id) ? { ...i, is_muted: true } : i)
+      )
+      await Promise.all(items.map(i => setDMMuted(i.id, true).catch(() => {})))
+    }
+    exitSelectMode()
+  }
 
   // Fetch last_seen_at for all DM contacts
   useEffect(() => {
@@ -152,6 +491,51 @@ export default function MessagesPage() {
       setLastSeenMap(map)
     })
   }, [dms])
+
+  // Remember scroll position across navigation (e.g. into a chat/DM and back).
+  // Saved continuously on scroll, not just on unmount — Next's client router
+  // cache can keep this page's component instance alive rather than tearing
+  // it down on navigation, which would silently skip an unmount-only save.
+  useEffect(() => {
+    const onScroll = () => {
+      try { sessionStorage.setItem(MESSAGES_SCROLL_KEY, String(window.scrollY)) } catch {}
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Restore that saved position once real content replaces the skeleton.
+  // Something (Next's own scroll-to-top-on-navigate handling, most likely)
+  // resets scroll back to 0 shortly after a plain single restore attempt, so
+  // this re-asserts the saved position across a few animation frames plus a
+  // short spread of delayed retries — brute-force, but it makes sure our
+  // restore is the one that "wins" and sticks, whichever those competing
+  // resets are and whenever they land. Also doubles as the fix for mobile
+  // WebKit sometimes leaving this page un-painted (black) after a fast
+  // chat/DM -> back navigation until something forces a repaint — each
+  // restore includes the same 1px scrollBy nudge that forces that flush.
+  useEffect(() => {
+    if (pageLoading || chatsLoading || dmsLoading) return
+    let savedY = 0
+    try { savedY = Number(sessionStorage.getItem(MESSAGES_SCROLL_KEY)) || 0 } catch {}
+
+    const apply = () => {
+      if (savedY > 0) window.scrollTo(0, savedY)
+      window.scrollBy(0, 1)
+      window.scrollBy(0, -1)
+    }
+
+    const raf1 = requestAnimationFrame(() => {
+      apply()
+      requestAnimationFrame(apply)
+    })
+    const timers = [50, 150, 350, 600].map(ms => setTimeout(apply, ms))
+
+    return () => {
+      cancelAnimationFrame(raf1)
+      timers.forEach(clearTimeout)
+    }
+  }, [pageLoading, chatsLoading, dmsLoading])
 
   if (pageLoading || chatsLoading || dmsLoading) return <MessagesSkeleton />
 
@@ -169,30 +553,127 @@ export default function MessagesPage() {
           />
         )}
       </AnimatePresence>
+      {showNotifications && (
+        <NotificationCenterSheet
+          onClose={() => setShowNotifications(false)}
+          onUnreadChange={refetchUnreadNotifCount}
+        />
+      )}
       <main className="md:pt-14 min-h-screen bg-black" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 82px)' }}>
         <div className="max-w-2xl mx-auto">
           {/* Mobile header */}
           <div className="md:hidden flex items-center justify-between px-5 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
             <h1 className="text-white font-extrabold text-2xl">Messages</h1>
-            <button
-              onClick={() => { haptic(8); setShowViews(true) }}
-              className="relative w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-              style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.1)' }}
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="12" cy="12" r="3" stroke="white" strokeWidth="2"/>
-              </svg>
-              {viewerCount > 0 && (
-                <div
-                  className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 rounded-full flex items-center justify-center font-bold text-black px-1"
-                  style={{ backgroundColor: '#F0EBE3', fontSize: 9 }}
-                >
-                  {viewerCount > 99 ? '99+' : viewerCount}
-                </div>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { haptic(8); setShowNotifications(true) }}
+                className="relative w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                {unreadNotifCount > 0 && (
+                  <div
+                    className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 rounded-full flex items-center justify-center font-bold text-black px-1"
+                    style={{ backgroundColor: '#F0EBE3', fontSize: 9 }}
+                  >
+                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                  </div>
+                )}
+              </button>
+              <button
+                onClick={() => { haptic(8); setShowViews(true) }}
+                className="relative w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="12" cy="12" r="3" stroke="white" strokeWidth="2"/>
+                </svg>
+                {viewerCount > 0 && (
+                  <div
+                    className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 rounded-full flex items-center justify-center font-bold text-black px-1"
+                    style={{ backgroundColor: '#F0EBE3', fontSize: 9 }}
+                  >
+                    {viewerCount > 99 ? '99+' : viewerCount}
+                  </div>
+                )}
+              </button>
+            </div>
           </div>
+
+          {/* Trip invites — stay until accepted/rejected, no dismiss */}
+          {pendingInvites.map((invite: any) => (
+            <div
+              key={invite.id}
+              className="mx-5 mt-3 mb-1 flex items-center gap-3 px-4 py-3 rounded-2xl"
+              style={{ backgroundColor: 'rgba(240,235,227,0.06)', border: '0.5px solid rgba(240,235,227,0.16)' }}
+            >
+              <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
+                {invite.trip?.cover_image ? (
+                  <img src={resizedAvatar(invite.trip.cover_image, 100)} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span style={{ fontSize: 18 }}>🌍</span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-semibold truncate">
+                  {invite.inviter?.name ?? 'Someone'} invited you to {invite.trip?.destination ?? 'a trip'}
+                </p>
+                <p className="text-white/40 text-xs truncate">
+                  {invite.trip?.destination}{invite.trip?.country ? `, ${invite.trip.country}` : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleRejectInvite(invite)}
+                  disabled={respondingInviteId === invite.id}
+                  className="font-semibold text-xs px-3 py-1.5 rounded-xl active:scale-95 transition-all disabled:opacity-50"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}
+                >
+                  Decline
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAcceptInvite(invite)}
+                  disabled={respondingInviteId === invite.id}
+                  className="font-semibold text-xs px-3 py-1.5 rounded-xl active:scale-95 transition-all disabled:opacity-50"
+                  style={{ backgroundColor: '#F0EBE3', color: '#000' }}
+                >
+                  {respondingInviteId === invite.id ? '…' : 'Accept'}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Join requests (trip full) — a single count banner instead of one
+              row per request, since a popular trip could rack up many.
+              Tapping opens the full list; only from a person's profile
+              (opened from that list) can the creator actually respond. */}
+          {pendingJoinRequests.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { haptic(8); setShowJoinRequestsList(true) }}
+              className="mx-5 mt-3 mb-1 flex items-center gap-3 px-4 py-3 rounded-2xl text-left active:opacity-80 transition-opacity"
+              style={{ display: 'flex', width: 'calc(100% - 40px)', backgroundColor: 'rgba(240,235,227,0.06)', border: '0.5px solid rgba(240,235,227,0.16)' }}
+            >
+              <div className="w-11 h-11 rounded-full shrink-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(240,235,227,0.1)' }}>
+                <span style={{ fontSize: 20 }}>🙋</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-semibold truncate">
+                  {pendingJoinRequests.length} {pendingJoinRequests.length === 1 ? 'person wants' : 'people want'} to join your trips
+                </p>
+                <p className="text-white/40 text-xs truncate">Tap to review</p>
+              </div>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>
+                <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          )}
 
           {/* Push notification banner */}
           {pushState === 'default' && (
@@ -222,9 +703,21 @@ export default function MessagesPage() {
 
           {/* Trip Chats */}
           <section>
-            <h2 className="px-5 py-3 text-white/40 text-xs font-semibold uppercase tracking-widest border-b border-white/6">
-              Group Chats
-            </h2>
+            {selectMode === 'chats' ? (
+              <SelectionHeader
+                count={selectedChatIds.size}
+                confirming={bulkConfirming}
+                confirmLabel="Leave"
+                onCancel={() => { haptic(8); bulkConfirming ? setBulkConfirming(false) : exitSelectMode() }}
+                onMute={handleBulkMute}
+                onConfirmRequest={() => setBulkConfirming(true)}
+                onConfirm={handleBulkConfirm}
+              />
+            ) : (
+              <h2 className="px-5 py-3 text-white/40 text-xs font-semibold uppercase tracking-widest border-b border-white/6">
+                Group Chats
+              </h2>
+            )}
             {chatsError ? (
               <div className="px-5 py-6 flex flex-col items-center gap-3">
                 <p className="text-white/25 text-sm text-center">Couldn't load chats</p>
@@ -253,15 +746,29 @@ export default function MessagesPage() {
 
                 const hasUnread = item.unread_count > 0 && !item.is_muted
                 const iMySentLast = item.last_message_sender_id === userId
+                const isSelected = selectedChatIds.has(chat.id)
                 return (
-                  <button
+                  <div
                     key={chat.id}
-                    onClick={() => { haptic(8); router.push(`/chat/${chat.id}`) }}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6"
+                    role="button"
+                    tabIndex={0}
+                    onPointerDown={() => handleRowPointerDown('chat', item)}
+                    onPointerUp={handleRowPointerCancel}
+                    onPointerMove={handleRowPointerCancel}
+                    onPointerCancel={handleRowPointerCancel}
+                    onContextMenu={e => { e.preventDefault(); setActionSheetChat(item) }}
+                    onClick={() => {
+                      if (holdFired.current) { holdFired.current = false; return }
+                      if (selectMode === 'chats') { toggleChatSelected(chat.id); return }
+                      haptic(8); router.push(`/chat/${chat.id}`)
+                    }}
+                    onKeyDown={e => { if (e.key === 'Enter') router.push(`/chat/${chat.id}`) }}
+                    className={`w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6 cursor-pointer select-none ${item.is_pinned ? 'bg-white/[0.03]' : ''}`}
                   >
+                    {selectMode === 'chats' && <SelectCheckbox checked={isSelected} />}
                     <div className="w-12 h-12 rounded-2xl bg-white/8 overflow-hidden shrink-0">
                       {avatarPhoto ? (
-                        <img src={avatarPhoto} alt="" className="w-full h-full object-cover" />
+                        <img src={resizedAvatar(avatarPhoto, 100)} alt="" className="w-full h-full object-cover ta-avatar" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xl">{avatarFallback}</div>
                       )}
@@ -277,12 +784,20 @@ export default function MessagesPage() {
                         <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
                           {iMySentLast && <CheckTick seen={item.others_read} />}
                           <p className="text-xs truncate">
-                            {item.last_message?.startsWith('https://') ? '📷 Photo' : (item.last_message ?? 'Group chat')}
+                            {mediaPreviewLabel(item.last_message) ?? (item.last_message ?? 'Group chat')}
                           </p>
                         </div>
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); handleTogglePinChat(chat.id, item.is_pinned) }}
+                        className="p-1 -m-1 active:opacity-60 transition-opacity"
+                        aria-label={item.is_pinned ? 'Unpin chat' : 'Pin chat'}
+                      >
+                        <PinIcon filled={!!item.is_pinned} />
+                      </button>
                       {item.last_message_at && (
                         <span className={`text-xs ${hasUnread && !item.is_muted ? 'text-white/50' : 'text-white/20'}`}>
                           {timeAgo(item.last_message_at)}
@@ -294,7 +809,7 @@ export default function MessagesPage() {
                         <UnreadBadge count={item.unread_count} />
                       )}
                     </div>
-                  </button>
+                  </div>
                 )
               })
             )}
@@ -302,9 +817,21 @@ export default function MessagesPage() {
 
           {/* DMs */}
           <section>
-            <h2 className="px-5 py-3 text-white/40 text-xs font-semibold uppercase tracking-widest border-b border-white/6 mt-4">
-              Direct Messages
-            </h2>
+            {selectMode === 'dms' ? (
+              <SelectionHeader
+                count={selectedDmIds.size}
+                confirming={bulkConfirming}
+                confirmLabel="Delete"
+                onCancel={() => { haptic(8); bulkConfirming ? setBulkConfirming(false) : exitSelectMode() }}
+                onMute={handleBulkMute}
+                onConfirmRequest={() => setBulkConfirming(true)}
+                onConfirm={handleBulkConfirm}
+              />
+            ) : (
+              <h2 className="px-5 py-3 text-white/40 text-xs font-semibold uppercase tracking-widest border-b border-white/6 mt-4">
+                Direct Messages
+              </h2>
+            )}
             {dmsError ? (
               <div className="px-5 py-6 flex flex-col items-center gap-3">
                 <p className="text-white/25 text-sm text-center">Couldn't load messages</p>
@@ -323,19 +850,33 @@ export default function MessagesPage() {
                 const presenceText = formatLastSeen(lastSeen, isOnline)
                 const iMySentLast = dm.last_message_sender_id === userId
                 const dmSeen = iMySentLast && !!dm.other_last_read_at && dm.other_last_read_at >= dm.last_message_at
+                const isSelected = selectedDmIds.has(dm.id)
                 return (
-                  <button
+                  <div
                     key={dm.id}
-                    onClick={() => { haptic(8); router.push(`/dm/${dm.id}`) }}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6"
+                    role="button"
+                    tabIndex={0}
+                    onPointerDown={() => handleRowPointerDown('dm', dm)}
+                    onPointerUp={handleRowPointerCancel}
+                    onPointerMove={handleRowPointerCancel}
+                    onPointerCancel={handleRowPointerCancel}
+                    onContextMenu={e => { e.preventDefault(); setActionSheetDM(dm) }}
+                    onClick={() => {
+                      if (holdFired.current) { holdFired.current = false; return }
+                      if (selectMode === 'dms') { toggleDmSelected(dm.id); return }
+                      haptic(8); router.push(`/dm/${dm.id}`)
+                    }}
+                    onKeyDown={e => { if (e.key === 'Enter') router.push(`/dm/${dm.id}`) }}
+                    className={`w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 active:bg-white/4 active:scale-[0.98] transition-all border-b border-white/6 cursor-pointer select-none ${dm.is_pinned ? 'bg-white/[0.03]' : ''}`}
                   >
+                    {selectMode === 'dms' && <SelectCheckbox checked={isSelected} />}
                     <div className="relative shrink-0">
                       <div className="w-12 h-12 rounded-full bg-white/8 overflow-hidden">
                         {other?.profile_photo ? (
-                          <img src={other.profile_photo} alt="" className="w-full h-full object-cover" />
+                          <img src={resizedAvatar(other.profile_photo, 100)} alt="" className="w-full h-full object-cover ta-avatar" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/50">
-                            {other?.name?.[0]?.toUpperCase() ?? '?'}
+                            {displayName(other?.name)[0].toUpperCase()}
                           </div>
                         )}
                       </div>
@@ -345,35 +886,203 @@ export default function MessagesPage() {
                     </div>
                     <div className="flex-1 min-w-0 text-left">
                       <p className={`text-sm truncate ${hasUnread ? 'text-white font-semibold' : 'text-white/70 font-medium'}`}>
-                        {other?.name ?? 'Unknown'}
+                        {displayName(other?.name)}
                       </p>
-                      {/* Presence line — always shown when available; falls back to last message */}
-                      {presenceText ? (
+                      {/* Last message + delivery status, matching group chat previews.
+                          Presence used to take priority here and hid the message/
+                          checkmark entirely for almost every contact (anyone with a
+                          last_seen_at at all), which was the bug. */}
+                      {dm.last_message ? (
+                        <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
+                          {iMySentLast && <CheckTick seen={dmSeen} />}
+                          <p className="text-xs truncate">
+                            {mediaPreviewLabel(dm.last_message) ?? dm.last_message}
+                          </p>
+                        </div>
+                      ) : presenceText ? (
                         <p className="text-xs mt-0.5 truncate" style={{ color: isOnline ? '#30D158' : 'rgba(255,255,255,0.28)' }}>
                           {presenceText}
                         </p>
-                      ) : dm.last_message ? (
-                        <div className={`flex items-center gap-1 mt-0.5 ${hasUnread ? 'text-white/60' : 'text-white/30'}`}>
-                          {iMySentLast && <CheckTick seen={dmSeen} />}
-                          <p className="text-xs truncate">{dm.last_message}</p>
-                        </div>
                       ) : null}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); handleTogglePinDM(dm.id, dm.is_pinned) }}
+                        className="p-1 -m-1 active:opacity-60 transition-opacity"
+                        aria-label={dm.is_pinned ? 'Unpin chat' : 'Pin chat'}
+                      >
+                        <PinIcon filled={!!dm.is_pinned} />
+                      </button>
                       {dm.last_message_at && (
                         <span className={`text-xs ${hasUnread ? 'text-white/50' : 'text-white/20'}`}>
                           {timeAgo(dm.last_message_at)}
                         </span>
                       )}
-                      <UnreadBadge count={dm.unread_count} />
+                      {dm.is_muted ? (
+                        <span className="text-white/25 text-xs">🔕</span>
+                      ) : (
+                        <UnreadBadge count={dm.unread_count} />
+                      )}
                     </div>
-                  </button>
+                  </div>
                 )
               })
             )}
           </section>
         </div>
       </main>
+
+      <AnimatePresence>
+        {actionSheetChat && (() => {
+          const chat = actionSheetChat.trip_chat
+          const isHang = !!chat.hangalong
+          const title = isHang ? chat.hangalong.title : `${chat.trip?.destination}${chat.trip?.country ? `, ${chat.trip.country}` : ''}`
+          const avatarPhoto = isHang ? chat.hangalong.photo_url : chat.trip?.cover_image
+          return (
+            <ConversationActionSheet
+              kind="group"
+              title={title}
+              subtitle={isHang ? chat.hangalong.location_name : null}
+              avatar={avatarPhoto ? <img src={resizedAvatar(avatarPhoto, 100)} alt="" className="w-full h-full object-cover" /> : <span className="text-lg">🌍</span>}
+              isMuted={!!actionSheetChat.is_muted}
+              onClose={() => setActionSheetChat(null)}
+              onToggleMute={() => handleToggleMuteChat(chat.id, !!actionSheetChat.is_muted)}
+              onSelect={() => {
+                setSelectMode('chats')
+                setSelectedChatIds(new Set([chat.id]))
+                setActionSheetChat(null)
+              }}
+              onConfirm={() => { handleLeaveChats([actionSheetChat]); setActionSheetChat(null) }}
+            />
+          )
+        })()}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {actionSheetDM && (
+          <ConversationActionSheet
+            kind="dm"
+            title={displayName(actionSheetDM.other_user?.name)}
+            avatar={actionSheetDM.other_user?.profile_photo
+              ? <img src={resizedAvatar(actionSheetDM.other_user.profile_photo, 100)} alt="" className="w-full h-full object-cover" />
+              : <span className="text-sm font-bold text-white/50">{displayName(actionSheetDM.other_user?.name)[0].toUpperCase()}</span>}
+            isMuted={!!actionSheetDM.is_muted}
+            onClose={() => setActionSheetDM(null)}
+            onToggleMute={() => handleToggleMuteDM(actionSheetDM.id, !!actionSheetDM.is_muted)}
+            onSelect={() => {
+              setSelectMode('dms')
+              setSelectedDmIds(new Set([actionSheetDM.id]))
+              setActionSheetDM(null)
+            }}
+            onConfirm={() => { handleDeleteDMs([actionSheetDM]); setActionSheetDM(null) }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {celebrationTrip && (
+          <JoinCelebration
+            trip={celebrationTrip}
+            inChat
+            onOpenChat={() => {
+              setCelebrationTrip(null)
+              if (celebrationChatId) router.push(`/chat/${celebrationChatId}`)
+            }}
+            onClose={() => setCelebrationTrip(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Full list of pending join requests — one row per request, tap opens
+          that person's profile to actually accept/decline. */}
+      <AnimatePresence>
+        {showJoinRequestsList && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-[70]"
+              style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowJoinRequestsList(false)}
+            />
+            <motion.div
+              className="fixed bottom-0 left-0 right-0 z-[71] rounded-t-3xl overflow-hidden flex flex-col"
+              style={{ backgroundColor: '#111', maxHeight: '75vh' }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 380, damping: 40, mass: 0.9 }}
+            >
+              <div className="flex justify-center pt-3 pb-1 shrink-0">
+                <div className="w-9 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+              </div>
+              <div className="px-5 pt-2 pb-4 shrink-0" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
+                <p className="text-white font-bold" style={{ fontSize: 20 }}>Join Requests</p>
+                <p className="text-white/40 text-sm mt-0.5">
+                  {pendingJoinRequests.length} {pendingJoinRequests.length === 1 ? 'person wants' : 'people want'} to join your trips
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-2 pb-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
+                {pendingJoinRequests.map((req) => (
+                  <button
+                    key={req.id}
+                    type="button"
+                    onClick={() => { haptic(8); setShowJoinRequestsList(false); setViewingJoinRequest(req) }}
+                    className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left active:bg-white/5 transition-colors"
+                  >
+                    <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
+                      {req.requester_photo ? (
+                        <img src={resizedAvatar(req.requester_photo, 100)} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-white/50 font-bold text-sm">{req.requester_name?.[0]?.toUpperCase() ?? '?'}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-semibold truncate">{req.requester_name}</p>
+                      <p className="text-white/40 text-xs truncate">Wants to join {req.trip_destination}</p>
+                    </div>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>
+                      <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {joinRequestAcceptedMsg && <RequestSentToast message={joinRequestAcceptedMsg} />}
+      </AnimatePresence>
+
+      {viewingJoinRequest && (
+        <PublicProfileModal
+          userId={viewingJoinRequest.requester_id}
+          onClose={() => setViewingJoinRequest(null)}
+          joinRequest={{
+            id: viewingJoinRequest.id,
+            tripId: viewingJoinRequest.trip_id,
+            tripDestination: viewingJoinRequest.trip_destination,
+            tripCountry: viewingJoinRequest.trip_country,
+            tripCoverImage: viewingJoinRequest.trip_cover_image,
+            onResponded: (accepted) => {
+              if (accepted) {
+                setJoinRequestAcceptedMsg(`${viewingJoinRequest.requester_name} accepted to ${viewingJoinRequest.trip_destination}!`)
+                setTimeout(() => setJoinRequestAcceptedMsg(null), 2600)
+              }
+              setViewingJoinRequest(null)
+              queryClient.invalidateQueries({ queryKey: ['pendingJoinRequests', userId] })
+              if (accepted) {
+                queryClient.invalidateQueries({ queryKey: ['tripChats', userId] })
+              }
+            },
+          }}
+        />
+      )}
     </>
   )
 }

@@ -121,20 +121,30 @@ function buildUserVibes(profile: UserProfile): Set<string> {
   return vibes
 }
 
+// ── Gender hard filter ─────────────────────────────────────────────────────────
+// A trip's group_preference restricts WHO can see/join it, based on the
+// viewer's own gender — not the existing members' genders (that was the bug:
+// this used to score against member.gender ratios and never even looked at
+// group_preference, so gender-restricted trips leaked into every feed).
+// 'everyone' and 'mixed' (and null, for legacy rows) are unrestricted.
+export function isTripGenderEligible(
+  trip: Pick<TripWithDetails, 'group_preference'>,
+  userProfile: Pick<UserProfile, 'gender'> | null,
+): boolean {
+  const pref = trip.group_preference
+  if (pref !== 'male' && pref !== 'female') return true
+  return !!userProfile?.gender && userProfile.gender === pref
+}
+
 // ── Core trip score (no bucket list, uses description keywords) ───────────────
 
 function computeTripScore(userProfile: UserProfile, trip: TripWithDetails): number {
+  // Gender hard filter — ineligible trips should never surface, but score them
+  // at 0 as a safety net in case one somehow reaches this far.
+  if (!isTripGenderEligible(trip, userProfile)) return 0
+
   let total = 0
   let max = 0
-
-  // Gender hard filter
-  if (userProfile.travel_with && userProfile.travel_with !== 'everyone') {
-    const members = trip.members ?? []
-    const incompatible = members.filter(m => m.user?.gender && m.user.gender !== userProfile.travel_with)
-    const ratio = 1 - incompatible.length / Math.max(members.length, 1)
-    if (ratio < 0.5) return Math.round(ratio * 30)
-    total += ratio * 20; max += 20
-  }
 
   // 1. Vibe alignment — trip tags + description keywords (60%)
   const userVibes = buildUserVibes(userProfile)
@@ -204,6 +214,7 @@ export function memberCompatibility(user: UserProfile, member: MemberProfile): n
 /** Feed card score — group score when members have data, trip score otherwise. */
 export function calculateTripMatch(userProfile: UserProfile | null, trip: TripWithDetails): number {
   if (!userProfile) return 50
+  if (!isTripGenderEligible(trip, userProfile)) return 0
   return computeGroupScore(userProfile, trip) ?? computeTripScore(userProfile, trip)
 }
 
@@ -213,6 +224,7 @@ export function getTripMatchBreakdown(
   trip: TripWithDetails,
 ): { tripPct: number; groupPct: number | null } {
   if (!userProfile) return { tripPct: 50, groupPct: null }
+  if (!isTripGenderEligible(trip, userProfile)) return { tripPct: 0, groupPct: null }
   return {
     tripPct: computeTripScore(userProfile, trip),
     groupPct: computeGroupScore(userProfile, trip),

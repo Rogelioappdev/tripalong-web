@@ -348,7 +348,7 @@ export default function SplashPage() {
                 Find my people →
               </button>
               <button
-                onClick={() => { haptic(6); router.push('/login') }}
+                onClick={() => { haptic(6); router.push('/onboarding?mode=signin') }}
                 style={{
                   width: '100%', padding: '10px 0',
                   background: 'none', border: 'none', cursor: 'pointer',

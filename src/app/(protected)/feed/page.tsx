@@ -3,19 +3,27 @@
 export const dynamic = 'force-dynamic'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, useAnimation, AnimatePresence } from 'framer-motion'
 import dynamicImport from 'next/dynamic'
 import { haptic } from '@/lib/haptics'
 import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
+import { FilterBar } from '@/components/filters/FilterBar'
+import { PaywallModal } from '@/components/PaywallModal'
+import {
+  applyTripFilters, activeFilterCount, EMPTY_FILTERS,
+  type TripFilters, type FilterDimension,
+} from '@/lib/tripFilters'
 import { AuthGate } from '@/components/AuthGate'
 import { getTrips, getUserSavedTripIds, saveTrip, getProfile, getHangalongs, getMyHangalongs, getUserJoinedHangalongIds } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import { getTrialStatus, getDevTrialOverride, hasPlus } from '@/lib/trial'
 import { getTripMatchBreakdown } from '@/lib/matching'
 import { getNotificationStatusAsync } from '@/lib/push'
+import { track } from '@/lib/analytics'
+import { useNetworkStatus } from '@/lib/useNetworkStatus'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 import { MemberJoinToast } from '@/components/MemberJoinToast'
@@ -35,11 +43,65 @@ const HangDetailModal = dynamicImport(() => import('@/components/HangDetailModal
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
 
+// First filter dimension whose value differs between two filter states — used
+// to tag the filter_dimension_changed analytics event. Seasons and its custom
+// date range are one dimension ('seasons').
+function changedFilterDimension(a: TripFilters, b: TripFilters): FilterDimension | null {
+  if (JSON.stringify(a.location) !== JSON.stringify(b.location)) return 'location'
+  if (JSON.stringify(a.seasons) !== JSON.stringify(b.seasons) || JSON.stringify(a.dateRange) !== JSON.stringify(b.dateRange)) return 'seasons'
+  if (JSON.stringify(a.styles) !== JSON.stringify(b.styles)) return 'styles'
+  if (JSON.stringify(a.genders) !== JSON.stringify(b.genders)) return 'genders'
+  if (JSON.stringify(a.ageRange) !== JSON.stringify(b.ageRange)) return 'ageRange'
+  return null
+}
+
+function Bone({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={`bg-white/8 rounded-2xl animate-pulse ${className}`} style={style} />
+}
+
+// Mimics SwipeCard's shape (rounded-[22px], #111 base) inside the exact same
+// flex-col root SwipeStack itself uses (card area flex-1 + shrink-0 button
+// row below) — matching that structure, not just guessing a height, is what
+// makes the skeleton card come out pixel-identical to the real one instead
+// of stretching into the space the Pass/Join/Save row would otherwise take.
+function FeedSkeleton() {
+  return (
+    <div className="flex flex-col items-center w-full h-full gap-0">
+      <div className="relative w-full flex-1 min-h-0 overflow-hidden rounded-[22px]" style={{ backgroundColor: '#111' }}>
+        <Bone className="absolute inset-0 rounded-none" />
+        <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col gap-3">
+          <Bone style={{ width: '65%', height: 22 }} />
+          <Bone style={{ width: '40%', height: 14 }} />
+          <div className="flex items-center gap-2 mt-1">
+            <Bone className="rounded-full" style={{ width: 28, height: 28 }} />
+            <Bone className="rounded-full" style={{ width: 28, height: 28, marginLeft: -12 }} />
+            <Bone style={{ width: 90, height: 12, marginLeft: 8 }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Reserves the same space as SwipeStack's Pass/Join/Save row so the
+          card above ends up exactly the same height as the loaded card. */}
+      <div className="flex items-center justify-center gap-7 py-3 shrink-0">
+        {['Pass', 'Join', 'Save'].map(label => (
+          <div key={label} className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full" style={{ backgroundColor: '#161616', border: '1px solid rgba(255,255,255,0.1)' }} />
+            <span className="text-transparent text-[10px] font-semibold select-none">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function UpgradeToastHandler({ onUpgrade }: { onUpgrade: () => void }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   useEffect(() => {
     if (searchParams.get('upgrade') !== 'success') return
+    // Returned from Stripe Checkout — the web (Stripe) rail's completion point.
+    // (Native/RevenueCat purchases fire 'purchase_completed' in purchase.ts.)
+    track('purchase_completed', { rail: 'web' })
     onUpgrade()
     router.replace('/feed', { scroll: false })
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -76,12 +138,36 @@ export default function FeedPage() {
   })
   const isPlusUser = hasPlus(feedProfile)
 
+  const [filters, setFilters] = useState<TripFilters>(EMPTY_FILTERS)
+  const [showFilterPaywall, setShowFilterPaywall] = useState(false)
+  // The drafted-but-blocked filters from a "Done" tap that hit the paywall —
+  // applied automatically if the user upgrades, so their exact configured
+  // filter is honored instantly instead of making them redo it post-purchase.
+  const [pendingFilters, setPendingFilters] = useState<TripFilters | null>(null)
+  // Premium gate for the filter bar — same shape as TripDetailModal's joinGate.
+  const filterGate = () => {
+    if (isPlusUser) return true
+    setShowFilterPaywall(true)
+    return false
+  }
+  const handleFiltersChange = (next: TripFilters) => {
+    if (isPlusUser) {
+      const changed = changedFilterDimension(filters, next)
+      if (changed) track('filter_dimension_changed', { dimension: changed, active_count: activeFilterCount(next) })
+    }
+    setFilters(next)
+  }
+
   const [justUpgraded, setJustUpgraded] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
   const [paywallStats, setPaywallStats] = useState<{ viewerCount: number; topMatch: { pct: number; destination: string } | null } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookmarkControls = useAnimation()
+  const { isOnline } = useNetworkStatus()
+  // Not "loading" itself — a separate signal for "this load is taking long
+  // enough that the user should know it's their connection, not a hang."
+  const [slowLoad, setSlowLoad] = useState(false)
 
   // Load initial saved count once userId is known
   useEffect(() => {
@@ -247,6 +333,17 @@ export default function FeedPage() {
     refetchOnMount: 'always',
   })
 
+  const filteredTrips = useMemo(() => applyTripFilters(trips ?? [], filters), [trips, filters])
+
+  // Flip on only once a load has genuinely dragged — on a fast connection
+  // this never shows, so it reads as "your connection is slow" rather than
+  // a generic loading flicker.
+  useEffect(() => {
+    if (!isLoading) { setSlowLoad(false); return }
+    const t = setTimeout(() => setSlowLoad(true), 4000)
+    return () => clearTimeout(t)
+  }, [isLoading])
+
   const { data: hangalongs = [] } = useQuery({
     queryKey: ['hangalongs'],
     queryFn: getHangalongs,
@@ -348,6 +445,34 @@ export default function FeedPage() {
         className="bg-black flex flex-col md:pt-14"
         style={{ height: '100dvh', overflow: 'hidden' }}
       >
+        {/* Offline banner — visible any time the connection drops, not just
+            while a fetch is in flight, so losing wifi mid-session is obvious
+            instead of the feed just quietly going stale. */}
+        <AnimatePresence>
+          {!isOnline && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden shrink-0"
+            >
+              <div
+                className="flex items-center justify-center gap-2 py-2 px-4"
+                style={{ backgroundColor: 'rgba(255,80,80,0.1)', borderBottom: '0.5px solid rgba(255,80,80,0.25)' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9z" fill="#ff8a8a" opacity="0.5"/>
+                  <path d="M5 13l2 2a9.9 9.9 0 0 1 10 0l2-2a12.87 12.87 0 0 0-14 0z" fill="#ff8a8a" opacity="0.5"/>
+                  <path d="M9 17l2 2a4.95 4.95 0 0 1 2 0l2-2a7.9 7.9 0 0 0-6 0z" fill="#ff8a8a" opacity="0.5"/>
+                  <circle cx="12" cy="20" r="1.3" fill="#ff8a8a"/>
+                  <path d="M2 2l20 20" stroke="#ff8a8a" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                <span className="text-xs font-semibold" style={{ color: '#ff8a8a' }}>No internet connection</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Trial expired nudge strip */}
         <AnimatePresence>
           {trialExpiredNudge && !showTrialExpiredPaywall && (
@@ -485,19 +610,51 @@ export default function FeedPage() {
           </button>
         </div>
 
+        {/* Premium feed filters — gated behind Plus via filterGate. The trips
+            prop stays the *unfiltered* list (it feeds FilterSheet's top-country
+            quick-picks; filtering it by the in-progress filters would be circular). */}
+        <FilterBar
+          filters={filters}
+          onChange={handleFiltersChange}
+          trips={trips ?? []}
+          filterGate={filterGate}
+          onGateFail={setPendingFilters}
+        />
+
         {/* Card + buttons — fills remaining space above tab bar */}
         <div
           className="flex-1 min-h-0 flex items-stretch justify-center px-3 md:pb-8"
           style={{ paddingBottom: TAB_BAR_CLEARANCE }}
         >
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center gap-3 w-full">
-              <div className="w-10 h-10 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-              <p className="text-white/30 text-sm">Loading trips...</p>
+            <div className="relative w-full max-w-sm flex flex-col">
+              <AnimatePresence>
+                {slowLoad && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    className="absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                    style={{ top: 12, backgroundColor: 'rgba(255,255,255,0.08)' }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                      <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9z" fill="rgba(255,255,255,0.35)"/>
+                      <path d="M5 13l2 2a9.9 9.9 0 0 1 10 0l2-2a12.87 12.87 0 0 0-14 0z" fill="rgba(255,255,255,0.35)"/>
+                      <path d="M9 17l2 2a4.95 4.95 0 0 1 2 0l2-2a7.9 7.9 0 0 0-6 0z" fill="rgba(255,255,255,0.35)"/>
+                      <circle cx="12" cy="20" r="1.3" fill="rgba(255,255,255,0.35)"/>
+                      <path d="M2 2l20 20" stroke="rgba(255,120,120,0.8)" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    <span className="text-white/50 text-xs font-medium">Slow connection — hang tight</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <FeedSkeleton />
             </div>
           ) : isError ? (
             <div className="flex flex-col items-center justify-center gap-4 w-full">
-              <p className="text-white/30 text-sm text-center">Couldn't load trips</p>
+              <p className="text-white/30 text-sm text-center">
+                {isOnline ? "Couldn't load trips" : "You're offline — check your connection"}
+              </p>
               <button
                 onClick={() => refetch()}
                 className="px-5 py-2.5 rounded-2xl text-sm font-semibold"
@@ -509,7 +666,10 @@ export default function FeedPage() {
           ) : ((trips && trips.length > 0) || (myHangalongs as HangalongWithDetails[]).length > 0 || (hangalongs as HangalongWithDetails[]).length > 0) ? (
             <div className="w-full max-w-sm flex flex-col">
               <SwipeStack
-                trips={trips ?? []}
+                trips={filteredTrips}
+                filtersKey={JSON.stringify(filters)}
+                filtersActive={activeFilterCount(filters) > 0}
+                onClearFilters={() => setFilters(EMPTY_FILTERS)}
                 hangalongs={hangalongs as HangalongWithDetails[]}
                 myHangalongIds={(myHangalongs as HangalongWithDetails[]).map(h => h.id)}
                 joinedHangIds={joinedHangIds}
@@ -605,6 +765,25 @@ export default function FeedPage() {
           onClose={() => setShowSaved(false)}
         />
       )}
+
+      {/* Filters paywall — shown when a non-Plus user taps "Done" on a filter
+          they've configured. Mirrors SwipeStack's PaywallModal wiring so a
+          purchase here unlocks filters immediately, and also applies
+          whatever they'd already drafted instead of making them redo it. */}
+      <AnimatePresence>
+        {showFilterPaywall && (
+          <PaywallModal
+            trigger="filters"
+            userId={userId ?? undefined}
+            onClose={() => setShowFilterPaywall(false)}
+            onSuccess={() => {
+              if (feedProfile) setFeedProfile({ ...feedProfile, subscription_tier: 'plus' })
+              if (pendingFilters) { setFilters(pendingFilters); setPendingFilters(null) }
+            }}
+            onWelcomeDone={(confirmed) => setFeedProfile(confirmed)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Upgrade success toast */}
       <AnimatePresence>

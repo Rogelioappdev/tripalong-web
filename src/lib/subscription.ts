@@ -1,17 +1,20 @@
 import { supabase } from './supabase'
 import { getProfile } from './queries'
 import { hasPlus } from './trial'
+import { track } from './analytics'
 import type { PlanKey } from './stripe'
 import type { UserProfile } from './types'
 
-export async function startCheckout(planKey: PlanKey) {
+export async function startCheckout(planKey: PlanKey, trigger?: string) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.user) throw new Error('Not logged in')
+
+  track('checkout_started', { rail: 'web', billing: planKey.includes('annual') ? 'annual' : 'monthly' })
 
   const res = await fetch('/api/stripe/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-    body: JSON.stringify({ planKey }),
+    body: JSON.stringify({ planKey, trigger }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))

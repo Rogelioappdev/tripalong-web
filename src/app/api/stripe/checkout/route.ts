@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
   try {
-    const { planKey } = await req.json() as { planKey: PlanKey }
+    const { planKey, trigger } = await req.json() as { planKey: PlanKey; trigger?: string }
     const userId = user.id
     const email = user.email ?? ''
 
@@ -60,7 +60,9 @@ export async function POST(req: NextRequest) {
       success_url: `${origin}/feed?upgrade=success&plan=${planKey}`,
       cancel_url: `${origin}/feed?upgrade=cancelled`,
       subscription_data: {
-        metadata: { supabase_user_id: userId, tier: plan.tier },
+        // conversion_trigger rides along on the subscription so the webhook can
+        // attribute the sale after the redirect back from Stripe's checkout.
+        metadata: { supabase_user_id: userId, tier: plan.tier, ...(trigger ? { conversion_trigger: trigger } : {}) },
       },
       allow_promotion_codes: true,
     })

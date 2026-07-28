@@ -4,8 +4,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createTrip, getDestinationPhotos } from '@/lib/queries'
+import { createTrip, geocodeDestination, getDestinationPhotos, getTripChat } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
+import { track } from '@/lib/analytics'
+import { VIBES, SEASONS, GROUP_PREFS } from '@/lib/tripOptions'
+import { remindNotifications } from '@/lib/notifReminder'
 
 interface CreateTripModalProps {
   onClose: () => void
@@ -20,32 +23,10 @@ const QUICK_DESTINATIONS = [
   { city: 'Marrakech', country: 'Morocco' },
 ]
 
-const VIBES = [
-  { value: 'adventure', label: 'Adventure', emoji: '🏕️' },
-  { value: 'chill', label: 'Chill', emoji: '😊' },
-  { value: 'nature', label: 'Nature', emoji: '🌿' },
-  { value: 'cultural', label: 'Culture', emoji: '🏛️' },
-  { value: 'foodie', label: 'Food', emoji: '🍜' },
-  { value: 'party', label: 'Party', emoji: '🎉' },
-  { value: 'beach', label: 'Beach', emoji: '🏖️' },
-  { value: 'spiritual', label: 'Spiritual', emoji: '🙏' },
-  { value: 'road trip', label: 'Road Trip', emoji: '🚗' },
-  { value: 'backpacking', label: 'Backpacking', emoji: '🎒' },
-]
-
-const SEASONS = ['Summer 2026', 'Fall 2026', 'Winter 2026', 'Spring 2027']
-
 const PACES = [
   { value: 'slow', label: 'Relaxed', emoji: '☕' },
   { value: 'balanced', label: 'Balanced', emoji: '⚖️' },
   { value: 'fast', label: 'Fast-paced', emoji: '⚡' },
-]
-
-const GROUP_PREFS = [
-  { value: 'everyone', label: 'Any', emoji: '🌍' },
-  { value: 'female', label: 'Women only', emoji: '👩' },
-  { value: 'male', label: 'Men only', emoji: '👨' },
-  { value: 'mixed', label: 'Mixed', emoji: '🤝' },
 ]
 
 const BUDGETS = [
@@ -117,7 +98,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
     )
   }
 
-  const isValid = !!(destination.trim() && country.trim() && vibes.length > 0 && pace && (season || flexDates || startDate))
+  const isValid = !!(destination.trim() && country.trim() && vibes.length > 0 && pace && budget && (season || flexDates || startDate))
 
   const handleCreate = async () => {
     if (!userId || !isValid) return
@@ -125,10 +106,15 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
     setError('')
     try {
       const dbGroupPref = groupPref === 'mixed' ? 'everyone' : groupPref
+      // Best-effort geocode so the trip shows up on the TripAlong World globe.
+      // Never blocks creation — a null result just means it isn't plotted yet.
+      const coords = await geocodeDestination(destination.trim(), country.trim())
       const tripId = await createTrip({
         creator_id: userId,
         destination: destination.trim(),
         country: country.trim(),
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lng ?? null,
         vibes,
         pace: pace as 'slow' | 'balanced' | 'fast',
         budget_level: budget || null,
@@ -136,6 +122,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
         max_group_size: groupSize,
         description: description.trim() || null,
         is_flexible_dates: flexDates || !!season,
+        season_label: season || null,
         start_date: season ? null : startDate || null,
         end_date: season ? null : endDate || null,
         age_min: anyAge ? null : minAge,
@@ -145,6 +132,8 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
         images: [],
         cover_image: coverImage,
       })
+      track('trip_created', { destination: destination.trim(), vibes_count: vibes.length })
+      remindNotifications('create-trip')
       queryClient.invalidateQueries({ queryKey: ['trips'] })
       haptic(18)
       setCreatedTripId(tripId)
@@ -180,7 +169,13 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
       setSlideIdx(i => i + 1)
     } else {
       onClose()
-      if (createdTripId) router.push(`/trip/${createdTripId}`)
+      // Open the trip's actual group chat (the creator is auto-joined in
+      // createTrip). Fall back to the trip page if the chat lookup hiccups.
+      if (createdTripId) {
+        getTripChat(createdTripId)
+          .then(chat => router.push(`/chat/${chat.id}`))
+          .catch(() => router.push(`/trip/${createdTripId}`))
+      }
     }
   }, [slideIdx, SLIDES.length, onClose, createdTripId, router])
 
@@ -256,10 +251,12 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
               </div>
             </motion.div>
 
-            {/* Destination — bottom, editorial large type */}
+            {/* Destination — bottom, editorial large type. Extra bottom padding
+                keeps "Your trip is live" clear of the "Tap anywhere to continue"
+                hint below (they used to overlap on the same line). */}
             <div style={{
               position: 'absolute', bottom: 0, left: 0, right: 0,
-              padding: '0 28px calc(env(safe-area-inset-bottom) + 36px)',
+              padding: '0 28px calc(env(safe-area-inset-bottom) + 84px)',
             }}>
               {/* Country */}
               <motion.p
@@ -413,7 +410,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                   className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
                   style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
                 >
-                  {slideIdx < SLIDES.length - 1 ? 'Next →' : "Let's go →"}
+                  {slideIdx < SLIDES.length - 1 ? 'Next →' : 'Open Group Chat →'}
                 </button>
                 {slideIdx < SLIDES.length - 1 && (
                   <button
@@ -823,14 +820,12 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
 
             {/* BUDGET */}
             <div>
-              <p className={label} style={{ marginBottom: '12px' }}>
-                Budget <span className="normal-case text-white/25 tracking-normal font-medium"> — optional</span>
-              </p>
+              <p className={label} style={{ marginBottom: '12px' }}>Budget</p>
               <div className="grid grid-cols-3 gap-2">
                 {BUDGETS.map(b => (
                   <button
                     key={b.value}
-                    onClick={() => { haptic(8); setBudget(budget === b.value ? '' : b.value) }}
+                    onClick={() => { haptic(8); setBudget(b.value) }}
                     className="flex flex-col items-center gap-2 py-4 rounded-2xl transition-colors active:scale-95"
                     style={budget === b.value
                       ? { backgroundColor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)' }

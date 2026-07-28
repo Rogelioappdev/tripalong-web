@@ -12,25 +12,21 @@ import { PublicProfileModal } from './PublicProfileModal'
 import { PaywallModal } from './PaywallModal'
 import { FoundingMemberScreen } from './FoundingMemberScreen'
 import { FoundingMemberPaywall } from './FoundingMemberPaywall'
-import { joinTrip, saveTrip, joinTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen } from '@/lib/queries'
+import { joinTrip, saveTrip, getTripChat, getUserJoinedTripIds, getUserSavedTripIds, getProfile, updateProfile, joinHangalong, markTripSeen, markHangalongSeen, getSwipesToday, incrementSwipesToday, requestToJoinTrip } from '@/lib/queries'
+import { sendJoinRequestPush } from '@/lib/push'
 import { JoinCelebration } from './JoinCelebration'
+import { RequestSentToast } from './RequestSentToast'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
+import { track } from '@/lib/analytics'
+import { remindNotifications } from '@/lib/notifReminder'
 import { hasPlus, getTrialStatus } from '@/lib/trial'
 import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 
-// Local date, not UTC — must match the local-midnight countdown below.
-// toISOString() gives the UTC date, which rolls over hours after local
-// midnight for anyone west of UTC, so the counter didn't actually reset when
-// the on-screen timer hit 0:00 — it silently waited for the real UTC rollover.
-const localDateKey = (d: Date) => {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-const todayKey = (uid: string) => `ta_swipes_${uid}_${localDateKey(new Date())}`
-
+// Daily swipe counts now live server-side (see getSwipesToday /
+// incrementSwipesToday), keyed to the UTC date and enforced in Postgres — so
+// the count can't be reset by changing the device timezone or clearing
+// localStorage. The countdown below is aligned to the same UTC rollover.
 const isNativeApp = () =>
   typeof window !== 'undefined' && navigator.userAgent.includes('TripAlong/1.0')
 
@@ -38,7 +34,7 @@ function useMidnightCountdown() {
   const getSecsUntilMidnight = () => {
     const now = new Date()
     const midnight = new Date(now)
-    midnight.setHours(24, 0, 0, 0)
+    midnight.setUTCHours(24, 0, 0, 0) // reset at UTC midnight — matches the server-side counter
     return Math.floor((midnight.getTime() - now.getTime()) / 1000)
   }
   const [secs, setSecs] = useState(() => getSecsUntilMidnight())
@@ -52,16 +48,18 @@ function useMidnightCountdown() {
   const pad = (n: number) => String(n).padStart(2, '0')
   return { h: pad(h), m: pad(m), s: pad(s) }
 }
-const getDailySwipes = (uid: string) => parseInt(localStorage.getItem(todayKey(uid)) ?? '0', 10)
-const incrementDailySwipes = (uid: string) => {
-  const key = todayKey(uid)
-  const next = getDailySwipes(uid) + 1
-  localStorage.setItem(key, String(next))
-  return next
-}
 
 interface SwipeStackProps {
   trips: TripWithDetails[]
+  // Serialized feed filters — changes to this reset the deck to the first
+  // result (see effect below), so applying a filter that shrinks the list
+  // doesn't leave currentIndex pointing past the end.
+  filtersKey?: string
+  // Whether any feed filter dimension is currently active — swaps the
+  // "you've seen them all" empty state for filter-aware copy so a 0-result
+  // filter doesn't read as the app being broken.
+  filtersActive?: boolean
+  onClearFilters?: () => void
   hangalongs?: HangalongWithDetails[]
   myHangalongIds?: string[]
   joinedHangIds?: string[]
@@ -447,13 +445,15 @@ function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joinedHangIds = [], onHangTap, onHangJoined, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
+export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, hangalongs = [], myHangalongIds = [], joinedHangIds = [], onHangTap, onHangJoined, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window === 'undefined') return 0
     return parseInt(sessionStorage.getItem('ta_feed_index') ?? '0', 10)
   })
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set())
+  const [joinRequestedIds, setJoinRequestedIds] = useState<Set<string>>(new Set())
+  const [showRequestSentToast, setShowRequestSentToast] = useState(false)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [userProfile, setUserProfile] = useState<UserProfile | null>(initialProfile ?? null)
   const [hintVisible, setHintVisible] = useState(false)
@@ -461,6 +461,12 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   const { h, m, s } = useMidnightCountdown()
   const [swipeLimitReached, setSwipeLimitReached] = useState(false)
   const [limitChecked, setLimitChecked] = useState(false)
+  // Fire `swipe_limit_reached` at most once per mount so PostHog sees one clean
+  // exposure per session, not a re-render storm.
+  const limitReachedTracked = useRef(false)
+  // Authoritative daily swipe count from the server; optimistically bumped on
+  // each swipe for instant UX, then reconciled with the server's return value.
+  const swipesTodayRef = useRef(0)
   const [showPaywall, setShowPaywall] = useState(false)
   const [paywallContext, setPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
   const [showFoundingScreen, setShowFoundingScreen] = useState(false)
@@ -468,11 +474,16 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
   const [celebrationTrip, setCelebrationTrip] = useState<TripWithDetails | null>(null)
   const [showProfileNudge, setShowProfileNudge] = useState(false)
+  const [joinErrorMsg, setJoinErrorMsg] = useState<string | null>(null)
   const profileNudgeTriggered = useRef(false)
   const topCardX = useMotionValue(0)
   const topCardRef = useRef<SwipeCardHandle | HangCardHandle>(null)
   const cardAreaRef = useRef<HTMLDivElement>(null)
   const qc = useQueryClient()
+  // The Save button reuses the card's swipe-right animation for its exit —
+  // this flag tells handleSwipeRight the resulting call is a bookmark, not a
+  // real user swipe, so it saves instead of joining. Cleared as soon as it's read.
+  const saveIntentRef = useRef(false)
   const hintWasSeenBeforeMount = useRef(false)
   const dnaNudgeTriggered = useRef(false)
 
@@ -503,6 +514,27 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     if (initialProfile) setUserProfile(initialProfile)
   }, [initialProfile])
 
+  // Reset to the first card whenever the feed filters change — a filter can
+  // shrink the deck instantly (e.g. 80 → 6 trips), and a stale currentIndex
+  // would then land past the end. This used to reset via useEffect, but an
+  // effect runs after the first paint, so React would briefly render (and the
+  // user would see) the "no more trips" screen with the *old* filter's copy
+  // before the reset landed. Doing it here, during render, means React
+  // discards that stale render and re-renders with currentIndex already at 0
+  // before anything reaches the screen. Skip the initial mount so a restored
+  // sessionStorage position is still honored. Mirrors the "Start over" button
+  // below.
+  const filtersKeyMounted = useRef(false)
+  const prevFiltersKey = useRef(filtersKey)
+  if (!filtersKeyMounted.current) {
+    filtersKeyMounted.current = true
+    prevFiltersKey.current = filtersKey
+  } else if (prevFiltersKey.current !== filtersKey) {
+    prevFiltersKey.current = filtersKey
+    sessionStorage.removeItem('ta_feed_index')
+    if (currentIndex !== 0) setCurrentIndex(0)
+  }
+
   // Launch A/B test: 50/50 split on capped-15/day vs unlimited swipes.
   // Prefer the persisted variant so it never flips once assigned; fall back
   // to a deterministic hash of the user ID before the profile round-trip
@@ -519,17 +551,42 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     updateProfile(userId, { swipe_variant: swipeVariant }).catch(() => {})
   }, [userId, userProfile, swipeVariant])
 
-  // Check limit once userId + profile are known — user-specific key prevents cross-account bleed
+  // Check limit once userId + profile are known. The count is fetched from the
+  // server (UTC-keyed, tamper-proof) rather than localStorage.
   useEffect(() => {
     if (isGuest) { setLimitChecked(true); return }
     if (!userId || !userProfile) return
-    if (hasPlus(userProfile)) {
+    if (hasPlus(userProfile) || dailyLimit === Infinity) {
       setSwipeLimitReached(false)
-    } else {
-      setSwipeLimitReached(getDailySwipes(userId) >= dailyLimit)
+      setLimitChecked(true)
+      return
     }
-    setLimitChecked(true)
+    let cancelled = false
+    getSwipesToday()
+      .then(count => {
+        if (cancelled) return
+        swipesTodayRef.current = count
+        setSwipeLimitReached(count >= dailyLimit)
+      })
+      .catch(() => {}) // network failure shouldn't wall the user; server still enforces on increment
+      .finally(() => { if (!cancelled) setLimitChecked(true) })
+    return () => { cancelled = true }
   }, [userId, userProfile, isGuest, dailyLimit])
+
+  // Record the exposure the moment the wall goes up — whether it was hit by
+  // swiping into it this session or was already reached on load. This is the
+  // top of the cap→paywall→purchase funnel and the cohort seed for "did the
+  // cap hurt next-day retention?". Guests and Plus users never wall, so we
+  // only get here for a real capped free user.
+  useEffect(() => {
+    if (!swipeLimitReached || limitReachedTracked.current) return
+    limitReachedTracked.current = true
+    track('swipe_limit_reached', {
+      limit: dailyLimit,
+      variant: swipeVariant,
+      rail: isNativeApp() ? 'native' : 'web',
+    })
+  }, [swipeLimitReached, dailyLimit, swipeVariant])
 
   // Show DNA nudge at card 3 — only on return visits (hint already dismissed before)
   useEffect(() => {
@@ -580,9 +637,19 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
       else if (item?.type === 'hangout') markHangalongSeen(item.hang.id).catch(() => {})
     }
 
-    if (!skipDailyCount && !isGuest && userId && !hasPlus(localProfile ?? userProfile)) {
-      const count = incrementDailySwipes(userId)
-      if (count >= dailyLimit) {
+    if (!skipDailyCount && !isGuest && userId && !hasPlus(localProfile ?? userProfile) && dailyLimit !== Infinity) {
+      // Optimistic local bump for instant UX...
+      const optimistic = swipesTodayRef.current + 1
+      swipesTodayRef.current = optimistic
+      // ...but the server is the source of truth and can't be bypassed. Reconcile
+      // with its authoritative count (e.g. if the user already swiped elsewhere).
+      incrementSwipesToday()
+        .then(serverCount => {
+          swipesTodayRef.current = serverCount
+          if (serverCount >= dailyLimit) setSwipeLimitReached(true)
+        })
+        .catch(() => {})
+      if (optimistic >= dailyLimit) {
         setSwipeLimitReached(true)
         return
       }
@@ -681,20 +748,79 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     }
   }, [isCurrentAd])
 
+  // Swipe-right on a trip is the single commit action: it joins the trip AND
+  // its group chat, which then appears in Messages immediately (joinTrip adds
+  // both the trip_members row and the trip_chat_members row in one call).
+  // There is no separate post-swipe "join" step anymore. The Save button
+  // below reuses this same card-exit animation for its own bookmark action —
+  // saveIntentRef tells the two apart.
   const handleSwipeRight = async (trip: TripWithDetails) => {
+    const isSaveIntent = saveIntentRef.current
+    saveIntentRef.current = false
     if (isGuest) {
       localStorage.setItem('ta_pending_save', trip.id)
       onAuthRequired?.(trip.destination)
       return
     }
     advance()
-    if (userId && !savedIds.has(trip.id)) {
-      setSavedIds(s => new Set([...s, trip.id]))
-      onSave?.(trip)
+    if (!userId) return
+
+    if (isSaveIntent) {
+      if (!savedIds.has(trip.id)) {
+        setSavedIds(s => new Set([...s, trip.id]))
+        onSave?.(trip)
+        track('trip_saved', { trip_id: trip.id })
+        try {
+          await saveTrip(trip.id, userId)
+          qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
+        } catch {}
+      }
+      return
+    }
+
+    const isFull = (trip.max_group_size ?? 0) > 0 && (trip.member_count ?? 0) >= trip.max_group_size
+    if (isFull) {
+      if (joinRequestedIds.has(trip.id)) return
+      setJoinRequestedIds(s => new Set([...s, trip.id]))
+      track('trip_join_requested', { trip_id: trip.id, source: 'swipe' })
       try {
-        await saveTrip(trip.id, userId)
-        qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
-      } catch {}
+        const requestId = await requestToJoinTrip(trip.id, userId)
+        haptic(10)
+        setShowRequestSentToast(true)
+        setTimeout(() => setShowRequestSentToast(false), 2200)
+        const profile = localProfile ?? userProfile
+        sendJoinRequestPush({ requestId, requesterName: profile?.name, destination: trip.destination })
+      } catch (e) {
+        setJoinRequestedIds(s => { const n = new Set(s); n.delete(trip.id); return n })
+        console.error('requestToJoinTrip error', e)
+      }
+      return
+    }
+
+    if (joinedIds.has(trip.id)) return
+    setJoinedIds(s => new Set([...s, trip.id]))
+    track('trip_joined', { trip_id: trip.id, source: 'swipe' })
+    try {
+      await joinTrip(trip.id, userId)
+      remindNotifications('join-trip')
+      haptic([15, 30, 15, 30, 60])
+      qc.invalidateQueries({ queryKey: ['tripChats'] })
+      qc.invalidateQueries({ queryKey: ['unreadCount'] })
+      qc.invalidateQueries({ queryKey: ['trips'] })
+      setCelebrationTrip(trip)
+    } catch (e: any) {
+      setJoinedIds(s => { const n = new Set(s); n.delete(trip.id); return n })
+      // The feed already excludes full/gender-ineligible trips, so this only
+      // fires on a race (trip filled or its restriction changed between fetch
+      // and swipe) — surface it instead of silently doing nothing.
+      const msg: string = e?.message ?? ''
+      haptic([8, 20, 8])
+      setJoinErrorMsg(
+        msg.includes('TRIP_FULL') ? 'This trip just filled up' :
+        msg.includes('GENDER_RESTRICTED') ? "You're not eligible to join this trip" :
+        "Couldn't join this trip — try again"
+      )
+      setTimeout(() => setJoinErrorMsg(null), 3200)
     }
   }
 
@@ -747,7 +873,13 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
       return
     }
     haptic(8)
-    onTripTap(currentTrip)
+    // Actually save the trip — route through the same right-swipe path so it
+    // runs saveTrip + shows the "Trip saved" toast + advances, instead of just
+    // opening the detail modal (which is what the Join button is for).
+    // saveIntentRef marks this as a bookmark, not a real swipe, so
+    // handleSwipeRight saves instead of joining.
+    saveIntentRef.current = true
+    await topCardRef.current?.swipeRight()
   }
 
 
@@ -986,18 +1118,35 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
         <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}>
-          <span className="text-5xl">✈️</span>
+          <span className="text-5xl">{filtersActive ? '🔍' : '✈️'}</span>
         </motion.div>
-        <h3 className="text-white text-xl font-bold">You've seen them all!</h3>
-        <p className="text-white/40 text-sm">Check back later for new trips</p>
-        <motion.button
-          whileTap={{ scale: 0.92 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-          onClick={() => { haptic(8); sessionStorage.removeItem('ta_feed_index'); setCurrentIndex(0) }}
-          className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm"
-        >
-          Start over
-        </motion.button>
+        {filtersActive ? (
+          <>
+            <h3 className="text-white text-xl font-bold">No more trips with these filters</h3>
+            <p className="text-white/40 text-sm">Try adjusting or clearing a filter to see more</p>
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              onClick={() => { haptic(8); onClearFilters?.() }}
+              className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm"
+            >
+              Clear filters
+            </motion.button>
+          </>
+        ) : (
+          <>
+            <h3 className="text-white text-xl font-bold">You've seen them all!</h3>
+            <p className="text-white/40 text-sm">Check back later for new trips</p>
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              onClick={() => { haptic(8); sessionStorage.removeItem('ta_feed_index'); setCurrentIndex(0) }}
+              className="mt-2 bg-white/10 border border-white/20 text-white font-semibold py-3 px-8 rounded-2xl text-sm"
+            >
+              Start over
+            </motion.button>
+          </>
+        )}
       </div>
     )
   }
@@ -1030,18 +1179,55 @@ export function SwipeStack({ trips, hangalongs = [], myHangalongIds = [], joined
         )}
       </AnimatePresence>
 
-      {/* Join celebration — full screen, shown after tapping Join */}
+      {/* Request-sent confirmation — swiped right on a full trip instead of joining */}
+      <AnimatePresence>
+        {showRequestSentToast && <RequestSentToast />}
+      </AnimatePresence>
+
+      {/* Join celebration — full screen, shown after swiping right joins the trip */}
       <AnimatePresence>
         {celebrationTrip && (
           <JoinCelebration
             trip={celebrationTrip}
             onOpenChat={async () => {
-              const chatId = await joinTripChat(celebrationTrip.id)
-              setCelebrationTrip(null)
-              router.push(`/chat/${chatId}`)
+              // joinTrip (fired on swipe) already added chat membership —
+              // opening the chat here is a pure read, never a mutation.
+              try {
+                const chat = await getTripChat(celebrationTrip.id)
+                setCelebrationTrip(null)
+                router.push(`/chat/${chat.id}`)
+              } catch {
+                setCelebrationTrip(null)
+              }
             }}
             onClose={() => setCelebrationTrip(null)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Join failed toast — only fires on a race (trip filled up or its
+          gender restriction changed between fetch and swipe) */}
+      <AnimatePresence>
+        {joinErrorMsg && (
+          <motion.div
+            initial={{ y: 20, opacity: 0, scale: 0.94 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 12, opacity: 0, scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            className="fixed left-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl"
+            style={{
+              bottom: 'calc(env(safe-area-inset-bottom) + 90px)',
+              backgroundColor: 'rgba(18,18,18,0.97)',
+              border: '0.5px solid rgba(255,69,58,0.3)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              maxWidth: 400,
+              margin: '0 auto',
+            } as React.CSSProperties}
+          >
+            <span className="text-lg shrink-0">⚠️</span>
+            <p className="text-white text-sm font-medium flex-1">{joinErrorMsg}</p>
+          </motion.div>
         )}
       </AnimatePresence>
 

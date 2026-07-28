@@ -38,6 +38,16 @@ export async function POST(req: NextRequest) {
           ? new Date((subscription as any).current_period_end * 1000).toISOString()
           : null,
       }).eq('id', userId)
+
+      // Attribute the conversion to the wall that drove it — but only the first
+      // time (.is null) so a later renewal/update never rewrites the original.
+      const convTrigger = subscription.metadata?.conversion_trigger
+      if (convTrigger) {
+        await supabaseAdmin.from('users')
+          .update({ conversion_trigger: convTrigger })
+          .eq('id', userId)
+          .is('conversion_trigger', null)
+      }
       break
     }
 

@@ -1,11 +1,14 @@
 export type SwipeVariant = 'capped' | 'unlimited'
 
-export const CAPPED_DAILY_LIMIT = 15
+// Rolled out to 100% capped at 10 swipes/day on 2026-07-16 (previously a 50/50
+// A/B of capped-15 vs unlimited). Lowered from 15 → 10 to bring the wall below
+// the average user's daily volume (~12) so it actually fires.
+export const CAPPED_DAILY_LIMIT = 10
 
-// Deterministic 50/50 split by user ID — stable across sessions/devices
-// without needing a round trip before the first swipe. Persisted to
-// users.swipe_variant on first computation so conversion/retention can be
-// segmented by variant directly in Supabase.
+// Deterministic 50/50 split by user ID — retained ONLY as a historical label so
+// analytics can still segment the two former A/B arms (e.g. do users who used to
+// be in the "unlimited" arm — and now suddenly hit a wall — churn harder than
+// always-capped users?). It no longer controls the limit; see getDailySwipeLimit.
 export function computeSwipeVariant(userId: string): SwipeVariant {
   let hash = 0
   for (let i = 0; i < userId.length; i++) {
@@ -14,6 +17,9 @@ export function computeSwipeVariant(userId: string): SwipeVariant {
   return Math.abs(hash) % 2 === 0 ? 'capped' : 'unlimited'
 }
 
-export function getDailySwipeLimit(variant: SwipeVariant): number {
-  return variant === 'unlimited' ? Infinity : CAPPED_DAILY_LIMIT
+// 100% cap: every free user gets the same daily limit regardless of their (now
+// historical) variant. Plus users are exempted separately via hasPlus() in
+// SwipeStack, so they never reach this ceiling.
+export function getDailySwipeLimit(_variant: SwipeVariant): number {
+  return CAPPED_DAILY_LIMIT
 }

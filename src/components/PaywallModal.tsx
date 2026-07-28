@@ -1,15 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { purchasePlus, restorePurchases, getNativePlusPricing, isNativeApp, type PlusPricing } from '@/lib/purchase'
+import { track } from '@/lib/analytics'
 import { haptic } from '@/lib/haptics'
+import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
 import { PlusWelcomeFlow } from './PlusWelcomeFlow'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
 
 interface Props {
-  trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade'
+  trigger: 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins' | 'filters'
   context?: string
   matchPct?: number
   trips?: TripWithDetails[]
@@ -69,12 +71,21 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
   const [nativePricing, setNativePricing] = useState<PlusPricing | null>(null)
   const [restoring, setRestoring] = useState(false)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
+  const handleRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [])
+
+  // Swipe down on the top bar/handle to dismiss.
+  useSwipeDownDismiss(handleRef, onClose, !showWelcome)
+
+  // Top of the conversion funnel: which wall the user hit, and via which trigger.
+  useEffect(() => {
+    track('paywall_viewed', { surface: 'swipe_paywall', trigger, rail: isNativeApp() ? 'native' : 'web' })
+  }, [trigger])
 
   // Native app: pull the live store price straight from RevenueCat/StoreKit
   // instead of the hardcoded fallback below, so it always matches what a
@@ -91,7 +102,10 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     trigger === 'swipes' && context ? `${context} is waiting` :
     trigger === 'swipes' ? 'More trips are waiting' :
     trigger === 'rewind' ? 'Want that trip back?' :
+    trigger === 'joins' && context ? `Join ${context} too` :
+    trigger === 'joins' ? 'Join more trips' :
     trigger === 'upgrade' ? 'Go further with TripAlong+' :
+    trigger === 'filters' ? 'Filter trips your way' :
     'See who checked you out'
 
   const subcopy =
@@ -100,7 +114,9 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
         ? `You're a ${matchPct >= 80 ? 'strong' : 'good'} match — unlock to see the exact number.`
         : 'Unlock to see exactly how much you match.' :
     trigger === 'rewind' ? 'Unlock rewind and never lose a great trip again.' :
+    trigger === 'joins' ? "You've joined today's trip — go Plus to join as many as you want." :
     trigger === 'upgrade' ? 'Unlimited swipes, no ads, and your compatibility % on every trip.' :
+    trigger === 'filters' ? 'Search by location, dates, style, gender, and age to find exactly what you want.' :
     "You've hit today's limit. Upgrade for unlimited."
 
   const handleUpgrade = async () => {
@@ -108,7 +124,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     setLoading(true)
     setError(null)
     try {
-      await purchasePlus(billing)
+      await purchasePlus(billing, trigger)
       // Native: the RevenueCat SDK already confirmed the entitlement against
       // Apple's receipt at this point — no need to wait on the webhook that
       // syncs it to Supabase. Flip the caller's local profile state right away
@@ -193,7 +209,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
         onTouchStart={stop}
       >
         {/* Handle — fixed */}
-        <div className="flex justify-center pt-3 pb-1 shrink-0">
+        <div ref={handleRef} className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-8 h-[3px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
         </div>
 

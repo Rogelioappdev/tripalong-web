@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, joinTripChat, updateTripMemberStatus } from '@/lib/queries'
+import { getSavedTrips, getMyTrips, unsaveTrip, leaveTrip, joinTrip, getTripChat, updateTripMemberStatus } from '@/lib/queries'
 import { TripDetailModal } from '@/components/TripDetailModal'
 import { JoinCelebration } from '@/components/JoinCelebration'
 import { haptic } from '@/lib/haptics'
@@ -37,6 +37,14 @@ export function SavedTripsModal({ userId, onClose }: Props) {
   const [localJoined, setLocalJoined] = useState<Set<string>>(new Set())
   const [localStatuses, setLocalStatuses] = useState<Record<string, 'in' | 'maybe'>>({})
   const [chatLoading, setChatLoading] = useState<string | null>(null)
+  const [joinErrorMsg, setJoinErrorMsg] = useState<string | null>(null)
+
+  const describeJoinError = (e: any) => {
+    const msg: string = e?.message ?? ''
+    if (msg.includes('TRIP_FULL')) return 'This trip just filled up'
+    if (msg.includes('GENDER_RESTRICTED')) return "You're not eligible to join this trip"
+    return "Couldn't join this trip — try again"
+  }
   const qc = useQueryClient()
 
   const { data: savedTrips = [], isLoading: savedLoading } = useQuery({
@@ -66,17 +74,22 @@ export function SavedTripsModal({ userId, onClose }: Props) {
   const invalidate = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['saved-trips', userId] })
     qc.invalidateQueries({ queryKey: ['my-trips', userId] })
+    // Joining/leaving changes trip_chat_members — refresh the Messages inbox
+    // so the chat appears/disappears immediately instead of waiting out its
+    // cached staleTime.
+    qc.invalidateQueries({ queryKey: ['tripChats'] })
+    qc.invalidateQueries({ queryKey: ['unreadCount'] })
   }, [qc, userId])
 
-  // Mirrors iOS handleGroupChat: ensure user is in the trip chat (idempotent),
-  // then navigate straight to that chat. Works for both saved-but-not-joined
-  // (join chat to learn more) and already-joined (open chat) trips.
+  // Only ever called for trips the user has already joined (My Trips tab) —
+  // joinTrip already added chat membership, so this is a pure read. Opening
+  // a group chat must never itself mutate membership.
   const handleOpenChat = async (trip: TripWithDetails) => {
     setChatLoading(trip.id)
     try {
-      const chatId = await joinTripChat(trip.id)
+      const chat = await getTripChat(trip.id)
       onClose()
-      router.push(`/chat/${chatId}`)
+      router.push(`/chat/${chat.id}`)
     } catch (e) {
       console.error('Failed to open chat:', e)
     } finally {
@@ -91,7 +104,12 @@ export function SavedTripsModal({ userId, onClose }: Props) {
       haptic([15, 30, 15, 30, 60])
       invalidate()
       setCelebrationTrip(trip)
-    } catch {}
+    } catch (e) {
+      setLocalJoined(s => { const n = new Set(s); n.delete(trip.id); return n })
+      haptic([8, 20, 8])
+      setJoinErrorMsg(describeJoinError(e))
+      setTimeout(() => setJoinErrorMsg(null), 3200)
+    }
   }
 
   const handleUnsave = async (trip: TripWithDetails) => {
@@ -115,9 +133,14 @@ export function SavedTripsModal({ userId, onClose }: Props) {
     try {
       await updateTripMemberStatus(trip.id, userId, status)
       invalidate()
-    } catch {
+    } catch (e) {
       // revert on failure
       setLocalStatuses(s => ({ ...s, [trip.id]: status === 'in' ? 'maybe' : 'in' }))
+      if (status === 'in') {
+        haptic([8, 20, 8])
+        setJoinErrorMsg(describeJoinError(e))
+        setTimeout(() => setJoinErrorMsg(null), 3200)
+      }
     }
   }
 
@@ -335,6 +358,31 @@ export function SavedTripsModal({ userId, onClose }: Props) {
           />
         )}
       </AnimatePresence>
+
+      {/* Join failed toast */}
+      <AnimatePresence>
+        {joinErrorMsg && (
+          <motion.div
+            initial={{ y: 20, opacity: 0, scale: 0.94 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 12, opacity: 0, scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            className="fixed left-4 right-4 z-[80] flex items-center gap-3 px-4 py-3 rounded-2xl"
+            style={{
+              bottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+              backgroundColor: 'rgba(18,18,18,0.97)',
+              border: '0.5px solid rgba(255,69,58,0.3)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              maxWidth: 400,
+              margin: '0 auto',
+            } as React.CSSProperties}
+          >
+            <span className="text-lg shrink-0">⚠️</span>
+            <p className="text-white text-sm font-medium flex-1">{joinErrorMsg}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }
@@ -350,6 +398,7 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
   chatLoading?: boolean
 }) {
   const memberCount = trip.members?.filter(m => m.status === 'in').length ?? 0
+  const isFull = !joined && memberCount >= trip.max_group_size
   const dates = formatDates(trip)
 
   return (
@@ -433,23 +482,26 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
             <span className="text-white/40 text-[11px]">Pass</span>
           </div>
 
-          {/* Join / Joined */}
+          {/* Join / Joined / Full */}
           <div className="flex flex-col items-center gap-1.5">
             <button
-              onClick={joined ? undefined : () => { haptic(18); onJoin() }}
-              className="w-16 h-16 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+              onClick={joined || isFull ? undefined : () => { haptic(18); onJoin() }}
+              disabled={isFull}
+              className="w-16 h-16 rounded-full flex items-center justify-center active:scale-95 transition-transform disabled:opacity-40"
               style={joined
                 ? { backgroundColor: '#ffffff' }
+                : isFull
+                ? { backgroundColor: 'rgba(255,255,255,0.06)', border: '2px solid rgba(255,255,255,0.15)' }
                 : { backgroundColor: '#1a3d25', border: '2px solid #30D158' }}
             >
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
                 <path d="M20 6L9 17l-5-5"
-                  stroke={joined ? '#000000' : '#30D158'}
+                  stroke={joined ? '#000000' : isFull ? 'rgba(255,255,255,0.3)' : '#30D158'}
                   strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
             <span className="text-[11px]" style={{ color: joined ? '#ffffff' : 'rgba(255,255,255,0.4)' }}>
-              {joined ? 'Joined' : 'Join'}
+              {joined ? 'Joined' : isFull ? 'Full' : 'Join'}
             </span>
           </div>
 
@@ -469,25 +521,27 @@ function SavedTripCard({ trip, userId, joined, onView, onJoin, onUnsave, onOpenC
           </div>
         </div>
 
-        {/* Chat button */}
-        <button
-          onClick={chatLoading ? undefined : () => { haptic(10); onOpenChat() }}
-          disabled={chatLoading}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
-          style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.12)' }}
-        >
-          {chatLoading ? (
-            <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-          ) : (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          )}
-          <span className="text-white/55 text-sm font-semibold">
-            {joined ? 'Open Chat' : 'Join Group Chat to learn more'}
-          </span>
-        </button>
+        {/* Chat button — only shown once actually joined. Saved-but-not-joined
+            trips have no group chat to preview: viewing a chat must never be
+            the thing that silently joins you to it. */}
+        {joined && (
+          <button
+            onClick={chatLoading ? undefined : () => { haptic(10); onOpenChat() }}
+            disabled={chatLoading}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
+            style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.12)' }}
+          >
+            {chatLoading ? (
+              <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                  stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            <span className="text-white/55 text-sm font-semibold">Open Chat</span>
+          </button>
+        )}
       </div>
     </div>
   )

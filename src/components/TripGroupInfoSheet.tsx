@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { leaveTripFromChat, getTripChatMuted, setTripChatMuted, getChatImages } from '@/lib/queries'
+import { motion, AnimatePresence, useDragControls } from 'framer-motion'
+import { leaveTripFromChat, getTripChatMuted, setTripChatMuted, getChatImages, getFriends, inviteFriendToTrip } from '@/lib/queries'
+import { sendTripInvitePush } from '@/lib/push'
 import { useOnlineUsers } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
 import { PublicProfileModal } from './PublicProfileModal'
@@ -32,12 +33,14 @@ interface TripGroupInfoSheetProps {
   tripInfo: TripWithDetails
   userId: string
   isFullMember?: boolean
+  isTripFull?: boolean
+  joinRequestStatus?: 'pending' | 'accepted' | 'declined' | null
   onJoinTrip?: () => void
   onClose: () => void
   onLeft: () => void
 }
 
-export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = true, onJoinTrip, onClose, onLeft }: TripGroupInfoSheetProps) {
+export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = true, isTripFull = false, joinRequestStatus = null, onJoinTrip, onClose, onLeft }: TripGroupInfoSheetProps) {
   const [leaving, setLeaving] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
@@ -47,7 +50,31 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
   const [viewingImage, setViewingImage] = useState<string | null>(null)
   const [showInvite, setShowInvite] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [friends, setFriends] = useState<{ id: string; name: string; profile_photo: string | null }[]>([])
+  const [friendSearch, setFriendSearch] = useState('')
+  const [invitingId, setInvitingId] = useState<string | null>(null)
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
   const onlineUsers = useOnlineUsers()
+  const inviteDragControls = useDragControls()
+
+  useEffect(() => {
+    if (showInvite) getFriends().then(setFriends).catch(() => {})
+    else setFriendSearch('')
+  }, [showInvite])
+
+  const handleInviteFriend = async (friendId: string) => {
+    setInvitingId(friendId)
+    haptic(8)
+    try {
+      const inviteId = await inviteFriendToTrip(tripInfo.id, friendId)
+      sendTripInvitePush({ inviteId, destination: tripInfo.destination })
+      setInvitedIds(prev => new Set(prev).add(friendId))
+    } catch (e) {
+      console.error('Invite friend error', e)
+    } finally {
+      setInvitingId(null)
+    }
+  }
 
   const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/trip/${tripInfo.id}` : ''
 
@@ -117,7 +144,10 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
 
   // Sort: You first, creator second, then alphabetical
   const rawMembers = tripInfo.members ?? []
-  const members = [...rawMembers].sort((a: any, b: any) => {
+  // Only members with a real user record can be rendered — filter first so the
+  // count and the list can never disagree (a null-user member used to inflate
+  // the badge without showing a row).
+  const members = [...rawMembers].filter((m: any) => m.user).sort((a: any, b: any) => {
     const aId = a.user?.id
     const bId = b.user?.id
     if (aId === userId) return -1
@@ -127,11 +157,20 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
     return (a.user?.name ?? '').localeCompare(b.user?.name ?? '')
   })
 
+  const memberIds = new Set(members.map((m: any) => m.user?.id).filter(Boolean))
+  const inviteableFriends = friends.filter(f => !memberIds.has(f.id))
+  const searchedFriends = friendSearch.trim()
+    ? inviteableFriends.filter(f => f.name?.toLowerCase().includes(friendSearch.trim().toLowerCase()))
+    : inviteableFriends
+
   const dateStr = formatDates(tripInfo.start_date, tripInfo.end_date)
   const hasDescription = !!tripInfo.description?.trim()
   const descLong = (tripInfo.description?.length ?? 0) > 120
   const hasVibes = (tripInfo.vibes?.length ?? 0) > 0
-  const memberCount = Math.max(members.length, tripInfo.member_count ?? 0)
+  // The rendered list is the source of truth. Using Math.max with a cached
+  // member_count kept the badge pinned to a stale higher number when someone
+  // left, so it never counted back down.
+  const memberCount = members.length
 
   return (
     <>
@@ -282,21 +321,26 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
             <button
               type="button"
               onClick={() => { haptic(10); onJoinTrip() }}
-              className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 active:bg-white/4 transition-colors"
+              disabled={isTripFull && joinRequestStatus === 'pending'}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 active:bg-white/4 transition-colors disabled:opacity-60"
               style={{ borderBottom: '0.5px solid rgba(255,255,255,0.07)' }}
             >
               <div className="flex items-center gap-3">
                 <span style={{ fontSize: 18 }}>🎒</span>
                 <div className="text-left">
-                  <p className="text-white text-sm font-semibold">Join This Trip</p>
-                  <p className="text-white/40 text-xs mt-0.5">Officially join and confirm your spot</p>
+                  <p className="text-white text-sm font-semibold">
+                    {isTripFull ? 'Request to Join' : 'Join This Trip'}
+                  </p>
+                  <p className="text-white/40 text-xs mt-0.5">
+                    {isTripFull ? 'This trip is full — the creator will review your request' : 'Officially join and confirm your spot'}
+                  </p>
                 </div>
               </div>
               <span
                 className="shrink-0 font-bold text-xs rounded-xl px-3 py-1.5"
                 style={{ backgroundColor: '#F0EBE3', color: '#000' }}
               >
-                Join
+                {isTripFull ? (joinRequestStatus === 'pending' ? 'Requested' : 'Request') : 'Join'}
               </span>
             </button>
           )}
@@ -509,18 +553,32 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 380, damping: 40, mass: 0.9 }}
+              drag="y"
+              dragControls={inviteDragControls}
+              dragListener={false}
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={0.25}
+              onDragEnd={(_, info) => { if (info.offset.y > 90) setShowInvite(false) }}
             >
-              {/* Handle */}
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-9 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
-              </div>
+              {/* Drag-to-dismiss zone — covers the handle + every static
+                  (non-scrolling) section, matching how native bottom sheets
+                  let you grab anywhere except an internal scroll list. Taps
+                  on the buttons inside still register as clicks; Framer only
+                  starts an actual drag once the pointer moves past its own
+                  threshold, so this doesn't interfere with them. */}
+              <div style={{ touchAction: 'none' }} onPointerDown={e => inviteDragControls.start(e)}>
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing">
+                  <div className="w-9 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                </div>
 
-              {/* Header */}
-              <div className="px-5 pt-3 pb-5" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
-                <p className="text-white font-bold" style={{ fontSize: 20 }}>Invite to Trip</p>
-                <p className="text-white/40 text-sm mt-0.5">
-                  {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}
-                </p>
+                {/* Header */}
+                <div className="px-5 pt-3 pb-5" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-white font-bold" style={{ fontSize: 20 }}>Invite to Trip</p>
+                  <p className="text-white/40 text-sm mt-0.5">
+                    {tripInfo.destination}{tripInfo.country ? `, ${tripInfo.country}` : ''}
+                  </p>
+                </div>
               </div>
 
               {/* Link row */}
@@ -592,6 +650,69 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
                   Share on WhatsApp
                 </button>
               </div>
+
+              {/* Friends — people you DM or already share a trip with */}
+              {inviteableFriends.length > 0 && (
+                <div className="px-5 pt-5">
+                  <p className="text-white/30 text-xs font-semibold uppercase tracking-widest mb-2.5">From your contacts</p>
+                  <div
+                    className="flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 mb-2"
+                    style={{ backgroundColor: '#0A0A0A', border: '0.5px solid rgba(255,255,255,0.09)' }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+                      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2"/>
+                      <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    <input
+                      value={friendSearch}
+                      onChange={e => setFriendSearch(e.target.value)}
+                      placeholder="Search by name"
+                      className="flex-1 bg-transparent text-white placeholder-white/25 outline-none text-sm"
+                      style={{ fontSize: 16 }}
+                    />
+                    {friendSearch && (
+                      <button type="button" onClick={() => setFriendSearch('')} className="shrink-0 text-white/30">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-col max-h-64 overflow-y-auto">
+                    {searchedFriends.length === 0 && (
+                      <p className="text-white/25 text-sm text-center py-4">No contacts match "{friendSearch}"</p>
+                    )}
+                    {searchedFriends.map(f => {
+                      const invited = invitedIds.has(f.id)
+                      return (
+                        <div key={f.id} className="flex items-center gap-3 py-2">
+                          <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                            {f.profile_photo ? (
+                              <img src={f.profile_photo} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-white/50 font-bold text-sm">{f.name?.[0]?.toUpperCase() ?? '?'}</span>
+                            )}
+                          </div>
+                          <p className="flex-1 min-w-0 text-white text-sm font-medium truncate">{f.name}</p>
+                          <button
+                            type="button"
+                            onClick={() => handleInviteFriend(f.id)}
+                            disabled={invited || invitingId === f.id}
+                            className="shrink-0 font-semibold text-xs px-3 py-1.5 rounded-xl active:scale-95 transition-all disabled:opacity-60"
+                            style={{
+                              backgroundColor: invited ? 'rgba(48,209,88,0.13)' : 'rgba(240,235,227,0.09)',
+                              color: invited ? '#30D158' : 'rgba(240,235,227,0.75)',
+                              border: `0.5px solid ${invited ? 'rgba(48,209,88,0.28)' : 'rgba(240,235,227,0.12)'}`,
+                            }}
+                          >
+                            {invited ? 'Invited' : invitingId === f.id ? '…' : 'Invite'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </>
         )}
