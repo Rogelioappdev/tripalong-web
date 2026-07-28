@@ -45,23 +45,6 @@ function QuizContinueButton({ onClick, disabled, label }: { onClick: () => void;
 export default function OnboardingPage() {
   const router = useRouter()
 
-  // Measured in JS rather than trusting 100dvh/100vh alone — the native app's
-  // embedded WebView engine can silently ignore the dvh unit (too new for its
-  // WebKit/Chromium version) and has historically mis-sized vh too, which left
-  // this screen's content stuck at its natural top-aligned height with dead
-  // space below instead of actually filling the visible viewport.
-  const [viewportHeight, setViewportHeight] = useState<number | null>(null)
-  useEffect(() => {
-    const measure = () => setViewportHeight(window.innerHeight)
-    measure()
-    window.addEventListener('resize', measure)
-    window.addEventListener('orientationchange', measure)
-    return () => {
-      window.removeEventListener('resize', measure)
-      window.removeEventListener('orientationchange', measure)
-    }
-  }, [])
-
   const [authChecked, setAuthChecked] = useState(false)
   const [newStage, setNewStage] = useState<'auth' | 'welcome' | 'valueprop' | 'quiz' | 'finale'>('auth')
   const [newDirection, setNewDirection] = useState(1)
@@ -265,12 +248,9 @@ export default function OnboardingPage() {
   const quizKey = `quiz-${quizStep}-${dnaIndex}`
 
   return (
-    <main
-      className="min-h-screen bg-black flex flex-col overflow-hidden"
-      style={{ minHeight: viewportHeight ? `${viewportHeight}px` : '100dvh' }}
-    >
+    <main className="min-h-screen bg-black flex flex-col">
       <div
-        className="flex-1 flex flex-col max-w-sm mx-auto w-full px-6 min-h-0"
+        className="flex flex-col max-w-sm mx-auto w-full px-6 min-h-screen"
         style={{
           paddingTop: 'calc(env(safe-area-inset-top) + 36px)',
           paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
@@ -301,8 +281,7 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto min-h-0">
-              <AnimatePresence custom={newDirection} mode="wait">
+            <AnimatePresence custom={newDirection} mode="wait">
                 {newStage === 'auth' && (
                   <motion.div
                     key="auth"
@@ -312,7 +291,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
-                    className="flex flex-col h-full"
+                    className="flex-1 flex flex-col"
                   >
                     <div className="flex-1 flex flex-col items-stretch justify-center min-h-0">
                       <motion.div
@@ -412,7 +391,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
-                    className="flex flex-col h-full relative"
+                    className="flex-1 flex flex-col relative"
                   >
                     <div
                       className="absolute inset-0 pointer-events-none"
@@ -461,7 +440,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
-                    className="flex flex-col h-full gap-6"
+                    className="flex-1 flex flex-col gap-6"
                   >
                     <div>
                       <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-2">The idea</p>
@@ -492,7 +471,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex flex-col h-full"
+                    className="flex-1 flex flex-col"
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Let's build your profile.</h1>
@@ -587,7 +566,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex flex-col h-full"
+                    className="flex-1 flex flex-col"
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Put a face to<br />your adventure.</h1>
@@ -646,7 +625,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex flex-col h-full"
+                    className="flex-1 flex flex-col"
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Where are you based?</h1>
@@ -707,7 +686,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex flex-col h-full"
+                    className="flex-1 flex flex-col"
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Tell your story.</h1>
@@ -759,7 +738,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex flex-col h-full"
+                    className="flex-1 flex flex-col"
                   >
                     <TravelDnaStep
                       dimension={dim}
@@ -783,7 +762,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex flex-col h-full items-center justify-center text-center"
+                    className="flex-1 flex flex-col items-center justify-center text-center"
                   >
                     {error ? (
                       <>
@@ -820,7 +799,7 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    className="flex flex-col h-full items-center text-center"
+                    className="flex-1 flex flex-col items-center text-center"
                   >
                     <motion.div animate={finaleControls} className="w-full flex-1 flex flex-col items-center justify-center">
                       <motion.p
@@ -862,7 +841,6 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
           </>
         )}
       </div>
