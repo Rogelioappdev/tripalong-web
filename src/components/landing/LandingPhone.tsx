@@ -278,9 +278,13 @@ export function LandingPhone() {
     const el = frameRef.current
     const parent = el?.parentElement
     if (!parent) return
+    // Slightly under the full available space — filling it edge-to-edge read
+    // as too cramped against the headline below; a touch of breathing room
+    // on all sides matches the reference look better.
+    const SCALE = 0.9
     const measure = () => {
-      const availH = parent.clientHeight
-      const availW = parent.clientWidth
+      const availH = parent.clientHeight * SCALE
+      const availW = parent.clientWidth * SCALE
       let h = availH
       let w = h * RATIO
       if (w > availW) { w = availW; h = w / RATIO }

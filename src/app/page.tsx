@@ -52,13 +52,13 @@ export default function RootPage() {
           transition={{ duration: 0.5, ease: 'easeOut', delay: 0.2 }}
           className="shrink-0 text-center"
         >
-          <h1 className="text-white font-extrabold tracking-tight mb-5" style={{ fontSize: 'clamp(24px, 7vw, 30px)', lineHeight: 1.15 }}>
+          <h1 className="text-white font-black tracking-tight mb-6" style={{ fontSize: 'clamp(32px, 10vw, 42px)', lineHeight: 1.1 }}>
             Never travel<br />alone again.
           </h1>
 
           <Link
             href="/onboarding"
-            className="block w-full text-center font-bold py-4 rounded-2xl text-base active:scale-[0.98] transition-transform"
+            className="block w-full text-center font-bold py-4 rounded-full text-base active:scale-[0.98] transition-transform"
             style={{ backgroundColor: '#F0EBE3', color: '#000' }}
           >
             Get Started
