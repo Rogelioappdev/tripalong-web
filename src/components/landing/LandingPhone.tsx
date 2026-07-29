@@ -1,63 +1,59 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
+import { supabase } from '@/lib/supabase'
 
 type DemoTrip = {
+  id: string
   country: string
   destination: string
   dates: string
   budget: string
   desc: string
   vibes: string[]
-  emoji: string
-  gradient: string
+  cover_image: string
   going: string
   initials: string[]
   decision: 'join' | 'pass'
 }
 
-const DEMO_TRIPS: DemoTrip[] = [
-  {
-    country: 'indonesia',
-    destination: 'Bali',
-    dates: 'Aug 14 – Aug 22',
-    budget: 'mid budget',
-    desc: 'Chasing waterfalls, beach days, and good food with a small crew.',
-    vibes: ['adventure', 'foodie', 'relaxed'],
-    emoji: '🌴',
-    gradient: 'linear-gradient(155deg, #4A3C6B 0%, #A85A6B 38%, #E0955B 68%, #F2C879 100%)',
-    going: 'Maya +4 going',
-    initials: ['M', 'J', 'K'],
-    decision: 'join',
-  },
-  {
-    country: 'japan',
-    destination: 'Kyoto',
-    dates: 'Oct 3 – Oct 11',
-    budget: 'mid budget',
-    desc: 'Temples at sunrise, tiny ramen bars, and slow autumn wandering.',
-    vibes: ['culture', 'foodie', 'chill'],
-    emoji: '🏯',
-    gradient: 'linear-gradient(155deg, #2B2A4A 0%, #6B4A7A 42%, #C46B8A 72%, #F0A5B8 100%)',
-    going: 'Leo +2 going',
-    initials: ['L', 'A', 'S'],
-    decision: 'pass',
-  },
-  {
-    country: 'portugal',
-    destination: 'Lisbon',
-    dates: 'Sep 6 – Sep 13',
-    budget: 'budget',
-    desc: 'Surf mornings, rooftop sunsets, and pastéis de nata on repeat.',
-    vibes: ['surf', 'nightlife', 'social'],
-    emoji: '🌊',
-    gradient: 'linear-gradient(155deg, #123A4A 0%, #2A7A8A 42%, #E0955B 78%, #F2C879 100%)',
-    going: 'Nina +5 going',
-    initials: ['N', 'T', 'R'],
-    decision: 'join',
-  },
-]
+function fmtDates(start: string | null, end: string | null, flex: boolean) {
+  if (flex || (!start && !end)) return 'Flexible dates'
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+  const s = start ? new Date(start).toLocaleDateString('en-US', opts) : ''
+  if (!end) return s
+  return `${s} – ${new Date(end).toLocaleDateString('en-US', opts)}`
+}
+
+// A small, public, RLS-safe fetch (no session-dependent joins) — this is the
+// same shape the pre-onboarding splash page used to preview real trips to
+// logged-out visitors, reused here for the same reason: it works for anyone,
+// signed in or not, and only needs fields that are safe to show pre-signup.
+async function fetchDemoTrips(): Promise<DemoTrip[]> {
+  const { data } = await supabase
+    .from('trips')
+    .select(`id, destination, country, cover_image, start_date, end_date, is_flexible_dates,
+      budget_level, vibes, members:trip_members(count)`)
+    .eq('status', 'planning')
+    .not('cover_image', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(6)
+  if (!data) return []
+  return data.map((t: any, i: number) => ({
+    id: t.id,
+    country: (t.country ?? '').toLowerCase(),
+    destination: t.destination,
+    dates: fmtDates(t.start_date, t.end_date, t.is_flexible_dates),
+    budget: t.budget_level ?? 'flexible budget',
+    desc: '',
+    vibes: (t.vibes ?? []).slice(0, 2),
+    cover_image: t.cover_image,
+    going: `${t.members?.[0]?.count ?? 0} going`,
+    initials: [],
+    decision: i % 3 === 1 ? 'pass' : 'join',
+  }))
+}
 
 const SPRING = { type: 'spring' as const, stiffness: 260, damping: 26 }
 
@@ -73,22 +69,14 @@ const cardVariants: Variants = {
 function DemoCardFace({ trip, decided }: { trip: DemoTrip; decided: boolean }) {
   const isJoin = trip.decision === 'join'
   return (
-    <div className="relative w-full h-full rounded-[20px] overflow-hidden select-none">
-      <div className="absolute inset-0" style={{ background: trip.gradient }} />
-      <div
-        className="absolute inset-0 opacity-40"
-        style={{ background: 'radial-gradient(circle at 80% 15%, rgba(255,235,200,0.55), transparent 45%)' }}
-      />
-      <svg className="absolute bottom-0 left-0 right-0 w-full opacity-25" viewBox="0 0 300 100" fill="none">
-        <path d="M0 60 Q 40 20 80 55 T 160 45 T 240 60 T 300 40 V100 H0 Z" fill="rgba(0,0,0,0.5)" />
-      </svg>
-      <span className="absolute bottom-[30%] right-[9%] text-4xl opacity-70">{trip.emoji}</span>
+    <div className="relative w-full h-full rounded-[20px] overflow-hidden select-none bg-[#111]">
+      <img src={trip.cover_image} alt="" className="absolute inset-0 w-full h-full object-cover" />
 
       <div className="absolute inset-0" style={{
-        background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, transparent 32%, rgba(0,0,0,0.68) 62%, rgba(0,0,0,0.95) 100%)',
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, transparent 30%, rgba(0,0,0,0.65) 60%, rgba(0,0,0,0.95) 100%)',
       }} />
 
-      {/* Decision tint — cream for join (matches the real feed's join overlay), red for pass */}
+      {/* Decision tint — cream for join, red for pass */}
       <div
         className="absolute inset-0 pointer-events-none transition-opacity duration-300"
         style={{ backgroundColor: isJoin ? '#F0EBE3' : '#FF453A', opacity: decided ? 0.16 : 0 }}
@@ -130,8 +118,6 @@ function DemoCardFace({ trip, decided }: { trip: DemoTrip; decided: boolean }) {
           <span className="text-white/50 text-[11px]">{trip.budget}</span>
         </div>
 
-        <p className="text-white/50 text-[11px] leading-snug mb-2.5 line-clamp-2">{trip.desc}</p>
-
         <div className="flex flex-wrap gap-1 mb-3">
           {trip.vibes.map(v => (
             <span key={v} className="text-[10px] rounded-full px-2.5 py-1 font-semibold capitalize"
@@ -141,17 +127,7 @@ function DemoCardFace({ trip, decided }: { trip: DemoTrip; decided: boolean }) {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex -space-x-2">
-            {trip.initials.map((initial, i) => (
-              <div key={initial} className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2 border-black"
-                style={{ backgroundColor: 'rgba(255,255,255,0.18)', zIndex: 10 - i }}>
-                {initial}
-              </div>
-            ))}
-          </div>
-          <span className="text-white/50 text-[11px]">{trip.going}</span>
-        </div>
+        <span className="text-white/50 text-[11px]">{trip.going}</span>
       </div>
     </div>
   )
@@ -177,73 +153,86 @@ function ActionButton({ label, path, color, active, glow }: { label: string; pat
   )
 }
 
-// A self-driving recreation of the real swipe feed. Everything — gradients,
-// motifs, motion — is drawn in JSX/CSS so it loads instantly and can never
-// flicker on a missing network asset (the failure mode a hotlinked hero image
-// hit before). The loop advances on a timer, no drag/input required.
+// A self-driving recreation of the real swipe feed, using real trips already
+// in the database (public, RLS-safe fetch — same fields the old pre-onboarding
+// splash page showed to logged-out visitors). The loop advances on a timer,
+// no drag/input required.
 function DemoFeed() {
+  const [trips, setTrips] = useState<DemoTrip[] | null>(null)
   const [index, setIndex] = useState(0)
   const [decided, setDecided] = useState(false)
 
-  const trip = DEMO_TRIPS[index % DEMO_TRIPS.length]
-  const nextTrip = DEMO_TRIPS[(index + 1) % DEMO_TRIPS.length]
-  const dir = trip.decision === 'join' ? 1 : -1
-  const isJoin = trip.decision === 'join'
+  useEffect(() => {
+    fetchDemoTrips().then(setTrips)
+  }, [])
+
+  const trip = trips && trips.length > 0 ? trips[index % trips.length] : null
+  const nextTrip = trips && trips.length > 0 ? trips[(index + 1) % trips.length] : null
+  const dir = trip?.decision === 'join' ? 1 : -1
+  const isJoin = trip?.decision === 'join'
 
   useEffect(() => {
+    if (!trip) return
     setDecided(false)
     const tDecide = setTimeout(() => setDecided(true), 1300)
     const tAdvance = setTimeout(() => setIndex(i => i + 1), 2150)
     return () => { clearTimeout(tDecide); clearTimeout(tAdvance) }
-  }, [index])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, !!trip])
 
   return (
     <div className="relative flex-1 min-h-0 px-3 pt-1.5">
       <div className="relative w-full h-full">
-        {/* Card behind — gives the deck depth; the entering top card rises over it */}
-        <div className="absolute inset-0" style={{ transform: 'scale(0.92) translateY(16px)', opacity: 0.5 }}>
-          <DemoCardFace trip={nextTrip} decided={false} />
-        </div>
+        {!trip || !nextTrip ? (
+          <div className="absolute inset-0 rounded-[20px] animate-pulse" style={{ backgroundColor: '#161616' }} />
+        ) : (
+          <>
+            {/* Card behind — gives the deck depth; the entering top card rises over it */}
+            <div className="absolute inset-0" style={{ transform: 'scale(0.92) translateY(16px)', opacity: 0.5 }}>
+              <DemoCardFace trip={nextTrip} decided={false} />
+            </div>
 
-        <AnimatePresence custom={dir}>
-          <motion.div
-            key={index}
-            custom={dir}
-            variants={cardVariants}
-            initial="enter"
-            animate={decided ? 'lean' : 'center'}
-            exit="exit"
-            className="absolute inset-0"
-          >
-            <DemoCardFace trip={trip} decided={decided} />
-          </motion.div>
-        </AnimatePresence>
+            <AnimatePresence custom={dir}>
+              <motion.div
+                key={index}
+                custom={dir}
+                variants={cardVariants}
+                initial="enter"
+                animate={decided ? 'lean' : 'center'}
+                exit="exit"
+                className="absolute inset-0"
+              >
+                <DemoCardFace trip={trip} decided={decided} />
+              </motion.div>
+            </AnimatePresence>
 
-        {/* Joined confirmation — the payoff moment, flashes as a join lands */}
-        <AnimatePresence>
-          {decided && isJoin && (
-            <motion.div
-              initial={{ scale: 0.6, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 20 }}
-              className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none"
-            >
-              <div className="flex items-center gap-1.5 rounded-full px-3.5 py-2"
-                style={{ backgroundColor: 'rgba(48,209,88,0.92)', boxShadow: '0 8px 24px -6px rgba(48,209,88,0.6)' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                  <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span className="text-white text-xs font-bold">Joined the group</span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            {/* Joined confirmation — the payoff moment, flashes as a join lands */}
+            <AnimatePresence>
+              {decided && isJoin && (
+                <motion.div
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 20 }}
+                  className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none"
+                >
+                  <div className="flex items-center gap-1.5 rounded-full px-3.5 py-2"
+                    style={{ backgroundColor: 'rgba(48,209,88,0.92)', boxShadow: '0 8px 24px -6px rgba(48,209,88,0.6)' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                      <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="text-white text-xs font-bold">Joined the group</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
       </div>
 
       <div className="flex items-center justify-center gap-6 py-2.5">
         <ActionButton label="Pass" path="M18 6L6 18M6 6l12 12" color="#FF453A" active={decided && !isJoin} />
-        <ActionButton label="Join" path="M20 6L9 17l-5-5" color="#30D158" active={decided && isJoin} glow />
+        <ActionButton label="Join" path="M20 6L9 17l-5-5" color="#30D158" active={decided && !!isJoin} glow />
         <ActionButton label="Save" path="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" color="rgba(255,255,255,0.55)" active={false} />
       </div>
     </div>
@@ -253,8 +242,8 @@ function DemoFeed() {
 export function LandingPhone() {
   return (
     <div
-      className="relative shrink-0"
-      style={{ width: 'clamp(228px, 70vw, 266px)', aspectRatio: '9 / 19.3' }}
+      className="relative shrink-0 mx-auto"
+      style={{ height: 'clamp(300px, 46vh, 420px)', aspectRatio: '9 / 19.3' }}
     >
       {/* Side buttons drawn on the frame edge */}
       <div className="absolute left-[-2px] top-[24%] w-[3px] h-[30px] rounded-l-sm bg-[#1c1c1e]" />
@@ -296,9 +285,9 @@ export function LandingPhone() {
             </div>
           </div>
 
-          {/* App header */}
-          <div className="flex items-center justify-center pt-1.5 pb-2 shrink-0">
-            <span className="text-[#F0EBE3] text-[13px] font-extrabold tracking-tight">TripAlong</span>
+          {/* App header — matches the real feed's mobile header exactly: left-aligned, font-extrabold */}
+          <div className="flex items-center px-4 pt-1 pb-2 shrink-0">
+            <span className="text-white font-extrabold tracking-tight" style={{ fontSize: 15 }}>TripAlong</span>
           </div>
 
           <DemoFeed />
