@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { Playfair_Display } from 'next/font/google'
 import { motion, AnimatePresence, useAnimation } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { createProfile, updateProfile } from '@/lib/queries'
@@ -15,6 +16,13 @@ import { WorldRouteMap } from '@/components/onboarding/WorldRouteMap'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData } from '@/components/onboarding/dnaOptions'
 import type { UserProfile } from '@/lib/types'
+
+const playfair = Playfair_Display({ subsets: ['latin'], weight: ['700', '800', '900'] })
+
+// A small, recurring set of real destinations threaded through onboarding
+// (welcome atmosphere here, the value-prop trip card, the finale map) so the
+// flow reads as one continuous world instead of disconnected screens.
+const WELCOME_PHOTO = 'https://images.unsplash.com/photo-1530841377377-3ff06c0ca713?fm=jpg&q=80&w=1600&auto=format&fit=crop'
 
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
@@ -317,22 +325,35 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
-                    className="flex-1 flex flex-col"
+                    className="flex-1 flex flex-col relative overflow-hidden -mx-6 px-6"
                   >
+                    <motion.div
+                      className="absolute inset-0 -z-10"
+                      initial={{ scale: 1.06 }}
+                      animate={{ scale: 1.16 }}
+                      transition={{ duration: 24, ease: 'linear' }}
+                    >
+                      <img src={WELCOME_PHOTO} alt="" className="w-full h-full object-cover" />
+                    </motion.div>
+                    <div
+                      className="absolute inset-0 -z-10"
+                      style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.45) 35%, rgba(0,0,0,0.94) 88%)' }}
+                    />
+
                     <motion.div
                       initial="hidden"
                       animate="visible"
-                      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } } }}
-                      className={authShowEmail ? 'mt-3' : 'mt-8'}
+                      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.14, delayChildren: authShowEmail ? 0.05 : 0.4 } } }}
+                      className={authShowEmail ? 'mt-3' : 'mt-10'}
                     >
-                      <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
+                      <motion.p variants={fadeUpVariants} className="text-white/50 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
                         Welcome to
                       </motion.p>
-                      <motion.h1 variants={fadeUpVariants} className={`text-white font-extrabold tracking-tight ${authShowEmail ? 'text-2xl mb-2' : 'text-4xl mb-4'}`}>
+                      <motion.h1 variants={fadeUpVariants} className={`${playfair.className} text-white font-black tracking-tight ${authShowEmail ? 'text-2xl mb-2' : 'text-5xl mb-4'}`}>
                         TripAlong
                       </motion.h1>
                       {!authShowEmail && (
-                        <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed">
+                        <motion.p variants={fadeUpVariants} className="text-white/60 text-base leading-relaxed">
                           Find your people.<br />See the world together.
                         </motion.p>
                       )}
