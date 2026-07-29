@@ -135,20 +135,21 @@ function DemoCardFace({ trip, decided }: { trip: DemoTrip; decided: boolean }) {
 
 function ActionButton({ label, path, color, active, glow }: { label: string; path: string; color: string; active: boolean; glow?: boolean }) {
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center" style={{ gap: u(0.8) }}>
       <motion.div
-        className="w-9 h-9 rounded-full bg-[#161616] border border-white/10 flex items-center justify-center"
+        className="rounded-full bg-[#161616] border border-white/10 flex items-center justify-center"
+        style={{ width: u(11), height: u(11) }}
         animate={{
           scale: active ? 1.12 : 1,
           boxShadow: active && glow ? '0 0 16px rgba(240,235,227,0.5)' : '0 0 0px rgba(0,0,0,0)',
         }}
         transition={{ type: 'spring', stiffness: 400, damping: 18 }}
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+        <svg style={{ width: u(4.8), height: u(4.8) }} viewBox="0 0 24 24" fill="none">
           <path d={path} stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </motion.div>
-      <span className="text-white/30 text-[8px] font-semibold">{label}</span>
+      <span className="text-white/35 font-semibold" style={{ fontSize: u(2.4) }}>{label}</span>
     </div>
   )
 }
@@ -181,8 +182,8 @@ function DemoFeed() {
   }, [index, !!trip])
 
   return (
-    <div className="relative flex-1 min-h-0 px-3 pt-1.5">
-      <div className="relative w-full h-full">
+    <div className="relative flex-1 min-h-0 flex flex-col" style={{ paddingLeft: u(3), paddingRight: u(3), paddingTop: u(1.5) }}>
+      <div className="relative w-full flex-1 min-h-0">
         {!trip || !nextTrip ? (
           <div className="absolute inset-0 rounded-[20px] animate-pulse" style={{ backgroundColor: '#161616' }} />
         ) : (
@@ -230,7 +231,7 @@ function DemoFeed() {
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-6 py-2.5">
+      <div className="flex items-center justify-center shrink-0" style={{ gap: u(9), paddingTop: u(2), paddingBottom: u(1) }}>
         <ActionButton label="Pass" path="M18 6L6 18M6 6l12 12" color="#FF453A" active={decided && !isJoin} />
         <ActionButton label="Join" path="M20 6L9 17l-5-5" color="#30D158" active={decided && !!isJoin} glow />
         <ActionButton label="Save" path="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" color="rgba(255,255,255,0.55)" active={false} />
@@ -357,9 +358,11 @@ export function LandingPhone() {
             </div>
           </div>
 
-          {/* App header — matches the real feed's mobile header exactly: left-aligned, font-extrabold */}
-          <div className="flex items-center shrink-0" style={{ paddingLeft: u(4.5), paddingRight: u(4.5), paddingTop: u(1.5), paddingBottom: u(2) }}>
-            <span className="text-white font-extrabold tracking-tight" style={{ fontSize: u(4) }}>TripAlong</span>
+          {/* App header — left-aligned like the real feed's mobile header, sized
+              up and to full black weight so it reads as a confident app
+              wordmark rather than a small label. */}
+          <div className="flex items-center shrink-0" style={{ paddingLeft: u(4.5), paddingRight: u(4.5), paddingTop: u(1.8), paddingBottom: u(2.4) }}>
+            <span className="text-white font-black tracking-tight" style={{ fontSize: u(6.2) }}>TripAlong</span>
           </div>
 
           <DemoFeed />
