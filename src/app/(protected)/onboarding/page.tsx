@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Playfair_Display } from 'next/font/google'
 import { motion, AnimatePresence, useAnimation } from 'framer-motion'
@@ -42,236 +42,6 @@ function QuizContinueButton({ onClick, disabled, label }: { onClick: () => void;
     >
       {label}
     </button>
-  )
-}
-
-// ── Boarding Pass hero (the very first screen) ──────────────────────────────
-// A cream boarding-pass ticket rises into frame on a spring; its DESTINATION
-// field runs a mechanical split-flap roll through the recurring cast of
-// destinations (Bali · Santorini · Patagonia) before resting on a line meant
-// for the person holding it. The real auth actions are the ticket's tear-off
-// stub, so the whole thing reads as one object rather than a photo + buttons.
-const INK = '#17130F'
-const CREAM = '#F0EBE3'
-const STUB = '#E7DFD1'
-const FLAP_MODULE = '#211C17'
-const FILLING = '#B4692B'
-const FLAP_GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ '
-const FLAP_CELLS = 9
-const FLAP_TICK = 55
-
-// Injected once — CSS is cheaper than a Framer animation per glyph per cell.
-const flapKeyframes = '@keyframes taFlap{0%{transform:rotateX(-88deg);opacity:.1}55%{opacity:1}100%{transform:rotateX(0deg);opacity:1}}'
-
-// Center a word inside the fixed cell grid so short names (BALI) sit balanced
-// between blank flaps rather than crammed to the left.
-function centerWord(word: string): string[] {
-  const w = word.slice(0, FLAP_CELLS)
-  const left = Math.floor((FLAP_CELLS - w.length) / 2)
-  return Array.from({ length: FLAP_CELLS }, (_, i) => (i >= left && i < left + w.length ? w[i - left] : ' '))
-}
-
-// A genuine-looking barcode: deterministic, varying bar widths (not uniform
-// stripes). Seeded so it's stable across renders.
-const BARCODE_BARS = (() => {
-  const seed = 'TRIPALONG·TA001·YOU'
-  const bars: { w: number; gap: number }[] = []
-  let h = 17
-  for (let i = 0; i < 46; i++) {
-    h = (h * 131 + seed.charCodeAt(i % seed.length) * 7) % 271
-    bars.push({ w: 1 + (h % 4), gap: 1 + ((h >> 3) % 3) })
-  }
-  return bars
-})()
-
-function Barcode({ className = '' }: { className?: string }) {
-  return (
-    <div className={`flex items-end ${className}`} style={{ height: 42 }}>
-      {BARCODE_BARS.map((b, i) => (
-        <div key={i} style={{ width: b.w, marginRight: b.gap, height: '100%', backgroundColor: INK }} />
-      ))}
-    </div>
-  )
-}
-
-function DetailField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-mono uppercase" style={{ fontSize: 7.5, letterSpacing: '0.18em', color: 'rgba(23,19,15,0.38)' }}>{label}</span>
-      <span className="font-mono" style={{ fontSize: 12, letterSpacing: '0.02em', color: 'rgba(23,19,15,0.9)' }}>{value}</span>
-    </div>
-  )
-}
-
-// The split-flap destination board. Self-contained: on mount it waits for the
-// ticket to settle, then rolls through the three destinations, then empties as
-// an elegant final line takes its place. Haptics fire on each mechanical
-// arrival (crisp) and once, softer, on the final resting line.
-function SplitFlapDestination({ compact }: { compact: boolean }) {
-  const [display, setDisplay] = useState<string[]>(() => Array(FLAP_CELLS).fill(' '))
-  const [showFinal, setShowFinal] = useState(false)
-  const displayRef = useRef<string[]>(Array(FLAP_CELLS).fill(' '))
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  useEffect(() => {
-    const rollTo = (word: string, settleHaptic: number) => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      const target = centerWord(word)
-      // Later cells need more flips → the word resolves left-to-right, with a
-      // little jitter so the rhythm reads mechanical, not metronomic.
-      const steps = target.map((_, i) => 4 + Math.round(i * 1.5) + Math.floor(Math.random() * 3))
-      intervalRef.current = setInterval(() => {
-        let done = true
-        const next = [...displayRef.current]
-        for (let i = 0; i < FLAP_CELLS; i++) {
-          if (steps[i] > 0) {
-            done = false
-            steps[i]--
-            const ci = Math.max(0, FLAP_GLYPHS.indexOf(next[i]))
-            next[i] = steps[i] === 0 ? target[i] : FLAP_GLYPHS[(ci + 1) % FLAP_GLYPHS.length]
-          }
-        }
-        displayRef.current = next
-        setDisplay(next)
-        if (done) {
-          if (intervalRef.current) clearInterval(intervalRef.current)
-          if (settleHaptic) haptic(settleHaptic)
-        }
-      }, FLAP_TICK)
-    }
-
-    const timers: ReturnType<typeof setTimeout>[] = []
-    let t = 850 // let the ticket rise + settle before anything moves
-    ;['BALI', 'SANTORINI', 'PATAGONIA'].forEach(w => {
-      timers.push(setTimeout(() => rollTo(w, 10), t))
-      t += 1750
-    })
-    // The board empties and the human line rises in its place.
-    timers.push(setTimeout(() => { setShowFinal(true); haptic(6); rollTo(' '.repeat(FLAP_CELLS), 0) }, t))
-
-    return () => {
-      timers.forEach(clearTimeout)
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [])
-
-  const cellH = compact ? 30 : 46
-  const fontPx = compact ? 15 : 21
-
-  return (
-    <div>
-      <style>{flapKeyframes}</style>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="font-mono" style={{ fontSize: 8, letterSpacing: '0.22em', color: 'rgba(23,19,15,0.4)' }}>DESTINATION</span>
-        <span className="font-mono" style={{ fontSize: 8, letterSpacing: '0.22em', color: 'rgba(23,19,15,0.4)' }}>ONE WAY</span>
-      </div>
-      <div className="relative">
-        <motion.div
-          className="flex"
-          style={{ gap: 3, perspective: 240 }}
-          animate={{ opacity: showFinal ? 0 : 1 }}
-          transition={{ duration: 0.45 }}
-        >
-          {display.map((ch, i) => (
-            <div
-              key={i}
-              className="relative flex-1 flex items-center justify-center rounded-[3px] overflow-hidden"
-              style={{ height: cellH, backgroundColor: FLAP_MODULE }}
-            >
-              <span
-                key={ch}
-                className="font-mono font-semibold leading-none"
-                style={{ fontSize: fontPx, color: CREAM, transformOrigin: 'center', animation: `taFlap ${FLAP_TICK + 35}ms ease-out` }}
-              >
-                {ch === ' ' ? ' ' : ch}
-              </span>
-              {/* the flap's center fold line */}
-              <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2" style={{ height: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} />
-            </div>
-          ))}
-        </motion.div>
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          initial={false}
-          animate={{ opacity: showFinal ? 1 : 0, y: showFinal ? 0 : 6 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-        >
-          <span className={playfair.className} style={{ color: INK, fontSize: compact ? 15 : 19, fontWeight: 700 }}>
-            wherever you&rsquo;re going
-          </span>
-        </motion.div>
-      </div>
-    </div>
-  )
-}
-
-function BoardingPass({ compact, children }: { compact: boolean; children: ReactNode }) {
-  return (
-    <div className="my-auto w-full">
-      {/* entrance: rises from below-center on a spring with a settling overshoot */}
-      <motion.div
-        initial={{ y: '52%', opacity: 0, scale: 0.965 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        transition={{ type: 'spring', stiffness: 88, damping: 12, mass: 0.9 }}
-      >
-        {/* barely-there idle float once settled */}
-        <motion.div
-          animate={{ y: [0, -4, 0] }}
-          transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut', delay: 1.2 }}
-        >
-          <div
-            className="rounded-[24px] overflow-hidden"
-            style={{ backgroundColor: CREAM, boxShadow: '0 32px 60px -24px rgba(0,0,0,0.75), 0 2px 0 rgba(255,255,255,0.15) inset' }}
-          >
-            {/* TICKET BODY */}
-            <div className={compact ? 'px-5 pt-4 pb-3' : 'px-5 pt-5 pb-4'}>
-              <div className="flex items-baseline justify-between">
-                <span className={playfair.className} style={{ color: INK, fontSize: 15, fontWeight: 800, letterSpacing: '0.01em' }}>TripAlong</span>
-                <span className="font-mono" style={{ fontSize: 8.5, letterSpacing: '0.2em', color: 'rgba(23,19,15,0.45)' }}>✈ BOARDING PASS</span>
-              </div>
-              <div className="my-3" style={{ height: 1, backgroundColor: 'rgba(23,19,15,0.1)' }} />
-              <SplitFlapDestination compact={compact} />
-              {!compact && (
-                <>
-                  <div className="flex justify-between mt-4">
-                    <DetailField label="Passenger" value="YOU" />
-                    <DetailField label="Flight" value="TA 001" />
-                    <DetailField label="Seat" value="1A" />
-                    <DetailField label="Boards" value="NOW" />
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-3">
-                    <motion.span
-                      className="rounded-full"
-                      style={{ width: 5, height: 5, backgroundColor: FILLING }}
-                      animate={{ opacity: [1, 0.25, 1] }}
-                      transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-                    />
-                    <span className="font-mono" style={{ fontSize: 8.5, letterSpacing: '0.16em', color: FILLING }}>SEATS FILLING</span>
-                  </div>
-                  <Barcode className="mt-3.5" />
-                  <div className="flex justify-between mt-1.5 font-mono" style={{ fontSize: 8, letterSpacing: '0.12em', color: 'rgba(23,19,15,0.4)' }}>
-                    <span>TA 001 · ONE WAY</span>
-                    <span>SEAT 1A</span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* PERFORATION — real semicircular cutouts (clipped by overflow-hidden) + dashed tear line */}
-            <div className="relative" style={{ height: 22 }}>
-              <div className="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 rounded-full" style={{ width: 20, height: 20, backgroundColor: '#000' }} />
-              <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full" style={{ width: 20, height: 20, backgroundColor: '#000' }} />
-              <div className="absolute top-1/2 left-4 right-4 -translate-y-1/2 border-t border-dashed" style={{ borderColor: 'rgba(23,19,15,0.28)' }} />
-            </div>
-
-            {/* TEAR-OFF STUB — the real auth actions, on a slightly different paper */}
-            <div className={compact ? 'px-5 pt-3 pb-4' : 'px-5 pt-4 pb-5'} style={{ backgroundColor: STUB }}>
-              {children}
-            </div>
-          </div>
-        </motion.div>
-      </motion.div>
-    </div>
   )
 }
 
@@ -550,14 +320,37 @@ export default function OnboardingPage() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
-                    className="flex-1 flex flex-col relative overflow-hidden"
+                    className="flex-1 flex flex-col relative overflow-hidden -mx-6 px-6"
                   >
-                    <BoardingPass compact={authShowEmail}>
-                      <div className="flex flex-col gap-2.5">
+                    <motion.div
+                      initial="hidden"
+                      animate="visible"
+                      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.14, delayChildren: authShowEmail ? 0.05 : 0.4 } } }}
+                      className={authShowEmail ? 'mt-3' : 'mt-10'}
+                    >
+                      <motion.p variants={fadeUpVariants} className="text-white/50 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
+                        Welcome to
+                      </motion.p>
+                      <motion.h1 variants={fadeUpVariants} className={`${playfair.className} text-white font-black tracking-tight ${authShowEmail ? 'text-2xl mb-2' : 'text-5xl mb-4'}`}>
+                        TripAlong
+                      </motion.h1>
+                      {!authShowEmail && (
+                        <motion.p variants={fadeUpVariants} className="text-white/60 text-base leading-relaxed">
+                          Find your people.<br />See the world together.
+                        </motion.p>
+                      )}
+                    </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 14 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.45, type: 'spring', stiffness: 300, damping: 28 }}
+                        className="mt-auto flex flex-col gap-2.5"
+                      >
                         <button
                           onClick={handleAuthGoogle}
-                          className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform"
-                          style={{ backgroundColor: INK, color: CREAM }}
+                          className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-black text-base active:scale-[0.98] transition-transform"
+                          style={{ backgroundColor: '#F0EBE3' }}
                         >
                           <svg width="18" height="18" viewBox="0 0 24 24">
                             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -572,19 +365,18 @@ export default function OnboardingPage() {
                           <button
                             onClick={() => { haptic(6); setAuthShowEmail(true) }}
                             className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
-                            style={{ backgroundColor: 'transparent', color: 'rgba(23,19,15,0.6)', border: '1px solid rgba(23,19,15,0.18)' }}
+                            style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.55)', border: '0.5px solid rgba(255,255,255,0.1)' }}
                           >
                             Continue with Email
                           </button>
                         ) : (
-                          <div className="flex flex-col gap-2.5">
+                          <div className="flex flex-col gap-3">
                             <input
                               type="email"
                               placeholder="Email"
                               value={authEmail}
                               onChange={e => setAuthEmail(e.target.value)}
-                              className="rounded-2xl px-4 py-3.5 text-sm outline-none bg-black/[0.05] border border-black/15 focus:border-black/40 placeholder:text-black/30"
-                              style={{ color: INK }}
+                              className="bg-white/6 border border-white/12 rounded-2xl px-4 py-3.5 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
                               autoFocus
                             />
                             <input
@@ -593,22 +385,20 @@ export default function OnboardingPage() {
                               value={authPassword}
                               onChange={e => setAuthPassword(e.target.value)}
                               onKeyDown={e => { if (e.key === 'Enter') handleAuthEmailSubmit() }}
-                              className="rounded-2xl px-4 py-3.5 text-sm outline-none bg-black/[0.05] border border-black/15 focus:border-black/40 placeholder:text-black/30"
-                              style={{ color: INK }}
+                              className="bg-white/6 border border-white/12 rounded-2xl px-4 py-3.5 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
                             />
-                            {authError && <p className="text-xs" style={{ color: '#B4231C' }}>{authError}</p>}
+                            {authError && <p className="text-red-400 text-xs">{authError}</p>}
                             <button
                               onClick={handleAuthEmailSubmit}
                               disabled={authLoading || !authEmail || !authPassword}
-                              className="w-full py-4 rounded-2xl font-bold text-sm disabled:opacity-40 active:scale-[0.98] transition-transform"
-                              style={{ backgroundColor: INK, color: CREAM }}
+                              className="w-full py-4 rounded-2xl font-bold text-black text-sm disabled:opacity-40 active:scale-[0.98] transition-transform"
+                              style={{ backgroundColor: '#F0EBE3' }}
                             >
                               {authLoading ? 'One sec...' : authMode === 'signup' ? 'Create free account' : 'Sign in'}
                             </button>
                             <button
                               onClick={() => setAuthMode(m => m === 'signup' ? 'signin' : 'signup')}
-                              className="text-xs text-center py-1 active:opacity-60 transition-opacity"
-                              style={{ color: 'rgba(23,19,15,0.45)' }}
+                              className="text-white/28 text-xs text-center py-1 active:opacity-60 transition-opacity"
                             >
                               {authMode === 'signup' ? 'Already have an account? Sign in' : 'No account? Sign up free'}
                             </button>
@@ -616,7 +406,7 @@ export default function OnboardingPage() {
                         )}
 
                         {!authShowEmail && (
-                          <p className="text-xs text-center pt-0.5" style={{ color: 'rgba(23,19,15,0.4)' }}>
+                          <p className="text-white/18 text-xs text-center pt-1">
                             By continuing you agree to our community guidelines
                           </p>
                         )}
@@ -624,13 +414,12 @@ export default function OnboardingPage() {
                         {!showMemberCode ? (
                           <button
                             onClick={() => { haptic(4); setShowMemberCode(true) }}
-                            className="text-[10px] text-center pt-0.5 active:opacity-60 transition-opacity"
-                            style={{ color: 'rgba(23,19,15,0.22)' }}
+                            className="text-white/10 text-[10px] text-center pt-1 active:opacity-60 transition-opacity"
                           >
                             Are you a TripAlong member?
                           </button>
                         ) : (
-                          <div className="flex items-center gap-2 pt-0.5">
+                          <div className="flex items-center gap-2 pt-1">
                             <input
                               type="text"
                               value={memberCode}
@@ -638,20 +427,18 @@ export default function OnboardingPage() {
                               onKeyDown={e => { if (e.key === 'Enter') handleMemberCodeSubmit() }}
                               placeholder="Access code"
                               autoCapitalize="none"
-                              className="flex-1 rounded-xl px-3 py-2 text-xs outline-none bg-black/[0.05] border"
-                              style={{ borderColor: memberCodeError ? '#C0392B' : 'rgba(23,19,15,0.15)', color: INK }}
+                              className="flex-1 bg-white/6 border rounded-xl px-3 py-2 text-white text-xs outline-none"
+                              style={{ borderColor: memberCodeError ? '#FF453A' : 'rgba(255,255,255,0.12)' }}
                             />
                             <button
                               onClick={handleMemberCodeSubmit}
-                              className="text-xs font-semibold px-3 py-2 active:opacity-60 transition-opacity"
-                              style={{ color: 'rgba(23,19,15,0.6)' }}
+                              className="text-white/40 text-xs font-semibold px-3 py-2 active:opacity-60 transition-opacity"
                             >
                               Go
                             </button>
                           </div>
                         )}
-                      </div>
-                    </BoardingPass>
+                      </motion.div>
                   </motion.div>
                 )}
 
