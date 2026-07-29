@@ -239,45 +239,73 @@ function DemoFeed() {
   )
 }
 
+// The frame fills 100% of its flex parent's available height with the aspect
+// ratio locked, so by construction it is always as large as it can be on the
+// given device without ever overflowing. `container-type: inline-size` then
+// makes the phone its own sizing basis: every internal measurement below is
+// expressed in `cqw` (1% of the frame's own width), so bezel thickness, corner
+// radii, the Dynamic Island, buttons and status bar all scale as one coherent
+// object — a phone drawn at 350px tall and one at 650px tall look identically
+// proportioned rather than the same fixed pixels stretched.
 export function LandingPhone() {
   return (
     <div
-      className="relative shrink-0 mx-auto"
-      style={{ height: 'clamp(300px, 46vh, 420px)', aspectRatio: '9 / 19.3' }}
+      className="relative mx-auto"
+      style={{
+        height: '100%',
+        maxWidth: '100%',
+        aspectRatio: '9 / 19.3',
+        containerType: 'inline-size',
+      }}
     >
-      {/* Side buttons drawn on the frame edge */}
-      <div className="absolute left-[-2px] top-[24%] w-[3px] h-[30px] rounded-l-sm bg-[#1c1c1e]" />
-      <div className="absolute left-[-2px] top-[33%] w-[3px] h-[52px] rounded-l-sm bg-[#1c1c1e]" />
-      <div className="absolute left-[-2px] top-[45%] w-[3px] h-[52px] rounded-l-sm bg-[#1c1c1e]" />
-      <div className="absolute right-[-2px] top-[36%] w-[3px] h-[68px] rounded-r-sm bg-[#1c1c1e]" />
+      {/* Physical side buttons — iPhone 15/16 Pro layout: action button + a
+          two-piece volume rocker on the left edge, power on the right. Lengths
+          and protrusion scale with the frame (cqw); vertical positions are a
+          percentage of the frame's own height. Drawn before the bezel so the
+          bezel paints over their inner portion, leaving only the edge proud. */}
+      <div className="absolute" style={{ left: '-0.8cqw', top: '21.5%', width: '1.5cqw', height: '5.5cqw', borderRadius: '1cqw 0 0 1cqw', background: 'linear-gradient(90deg,#57575a,#161618)' }} />
+      <div className="absolute" style={{ left: '-0.8cqw', top: '31%', width: '1.5cqw', height: '9cqw', borderRadius: '1cqw 0 0 1cqw', background: 'linear-gradient(90deg,#57575a,#161618)' }} />
+      <div className="absolute" style={{ left: '-0.8cqw', top: '41.5%', width: '1.5cqw', height: '9cqw', borderRadius: '1cqw 0 0 1cqw', background: 'linear-gradient(90deg,#57575a,#161618)' }} />
+      <div className="absolute" style={{ right: '-0.8cqw', top: '29%', width: '1.5cqw', height: '13cqw', borderRadius: '0 1cqw 1cqw 0', background: 'linear-gradient(270deg,#57575a,#161618)' }} />
 
-      {/* Titanium bezel */}
+      {/* Titanium frame — a symmetric multi-stop gradient catches light on both
+          diagonal edges (not a single flat gradient), and layered inset shadows
+          give a bright top rim, a dark bottom rim and a hairline inner chamfer,
+          so the metal reads as a rounded machined edge rather than a fill. */}
       <div
-        className="absolute inset-0 rounded-[46px]"
+        className="absolute inset-0"
         style={{
-          background: 'linear-gradient(145deg, #2a2a2c 0%, #050505 55%, #232325 100%)',
-          padding: 9,
-          boxShadow: '0 40px 80px -24px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.06)',
+          borderRadius: '15cqw',
+          padding: '3.4cqw',
+          background: 'linear-gradient(135deg,#5c5c60 0%,#2b2b2d 13%,#0b0b0c 50%,#2b2b2d 87%,#5c5c60 100%)',
+          boxShadow:
+            '0 6cqw 14cqw -4cqw rgba(0,0,0,0.75), inset 0 0.5cqw 0.6cqw -0.2cqw rgba(255,255,255,0.4), inset 0 -0.5cqw 0.7cqw -0.2cqw rgba(0,0,0,0.65), inset 0 0 0 0.3cqw rgba(255,255,255,0.06)',
         }}
       >
-        {/* Screen */}
-        <div className="relative w-full h-full rounded-[38px] overflow-hidden bg-black flex flex-col">
-          {/* Dynamic Island */}
-          <div className="absolute top-[9px] left-1/2 -translate-x-1/2 z-40 h-[26px] w-[33%] max-w-[92px] rounded-full bg-black flex items-center justify-end pr-2.5">
-            <div className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: 'rgba(60,70,90,0.9)' }} />
+        {/* Screen — inner radius = frame radius minus padding, so corners stay
+            concentric with the outer bezel at every size. */}
+        <div className="relative w-full h-full overflow-hidden bg-black flex flex-col" style={{ borderRadius: '11.6cqw' }}>
+          {/* Dynamic Island — a small centered pill (~30% of screen width), sized
+              and positioned like the real thing rather than an oversized blob. */}
+          <div
+            className="absolute left-1/2 z-40 flex items-center justify-end"
+            style={{ top: '1.6cqw', transform: 'translateX(-50%)', width: '30cqw', height: '8cqw', borderRadius: '4cqw', background: '#000', paddingRight: '2.4cqw' }}
+          >
+            <div style={{ width: '2cqw', height: '2cqw', borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(70,90,120,0.9), rgba(10,12,18,0.95))' }} />
           </div>
 
-          {/* Status bar */}
-          <div className="flex items-center justify-between px-6 pt-2.5 pb-1 shrink-0">
-            <span className="text-white text-[11px] font-semibold tracking-tight">9:41</span>
-            <div className="flex items-center gap-1">
-              <svg width="15" height="10" viewBox="0 0 18 12" fill="none">
+          {/* Status bar — icon and text sizes are in cqw so they scale with the
+              frame alongside everything else. */}
+          <div className="flex items-center justify-between shrink-0 relative z-30" style={{ paddingLeft: '6.5cqw', paddingRight: '6.5cqw', paddingTop: '2.4cqw', paddingBottom: '1cqw' }}>
+            <span className="text-white font-semibold tracking-tight" style={{ fontSize: '3.4cqw' }}>9:41</span>
+            <div className="flex items-center" style={{ gap: '1.4cqw' }}>
+              <svg style={{ width: '4.6cqw', height: 'auto' }} viewBox="0 0 18 12" fill="none">
                 <rect x="0.5" y="7" width="3" height="4" rx="1" fill="rgba(255,255,255,0.9)" />
                 <rect x="5" y="4.5" width="3" height="6.5" rx="1" fill="rgba(255,255,255,0.9)" />
                 <rect x="9.5" y="2" width="3" height="9" rx="1" fill="rgba(255,255,255,0.9)" />
                 <rect x="14" y="0" width="3" height="11" rx="1" fill="rgba(255,255,255,0.45)" />
               </svg>
-              <svg width="17" height="11" viewBox="0 0 24 16" fill="none">
+              <svg style={{ width: '5.2cqw', height: 'auto' }} viewBox="0 0 24 16" fill="none">
                 <rect x="1" y="2" width="19" height="12" rx="3.5" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2" />
                 <rect x="2.5" y="3.5" width="14" height="9" rx="2" fill="rgba(255,255,255,0.9)" />
                 <rect x="21" y="5.5" width="1.6" height="5" rx="0.8" fill="rgba(255,255,255,0.5)" />
@@ -286,16 +314,24 @@ export function LandingPhone() {
           </div>
 
           {/* App header — matches the real feed's mobile header exactly: left-aligned, font-extrabold */}
-          <div className="flex items-center px-4 pt-1 pb-2 shrink-0">
-            <span className="text-white font-extrabold tracking-tight" style={{ fontSize: 15 }}>TripAlong</span>
+          <div className="flex items-center shrink-0" style={{ paddingLeft: '4.5cqw', paddingRight: '4.5cqw', paddingTop: '1.5cqw', paddingBottom: '2cqw' }}>
+            <span className="text-white font-extrabold tracking-tight" style={{ fontSize: '4cqw' }}>TripAlong</span>
           </div>
 
           <DemoFeed />
 
           {/* Home indicator */}
-          <div className="flex justify-center pb-2 pt-0.5 shrink-0">
-            <div className="w-[34%] h-[4px] rounded-full bg-white/50" />
+          <div className="flex justify-center shrink-0" style={{ paddingBottom: '2.2cqw', paddingTop: '0.5cqw' }}>
+            <div style={{ width: '34%', height: '1.2cqw', borderRadius: '1cqw', background: 'rgba(255,255,255,0.5)' }} />
           </div>
+
+          {/* Glass sheen — a subtle diagonal reflection over the top-left so the
+              display reads as glossy glass. Non-interactive; sits above the feed
+              but below the status bar and Dynamic Island so those stay crisp. */}
+          <div
+            className="absolute inset-0 pointer-events-none z-20"
+            style={{ background: 'linear-gradient(125deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.035) 16%, transparent 38%)' }}
+          />
         </div>
       </div>
     </div>
