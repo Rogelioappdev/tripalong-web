@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 
@@ -241,32 +241,57 @@ function DemoFeed() {
 
 // The frame fills 100% of its flex parent's available height with the aspect
 // ratio locked, so by construction it is always as large as it can be on the
-// given device without ever overflowing. `container-type: inline-size` then
-// makes the phone its own sizing basis: every internal measurement below is
-// expressed in `cqw` (1% of the frame's own width), so bezel thickness, corner
-// radii, the Dynamic Island, buttons and status bar all scale as one coherent
-// object — a phone drawn at 350px tall and one at 650px tall look identically
-// proportioned rather than the same fixed pixels stretched.
+// given device without ever overflowing.
+//
+// Every internal measurement is a multiple of one unit — 1% of the frame's
+// own rendered width — so bezel thickness, corner radii, the Dynamic Island,
+// buttons and status bar all scale together as one coherent object instead of
+// independently-tuned fixed pixels that would look boxy once enlarged. That
+// unit used to be expressed via container query units (`cqw`), but those
+// silently collapsed to 0 in the target WebView (older engine, no container-
+// query support) — invisible in dev tools, invisible on device. Measuring the
+// frame's real width in JS via ResizeObserver and exposing it as a plain CSS
+// variable (`--u`, used through `calc(var(--u) * N)`) needs nothing newer
+// than CSS custom properties, which every relevant engine has supported for
+// close to a decade — the same scaling math, a far safer foundation.
+function u(n: number) {
+  return `calc(var(--u) * ${n})`
+}
+
 export function LandingPhone() {
+  const frameRef = useRef<HTMLDivElement>(null)
+  const [unit, setUnit] = useState(2.6)
+
+  useEffect(() => {
+    const el = frameRef.current
+    if (!el) return
+    const measure = () => setUnit(el.getBoundingClientRect().width / 100)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div
+      ref={frameRef}
       className="relative mx-auto"
       style={{
         height: '100%',
         maxWidth: '100%',
         aspectRatio: '9 / 19.3',
-        containerType: 'inline-size',
+        ['--u' as string]: `${unit}px`,
       }}
     >
       {/* Physical side buttons — iPhone 15/16 Pro layout: action button + a
           two-piece volume rocker on the left edge, power on the right. Lengths
-          and protrusion scale with the frame (cqw); vertical positions are a
+          and protrusion scale with the frame; vertical positions are a
           percentage of the frame's own height. Drawn before the bezel so the
           bezel paints over their inner portion, leaving only the edge proud. */}
-      <div className="absolute" style={{ left: '-0.8cqw', top: '21.5%', width: '1.5cqw', height: '5.5cqw', borderRadius: '1cqw 0 0 1cqw', background: 'linear-gradient(90deg,#57575a,#161618)' }} />
-      <div className="absolute" style={{ left: '-0.8cqw', top: '31%', width: '1.5cqw', height: '9cqw', borderRadius: '1cqw 0 0 1cqw', background: 'linear-gradient(90deg,#57575a,#161618)' }} />
-      <div className="absolute" style={{ left: '-0.8cqw', top: '41.5%', width: '1.5cqw', height: '9cqw', borderRadius: '1cqw 0 0 1cqw', background: 'linear-gradient(90deg,#57575a,#161618)' }} />
-      <div className="absolute" style={{ right: '-0.8cqw', top: '29%', width: '1.5cqw', height: '13cqw', borderRadius: '0 1cqw 1cqw 0', background: 'linear-gradient(270deg,#57575a,#161618)' }} />
+      <div className="absolute" style={{ left: u(-0.8), top: '21.5%', width: u(1.5), height: u(5.5), borderRadius: `${u(1)} 0 0 ${u(1)}`, background: 'linear-gradient(90deg,#57575a,#161618)' }} />
+      <div className="absolute" style={{ left: u(-0.8), top: '31%', width: u(1.5), height: u(9), borderRadius: `${u(1)} 0 0 ${u(1)}`, background: 'linear-gradient(90deg,#57575a,#161618)' }} />
+      <div className="absolute" style={{ left: u(-0.8), top: '41.5%', width: u(1.5), height: u(9), borderRadius: `${u(1)} 0 0 ${u(1)}`, background: 'linear-gradient(90deg,#57575a,#161618)' }} />
+      <div className="absolute" style={{ right: u(-0.8), top: '29%', width: u(1.5), height: u(13), borderRadius: `0 ${u(1)} ${u(1)} 0`, background: 'linear-gradient(270deg,#57575a,#161618)' }} />
 
       {/* Titanium frame — a symmetric multi-stop gradient catches light on both
           diagonal edges (not a single flat gradient), and layered inset shadows
@@ -275,37 +300,36 @@ export function LandingPhone() {
       <div
         className="absolute inset-0"
         style={{
-          borderRadius: '15cqw',
-          padding: '3.4cqw',
+          borderRadius: u(15),
+          padding: u(3.4),
           background: 'linear-gradient(135deg,#5c5c60 0%,#2b2b2d 13%,#0b0b0c 50%,#2b2b2d 87%,#5c5c60 100%)',
           boxShadow:
-            '0 6cqw 14cqw -4cqw rgba(0,0,0,0.75), inset 0 0.5cqw 0.6cqw -0.2cqw rgba(255,255,255,0.4), inset 0 -0.5cqw 0.7cqw -0.2cqw rgba(0,0,0,0.65), inset 0 0 0 0.3cqw rgba(255,255,255,0.06)',
+            `0 ${u(6)} ${u(14)} ${u(-4)} rgba(0,0,0,0.75), inset 0 ${u(0.5)} ${u(0.6)} ${u(-0.2)} rgba(255,255,255,0.4), inset 0 ${u(-0.5)} ${u(0.7)} ${u(-0.2)} rgba(0,0,0,0.65), inset 0 0 0 ${u(0.3)} rgba(255,255,255,0.06)`,
         }}
       >
         {/* Screen — inner radius = frame radius minus padding, so corners stay
             concentric with the outer bezel at every size. */}
-        <div className="relative w-full h-full overflow-hidden bg-black flex flex-col" style={{ borderRadius: '11.6cqw' }}>
+        <div className="relative w-full h-full overflow-hidden bg-black flex flex-col" style={{ borderRadius: u(11.6) }}>
           {/* Dynamic Island — a small centered pill (~30% of screen width), sized
               and positioned like the real thing rather than an oversized blob. */}
           <div
             className="absolute left-1/2 z-40 flex items-center justify-end"
-            style={{ top: '1.6cqw', transform: 'translateX(-50%)', width: '30cqw', height: '8cqw', borderRadius: '4cqw', background: '#000', paddingRight: '2.4cqw' }}
+            style={{ top: u(1.6), transform: 'translateX(-50%)', width: u(30), height: u(8), borderRadius: u(4), background: '#000', paddingRight: u(2.4) }}
           >
-            <div style={{ width: '2cqw', height: '2cqw', borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(70,90,120,0.9), rgba(10,12,18,0.95))' }} />
+            <div style={{ width: u(2), height: u(2), borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(70,90,120,0.9), rgba(10,12,18,0.95))' }} />
           </div>
 
-          {/* Status bar — icon and text sizes are in cqw so they scale with the
-              frame alongside everything else. */}
-          <div className="flex items-center justify-between shrink-0 relative z-30" style={{ paddingLeft: '6.5cqw', paddingRight: '6.5cqw', paddingTop: '2.4cqw', paddingBottom: '1cqw' }}>
-            <span className="text-white font-semibold tracking-tight" style={{ fontSize: '3.4cqw' }}>9:41</span>
-            <div className="flex items-center" style={{ gap: '1.4cqw' }}>
-              <svg style={{ width: '4.6cqw', height: 'auto' }} viewBox="0 0 18 12" fill="none">
+          {/* Status bar — icon and text sizes scale with the frame alongside everything else. */}
+          <div className="flex items-center justify-between shrink-0 relative z-30" style={{ paddingLeft: u(6.5), paddingRight: u(6.5), paddingTop: u(2.4), paddingBottom: u(1) }}>
+            <span className="text-white font-semibold tracking-tight" style={{ fontSize: u(3.4) }}>9:41</span>
+            <div className="flex items-center" style={{ gap: u(1.4) }}>
+              <svg style={{ width: u(4.6), height: 'auto' }} viewBox="0 0 18 12" fill="none">
                 <rect x="0.5" y="7" width="3" height="4" rx="1" fill="rgba(255,255,255,0.9)" />
                 <rect x="5" y="4.5" width="3" height="6.5" rx="1" fill="rgba(255,255,255,0.9)" />
                 <rect x="9.5" y="2" width="3" height="9" rx="1" fill="rgba(255,255,255,0.9)" />
                 <rect x="14" y="0" width="3" height="11" rx="1" fill="rgba(255,255,255,0.45)" />
               </svg>
-              <svg style={{ width: '5.2cqw', height: 'auto' }} viewBox="0 0 24 16" fill="none">
+              <svg style={{ width: u(5.2), height: 'auto' }} viewBox="0 0 24 16" fill="none">
                 <rect x="1" y="2" width="19" height="12" rx="3.5" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2" />
                 <rect x="2.5" y="3.5" width="14" height="9" rx="2" fill="rgba(255,255,255,0.9)" />
                 <rect x="21" y="5.5" width="1.6" height="5" rx="0.8" fill="rgba(255,255,255,0.5)" />
@@ -314,15 +338,15 @@ export function LandingPhone() {
           </div>
 
           {/* App header — matches the real feed's mobile header exactly: left-aligned, font-extrabold */}
-          <div className="flex items-center shrink-0" style={{ paddingLeft: '4.5cqw', paddingRight: '4.5cqw', paddingTop: '1.5cqw', paddingBottom: '2cqw' }}>
-            <span className="text-white font-extrabold tracking-tight" style={{ fontSize: '4cqw' }}>TripAlong</span>
+          <div className="flex items-center shrink-0" style={{ paddingLeft: u(4.5), paddingRight: u(4.5), paddingTop: u(1.5), paddingBottom: u(2) }}>
+            <span className="text-white font-extrabold tracking-tight" style={{ fontSize: u(4) }}>TripAlong</span>
           </div>
 
           <DemoFeed />
 
           {/* Home indicator */}
-          <div className="flex justify-center shrink-0" style={{ paddingBottom: '2.2cqw', paddingTop: '0.5cqw' }}>
-            <div style={{ width: '34%', height: '1.2cqw', borderRadius: '1cqw', background: 'rgba(255,255,255,0.5)' }} />
+          <div className="flex justify-center shrink-0" style={{ paddingBottom: u(2.2), paddingTop: u(0.5) }}>
+            <div style={{ width: '34%', height: u(1.2), borderRadius: u(1), background: 'rgba(255,255,255,0.5)' }} />
           </div>
 
           {/* Glass sheen — a subtle diagonal reflection over the top-left so the
