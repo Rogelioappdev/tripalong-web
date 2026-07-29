@@ -323,24 +323,26 @@ export default function OnboardingPage() {
                       initial="hidden"
                       animate="visible"
                       variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } } }}
-                      className="mt-8"
+                      className={authShowEmail ? 'mt-3' : 'mt-8'}
                     >
-                      <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-4">
+                      <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
                         Welcome to
                       </motion.p>
-                      <motion.h1 variants={fadeUpVariants} className="text-white font-extrabold text-4xl tracking-tight mb-4">
+                      <motion.h1 variants={fadeUpVariants} className={`text-white font-extrabold tracking-tight ${authShowEmail ? 'text-2xl mb-2' : 'text-4xl mb-4'}`}>
                         TripAlong
                       </motion.h1>
-                      <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed">
-                        Find your people.<br />See the world together.
-                      </motion.p>
+                      {!authShowEmail && (
+                        <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed">
+                          Find your people.<br />See the world together.
+                        </motion.p>
+                      )}
                     </motion.div>
 
                       <motion.div
                         initial={{ opacity: 0, y: 14 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.45, type: 'spring', stiffness: 300, damping: 28 }}
-                        className="mt-auto flex flex-col gap-3"
+                        className="mt-auto flex flex-col gap-2.5"
                       >
                         <button
                           onClick={handleAuthGoogle}
@@ -400,19 +402,21 @@ export default function OnboardingPage() {
                           </div>
                         )}
 
-                        <p className="text-white/18 text-xs text-center pt-2">
-                          By continuing you agree to our community guidelines
-                        </p>
+                        {!authShowEmail && (
+                          <p className="text-white/18 text-xs text-center pt-1">
+                            By continuing you agree to our community guidelines
+                          </p>
+                        )}
 
                         {!showMemberCode ? (
                           <button
                             onClick={() => { haptic(4); setShowMemberCode(true) }}
-                            className="text-white/10 text-[10px] text-center pt-3 active:opacity-60 transition-opacity"
+                            className="text-white/10 text-[10px] text-center pt-1 active:opacity-60 transition-opacity"
                           >
                             Are you a TripAlong member?
                           </button>
                         ) : (
-                          <div className="flex items-center gap-2 pt-3">
+                          <div className="flex items-center gap-2 pt-1">
                             <input
                               type="text"
                               value={memberCode}
