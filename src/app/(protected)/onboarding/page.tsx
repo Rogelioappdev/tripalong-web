@@ -19,11 +19,6 @@ import type { UserProfile } from '@/lib/types'
 
 const playfair = Playfair_Display({ subsets: ['latin'], weight: ['700', '800', '900'] })
 
-// A small, recurring set of real destinations threaded through onboarding
-// (welcome atmosphere here, the value-prop trip card, the finale map) so the
-// flow reads as one continuous world instead of disconnected screens.
-const WELCOME_PHOTO = 'https://images.unsplash.com/photo-1530841377377-3ff06c0ca713?fm=jpg&q=80&w=1600&auto=format&fit=crop'
-
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
   center: { x: 0, opacity: 1 },
@@ -327,19 +322,6 @@ export default function OnboardingPage() {
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col relative overflow-hidden -mx-6 px-6"
                   >
-                    <motion.div
-                      className="absolute inset-0 -z-10"
-                      initial={{ scale: 1.06 }}
-                      animate={{ scale: 1.16 }}
-                      transition={{ duration: 24, ease: 'linear' }}
-                    >
-                      <img src={WELCOME_PHOTO} alt="" className="w-full h-full object-cover" />
-                    </motion.div>
-                    <div
-                      className="absolute inset-0 -z-10"
-                      style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.45) 35%, rgba(0,0,0,0.94) 88%)' }}
-                    />
-
                     <motion.div
                       initial="hidden"
                       animate="visible"
