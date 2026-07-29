@@ -258,28 +258,48 @@ function u(n: number) {
   return `calc(var(--u) * ${n})`
 }
 
+const RATIO = 9 / 19.3 // width / height
+
 export function LandingPhone() {
   const frameRef = useRef<HTMLDivElement>(null)
-  const [unit, setUnit] = useState(2.6)
+  // Explicit pixel dimensions computed in JS rather than CSS `aspect-ratio` —
+  // that property is itself a relatively modern addition, and combining it
+  // with `height: 100%` on a flex-item (whose width would otherwise come
+  // from the ratio) turned out to be exactly the kind of thing this specific
+  // WebView engine doesn't resolve: the frame measured 0×0 and nothing in it
+  // could ever become visible, no matter what unit the children used.
+  // Measuring the parent's real height and doing the ratio math by hand
+  // needs nothing from the engine beyond getBoundingClientRect, which every
+  // WebView has always had.
+  const [size, setSize] = useState({ w: 200, h: 200 / RATIO })
 
   useEffect(() => {
     const el = frameRef.current
-    if (!el) return
-    const measure = () => setUnit(el.getBoundingClientRect().width / 100)
+    const parent = el?.parentElement
+    if (!parent) return
+    const measure = () => {
+      const availH = parent.clientHeight
+      const availW = parent.clientWidth
+      let h = availH
+      let w = h * RATIO
+      if (w > availW) { w = availW; h = w / RATIO }
+      setSize({ w, h })
+    }
     measure()
     const ro = new ResizeObserver(measure)
-    ro.observe(el)
+    ro.observe(parent)
     return () => ro.disconnect()
   }, [])
+
+  const unit = size.w / 100
 
   return (
     <div
       ref={frameRef}
       className="relative mx-auto"
       style={{
-        height: '100%',
-        maxWidth: '100%',
-        aspectRatio: '9 / 19.3',
+        width: `${size.w}px`,
+        height: `${size.h}px`,
         ['--u' as string]: `${unit}px`,
       }}
     >
