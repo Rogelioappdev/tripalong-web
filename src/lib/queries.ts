@@ -1233,6 +1233,17 @@ export async function getMyViewerCount(): Promise<number> {
   return data ?? 0
 }
 
+// Real 30-day active-user count, backing the onboarding momentum screen (and
+// eventually the auth screen's social-proof pill). Callable anonymously —
+// see supabase/migrations/20260731_active_users_30d.sql — but this repo has
+// no local Supabase link, so the migration must be run by hand before this
+// RPC exists; until then this just falls back to 0.
+export async function getActiveUsers30d(): Promise<number> {
+  const { data, error } = await supabase.rpc('get_active_users_30d')
+  if (error) return 0
+  return data ?? 0
+}
+
 export async function getProfileViewers(limit = 50): Promise<{ id: string; name: string; profile_photo: string | null; travel_styles: string[]; country: string | null; viewed_at: string }[]> {
   // Uses server-side RPC that checks Plus status in the DB — cannot be bypassed client-side
   const { data, error } = await supabase.rpc('get_my_viewers', { p_limit: limit })

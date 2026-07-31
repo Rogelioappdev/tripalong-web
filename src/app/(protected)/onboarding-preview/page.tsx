@@ -6,17 +6,18 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useAnimation } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { createProfile, updateProfile } from '@/lib/queries'
+import { createProfile, updateProfile, getActiveUsers30d } from '@/lib/queries'
 import { normalizeImageToJpeg } from '@/lib/image'
 import { haptic } from '@/lib/haptics'
-import { SEASONS } from '@/lib/tripOptions'
+import { SEASONS, VIBES } from '@/lib/tripOptions'
 import { TripPreviewCard } from '@/components/onboarding/TripPreviewCard'
 import { WorldRouteMap } from '@/components/onboarding/WorldRouteMap'
 import { SplashCarousel } from '@/components/onboarding/SplashCarousel'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
-import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData } from '@/components/onboarding/dnaOptions'
+import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
+import { getFlag } from '@/lib/countries'
 import type { UserProfile } from '@/lib/types'
 
 const slideVariants = {
@@ -31,6 +32,13 @@ const fadeUpVariants = {
 }
 
 const CTA_STYLE = { backgroundColor: '#F0EBE3', color: '#000' } as const
+
+// 'momentum' step's ring of small bubbles around the big count circle — reuses
+// the app's real VIBES list (lib/tripOptions.ts) rather than fabricating fake
+// user avatars/photos, same reasoning as SplashCarousel.tsx's activity bubbles
+// (see that file's BADGE_COLORS/BADGE_INITIALS comment). 8 of VIBES' 10 entries,
+// picked for visual/emoji variety around the ring.
+const MOMENTUM_VIBE_VALUES = ['adventure', 'foodie', 'beach', 'nature', 'party', 'backpacking', 'cultural', 'chill'] as const
 
 function QuizContinueButton({ onClick, disabled, label }: { onClick: () => void; disabled?: boolean; label: string }) {
   return (
@@ -49,7 +57,7 @@ export default function OnboardingPage() {
   const router = useRouter()
 
   const [authChecked, setAuthChecked] = useState(false)
-  const [newStage, setNewStage] = useState<'splash' | 'auth' | 'welcome' | 'valueprop' | 'quiz' | 'finale'>('splash')
+  const [newStage, setNewStage] = useState<'splash' | 'auth' | 'welcome' | 'valueprop' | 'quiz' | 'passport' | 'finale'>('splash')
   const [newDirection, setNewDirection] = useState(1)
   // Flat ordered step-key system (replaces an old quizStep+dnaIndex pair).
   // PRE_DNA_STEPS run first, then one screen per DNA_DIMENSIONS entry, then
@@ -73,6 +81,11 @@ export default function OnboardingPage() {
   const [newBio, setNewBio] = useState('')
   const [newInstagram, setNewInstagram] = useState('')
   const [newDna, setNewDna] = useState<NewDnaData>(EMPTY_DNA)
+  // 'momentum' step's social-proof count. null = still loading (shows a
+  // skeleton pulse); 0 (or a fetch error, which getActiveUsers30d already
+  // collapses to 0) falls back to non-numeric copy so this screen never looks
+  // broken before the get_active_users_30d migration has been run in prod.
+  const [activeUsers30d, setActiveUsers30d] = useState<number | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const [newTravelPhotos, setNewTravelPhotos] = useState<string[]>([])
@@ -147,7 +160,7 @@ export default function OnboardingPage() {
   // user already confirmed it, so a corrected date gets re-confirmed.
   useEffect(() => { setAgeConfirmed(false) }, [newBirthDay, newBirthMonth, newBirthYear])
 
-  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'photo', 'travelPhotos', 'location', 'bio'] as const
+  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'photo', 'travelPhotos', 'location', 'bio', 'momentum'] as const
   const POST_DNA_STEPS = [] as const
   type PreDnaStep = typeof PRE_DNA_STEPS[number]
   type PostDnaStep = typeof POST_DNA_STEPS[number]
@@ -163,6 +176,19 @@ export default function OnboardingPage() {
   const currentDnaIndex = currentStepKind === 'dna' ? stepIndex - PRE_DNA_STEPS.length : -1
   const currentPostDnaStep: PostDnaStep | null =
     currentStepKind === 'post' ? POST_DNA_STEPS[stepIndex - PRE_DNA_STEPS.length - DNA_DIMENSIONS.length] : null
+
+  // Fetch the momentum step's real active-user count only when that step is
+  // actually on screen (not on every render of the whole page). Guarded with
+  // `cancelled` so a resolved fetch never calls setState after the user has
+  // swiped away from this step. getActiveUsers30d() already collapses any RPC
+  // error to 0, so no separate error state is needed here — a 0 (or a fetch
+  // error) both fall through to the non-numeric fallback copy in the JSX below.
+  useEffect(() => {
+    if (currentPreDnaStep !== 'momentum') return
+    let cancelled = false
+    getActiveUsers30d().then(count => { if (!cancelled) setActiveUsers30d(count) })
+    return () => { cancelled = true }
+  }, [currentPreDnaStep])
 
   const goStage = (stage: typeof newStage, dir: number) => { setNewDirection(dir); setNewStage(stage) }
 
@@ -238,7 +264,7 @@ export default function OnboardingPage() {
         experience_level: (newDna.experience_level || null) as UserProfile['experience_level'],
         travel_with: (newDna.travel_with || null) as UserProfile['travel_with'],
       })
-      goStage('finale', 1)
+      goStage('passport', 1)
     } catch (e: any) {
       setError(e?.message ?? 'Something went wrong. Please try again.')
     } finally {
@@ -293,6 +319,7 @@ export default function OnboardingPage() {
         case 'travelPhotos': return newTravelPhotos.length >= 3
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
         case 'bio': return true
+        case 'momentum': return true
         default: return true
       }
     }
@@ -404,6 +431,33 @@ export default function OnboardingPage() {
 
   const dim = currentStepKind === 'dna' ? DNA_DIMENSIONS[currentDnaIndex] : DNA_DIMENSIONS[0]
   const quizKey = `quiz-${stepIndex}`
+
+  // 'momentum' step's formatted count — plain digits with thousands separators,
+  // no K/M abbreviation (this app is early-stage; that logic isn't needed yet).
+  // null (still loading) and 0 (migration not run yet, or genuinely brand new)
+  // both fall through to the non-numeric fallback copy in the JSX below, so the
+  // screen never looks broken regardless of backend state.
+  const activeUsers30dDisplay = activeUsers30d !== null && activeUsers30d > 0 ? activeUsers30d.toLocaleString() : null
+
+  // 'passport' stage's trait pills — pulled straight from the DNA answers just
+  // collected, nothing fabricated. Shows up to 2 travel_styles (the multi-select,
+  // most "vibe"-defining dimension — closest thing this app has to the
+  // competitor passport card's traveler-type pills) plus the single
+  // experience_level pick (a nice "well-traveled" flourish that fits the
+  // passport metaphor). Falls back gracefully to fewer pills if the user left
+  // some DNA answers blank (shouldn't happen since canQuizContinue() requires
+  // every dimension, but this stays defensive either way).
+  const dnaOption = (key: keyof NewDnaData, value: string): DnaOption | undefined =>
+    DNA_DIMENSIONS.find(d => d.key === key)?.options.find(o => o.value === value)
+  const passportPills: DnaOption[] = [
+    ...newDna.travel_styles.slice(0, 2).map(v => dnaOption('travel_styles', v)),
+    dnaOption('experience_level', newDna.experience_level),
+  ].filter((o): o is DnaOption => !!o)
+
+  // Real "issued" date for the passport stamp — today, formatted plainly
+  // (e.g. "31 JUL 2026"), never a hardcoded placeholder.
+  const passportNow = new Date()
+  const passportIssuedDate = `${String(passportNow.getDate()).padStart(2, '0')} ${passportNow.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()} ${passportNow.getFullYear()}`
 
   return (
     <main className="h-[100dvh] overflow-hidden bg-black flex flex-col">
@@ -1118,6 +1172,82 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
 
+                {newStage === 'quiz' && currentPreDnaStep === 'momentum' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div className="flex-1 flex flex-col items-center justify-center text-center">
+                      {/* Big cream count circle ringed by 8 small trip-vibe emoji
+                          bubbles — modeled on a competitor's "1.8M travelers"
+                          momentum interstitial (see tripalong_nomadtable_screens.md,
+                          "13. Momentum/social-proof interstitial"), but reskinned
+                          with TripAlong's real getActiveUsers30d() count instead of
+                          a made-up number, and a ring of vibe emoji instead of fake
+                          user avatar photos — same "no fabricated people" rule
+                          SplashCarousel.tsx already follows for its bubble badges. */}
+                      <div className="relative w-60 h-60 mb-8 shrink-0">
+                        {MOMENTUM_VIBE_VALUES.map((value, i) => {
+                          const vibe = VIBES.find(v => v.value === value)
+                          if (!vibe) return null
+                          // Evenly spaced around the ring, starting at 12 o'clock.
+                          const angle = (i / MOMENTUM_VIBE_VALUES.length) * 2 * Math.PI - Math.PI / 2
+                          const ringRadius = 92
+                          const x = Math.cos(angle) * ringRadius
+                          const y = Math.sin(angle) * ringRadius
+                          return (
+                            <div
+                              key={vibe.value}
+                              className="absolute w-9 h-9 rounded-full flex items-center justify-center"
+                              style={{
+                                left: `calc(50% + ${x}px - 18px)`,
+                                top: `calc(50% + ${y}px - 18px)`,
+                                backgroundColor: 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                              }}
+                            >
+                              <span className="text-base">{vibe.emoji}</span>
+                            </div>
+                          )
+                        })}
+
+                        <div
+                          className="absolute inset-0 m-auto w-32 h-32 rounded-full flex items-center justify-center px-3"
+                          style={{ backgroundColor: '#F0EBE3' }}
+                        >
+                          {activeUsers30d === null ? (
+                            <div className="w-14 h-7 rounded-full animate-pulse" style={{ backgroundColor: 'rgba(0,0,0,0.1)' }} />
+                          ) : activeUsers30dDisplay ? (
+                            <span
+                              className={`text-black font-extrabold tracking-tight leading-none text-center ${activeUsers30dDisplay.length > 4 ? 'text-2xl' : 'text-4xl'}`}
+                            >
+                              {activeUsers30dDisplay}
+                            </span>
+                          ) : (
+                            <span className="text-3xl">🌍</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-2 max-w-[280px]">
+                        {activeUsers30dDisplay
+                          ? `${activeUsers30dDisplay} travelers were active this month`
+                          : 'Travelers are joining trips right now'}
+                      </h1>
+                      <p className="text-white/38 text-sm">Let&apos;s find your next trip.</p>
+                    </div>
+
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                  </motion.div>
+                )}
+
                 {newStage === 'quiz' && currentStepKind === 'dna' && !finalizing && (
                   <motion.div
                     key={quizKey}
@@ -1177,6 +1307,162 @@ export default function OnboardingPage() {
                         <p className="text-white/40 text-sm">Setting up your profile...</p>
                       </>
                     )}
+                  </motion.div>
+                )}
+
+                {newStage === 'passport' && (
+                  <motion.div
+                    key="passport"
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                  >
+                    {/* TripAlong's take on the competitor's "passport celebration"
+                        screen (see tripalong_nomadtable_screens.md, "15. Profile
+                        created — 'passport' celebration") — same dashed-border
+                        passport/visa-stamp metaphor, but reskinned entirely in this
+                        app's dark/cream brand (no white/blush-pink) and built from
+                        real just-collected state only: newName/newAge, the real
+                        cropped photoUrl, newCity/newCountry, a couple of the DNA
+                        answers as trait pills, and today's real date for the stamp
+                        — nothing here is invented. */}
+                    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center py-2">
+                      <motion.div
+                        initial={{ opacity: 0, y: 18, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 260, damping: 24, delay: 0.1 }}
+                        className="relative w-full max-w-[290px] shrink-0 rounded-[28px] border-2 border-dashed overflow-hidden"
+                        style={{ borderColor: 'rgba(240,235,227,0.35)', backgroundColor: '#0d0d0d' }}
+                      >
+                        <div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{ background: 'radial-gradient(circle at 50% 0%, rgba(240,235,227,0.09), transparent 60%)' }}
+                        />
+
+                        {/* Scattered decorative travel emoji, low-opacity — same
+                            "decorative, not data" role as the competitor's
+                            background emoji, just dark-brand appropriate. */}
+                        <span className="absolute text-lg opacity-[0.08]" style={{ top: 10, left: 14 }}>✈️</span>
+                        <span className="absolute text-lg opacity-[0.08]" style={{ top: 14, right: 18 }}>🌍</span>
+                        <span className="absolute text-lg opacity-[0.08]" style={{ bottom: 14, left: 20 }}>🧭</span>
+
+                        <div className="relative z-10 flex flex-col items-center text-center px-5 pt-5 pb-4">
+                          <p className="text-[10px] font-bold tracking-[0.32em]" style={{ color: 'rgba(240,235,227,0.5)' }}>
+                            TRIPALONG
+                          </p>
+
+                          <div className="relative mt-4 mb-3 w-24 h-24 shrink-0">
+                            <div
+                              className="w-24 h-24 rounded-full overflow-hidden border-2"
+                              style={{ borderColor: 'rgba(240,235,227,0.4)', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                            >
+                              {photoUrl ? (
+                                <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-3xl">🧳</div>
+                              )}
+                            </div>
+                            <span className="absolute -top-1.5 -left-2 text-base">⭐</span>
+                            <span className="absolute -bottom-0.5 -left-2.5 text-base">🎒</span>
+                            {newCountry && (
+                              <div
+                                className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center text-sm border-2"
+                                style={{ backgroundColor: '#F0EBE3', borderColor: '#0d0d0d' }}
+                              >
+                                {getFlag(newCountry) || '🌍'}
+                              </div>
+                            )}
+                          </div>
+
+                          <h2 className="text-white font-extrabold text-xl leading-tight">
+                            {newName.trim() || 'Traveler'}{newAge ? `, ${newAge}` : ''}
+                          </h2>
+                          {(newCity || newCountry) && (
+                            <p className="text-white/35 text-xs mt-1">
+                              {[newCity, newCountry].filter(Boolean).join(', ')}
+                            </p>
+                          )}
+
+                          <div className="my-4" style={{ transform: 'rotate(-9deg)' }}>
+                            <div className="border-2 rounded-xl px-4 py-1.5" style={{ borderColor: 'rgba(240,235,227,0.55)' }}>
+                              <p className="font-black text-base tracking-[0.14em] leading-tight" style={{ color: '#F0EBE3' }}>
+                                APPROVED
+                              </p>
+                              <p className="text-[9px] font-bold tracking-[0.2em] text-center" style={{ color: 'rgba(240,235,227,0.55)' }}>
+                                {passportIssuedDate}
+                              </p>
+                            </div>
+                          </div>
+
+                          {passportPills.length > 0 && (
+                            <div className="flex flex-wrap justify-center gap-1.5 mb-1">
+                              {passportPills.map(opt => (
+                                <span
+                                  key={opt.value}
+                                  className="text-[11px] font-semibold rounded-full px-3 py-1"
+                                  style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.22)', color: '#F0EBE3' }}
+                                >
+                                  {opt.emoji} {opt.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {newTravelPhotos.length > 0 && (
+                            <div className="flex gap-1.5 mt-3">
+                              {newTravelPhotos.slice(0, 4).map(url => (
+                                <div
+                                  key={url}
+                                  className="w-9 h-9 rounded-lg overflow-hidden border"
+                                  style={{ borderColor: 'rgba(240,235,227,0.2)' }}
+                                >
+                                  <img src={url} alt="" className="w-full h-full object-cover" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div
+                            className="w-full flex items-center justify-between mt-4 pt-3 border-t"
+                            style={{ borderColor: 'rgba(240,235,227,0.15)' }}
+                          >
+                            <span className="text-[8px] font-semibold tracking-[0.16em]" style={{ color: 'rgba(240,235,227,0.28)' }}>
+                              ISSUED {passportIssuedDate}
+                            </span>
+                            <span className="text-[8px] font-semibold tracking-[0.16em]" style={{ color: 'rgba(240,235,227,0.28)' }}>
+                              TRIPALONG PASSPORT
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="text-center mt-6 shrink-0"
+                      >
+                        <h1 className="text-white font-extrabold text-2xl leading-tight mb-1.5">Profile created 🎉</h1>
+                        <p className="text-white/38 text-sm leading-relaxed max-w-[260px] mx-auto">
+                          Stamped and ready. Trips and travelers who match your vibe are just ahead.
+                        </p>
+                      </motion.div>
+                    </div>
+
+                    <motion.button
+                      initial={{ opacity: 0, y: 14 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.55, type: 'spring', stiffness: 300, damping: 28 }}
+                      onClick={() => { haptic(8); goStage('finale', 1) }}
+                      className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform shrink-0"
+                      style={CTA_STYLE}
+                    >
+                      See your profile →
+                    </motion.button>
                   </motion.div>
                 )}
 

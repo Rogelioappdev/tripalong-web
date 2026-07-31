@@ -15,6 +15,13 @@ import { supabase } from '@/lib/supabase'
 // re-arm the refresh loop and proactively refresh the session, so a valid token
 // is restored before any page reads it. Mounted once, app-wide, in the
 // protected layout.
+// Touching last_active_at on every focus/foreground would be a lot of writes
+// for a column that only needs day-or-so granularity (it backs a 30-day
+// active-user count, see supabase/migrations/20260731_active_users_30d.sql) —
+// throttle to roughly once per hour per device via localStorage.
+const LAST_ACTIVE_TOUCH_KEY = 'ta_last_active_touch'
+const LAST_ACTIVE_TOUCH_INTERVAL_MS = 60 * 60 * 1000
+
 export function SessionKeeper() {
   useEffect(() => {
     let cancelled = false
@@ -32,6 +39,20 @@ export function SessionKeeper() {
       }
     }
 
+    const touchLastActive = async () => {
+      try {
+        const lastTouch = Number(localStorage.getItem(LAST_ACTIVE_TOUCH_KEY) ?? 0)
+        if (Date.now() - lastTouch < LAST_ACTIVE_TOUCH_INTERVAL_MS) return
+        const { data } = await supabase.auth.getUser()
+        if (cancelled || !data.user) return
+        await supabase.from('users').update({ last_active_at: new Date().toISOString() }).eq('id', data.user.id)
+        localStorage.setItem(LAST_ACTIVE_TOUCH_KEY, String(Date.now()))
+      } catch {
+        // Best-effort only — this is a stat, not something correctness
+        // depends on. A dropped write here retries on the next focus event.
+      }
+    }
+
     const onVisible = () => {
       if (document.visibilityState !== 'visible') {
         // Backgrounded: pause the timer so it doesn't fire mid-suspend.
@@ -40,11 +61,13 @@ export function SessionKeeper() {
       }
       supabase.auth.startAutoRefresh()
       revive()
+      touchLastActive()
     }
 
     // Kick things off for the current (foreground) load, then track lifecycle.
     supabase.auth.startAutoRefresh()
     revive()
+    touchLastActive()
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
     window.addEventListener('online', revive)
