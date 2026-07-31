@@ -1,0 +1,81 @@
+/* Dark/cream theme override for react-day-picker v10, which ships a
+   light-theme default (blue accent, near-white backgrounds) with no dark
+   mode of its own. Uses its documented CSS custom-properties API
+   (--rdp-accent-color etc.) plus a handful of targeted class overrides for
+   things the variables don't reach (text/background colors that the
+   package's base style.css hardcodes rather than expressing as a variable).
+
+   Every selector below pairs the local `.calendar` class with the library's
+   own `:global(.rdp-*)` class on the SAME element/descendant, so specificity
+   (0,2,0) beats the plain (0,1,0) selectors in react-day-picker's own
+   style.css regardless of which stylesheet the bundler happens to order
+   first. */
+
+.calendar:global(.rdp-root) {
+  --rdp-accent-color: #F0EBE3;
+  --rdp-accent-background-color: rgba(240, 235, 227, 0.16);
+  --rdp-range_middle-color: #F0EBE3;
+  --rdp-range_start-color: #000;
+  --rdp-range_end-color: #000;
+  --rdp-today-color: #F0EBE3;
+  --rdp-disabled-opacity: 0.28;
+  --rdp-outside-opacity: 0.3;
+  --rdp-weekday-opacity: 0.4;
+  --rdp-nav_button-disabled-opacity: 0.25;
+  color: #fff;
+  width: 100%;
+  max-width: 320px;
+}
+
+.calendar :global(.rdp-months) {
+  width: 100%;
+  justify-content: center;
+}
+
+.calendar :global(.rdp-month_grid) {
+  width: 100%;
+}
+
+.calendar :global(.rdp-month_caption) {
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  justify-content: center;
+}
+
+.calendar :global(.rdp-weekday) {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.calendar :global(.rdp-day_button) {
+  color: rgba(255, 255, 255, 0.85);
+  transition: background-color 0.15s ease;
+}
+
+.calendar :global(.rdp-day_button:hover:not(:disabled)) {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.calendar :global(.rdp-outside .rdp-day_button) {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.calendar :global(.rdp-disabled .rdp-day_button) {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.calendar :global(.rdp-selected .rdp-day_button) {
+  font-weight: 700;
+}
+
+.calendar :global(.rdp-chevron) {
+  fill: #F0EBE3;
+}
+
+.calendar :global(.rdp-button_previous),
+.calendar :global(.rdp-button_next) {
+  color: #F0EBE3;
+}

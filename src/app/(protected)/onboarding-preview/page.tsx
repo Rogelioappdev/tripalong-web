@@ -16,6 +16,7 @@ import { SplashCarousel } from '@/components/onboarding/SplashCarousel'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
+import { TripDateRangePicker } from '@/components/onboarding/TripDateRangePicker'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
 import { getFlag } from '@/lib/countries'
 import type { UserProfile } from '@/lib/types'
@@ -57,7 +58,7 @@ export default function OnboardingPage() {
   const router = useRouter()
 
   const [authChecked, setAuthChecked] = useState(false)
-  const [newStage, setNewStage] = useState<'splash' | 'auth' | 'welcome' | 'valueprop' | 'quiz' | 'passport' | 'finale'>('splash')
+  const [newStage, setNewStage] = useState<'splash' | 'auth' | 'valueprop' | 'quiz' | 'passport' | 'finale'>('splash')
   const [newDirection, setNewDirection] = useState(1)
   // Flat ordered step-key system (replaces an old quizStep+dnaIndex pair).
   // PRE_DNA_STEPS run first, then one screen per DNA_DIMENSIONS entry, then
@@ -78,13 +79,21 @@ export default function OnboardingPage() {
   const [newCity, setNewCity] = useState('')
   const [newTripDestination, setNewTripDestination] = useState('')
   const [newTripWhen, setNewTripWhen] = useState('')
+  // Exact-dates alternative to the newTripWhen season chips, via
+  // TripDateRangePicker's react-day-picker calendar. ISO YYYY-MM-DD strings
+  // (same convention as CreateTripModal's startDate/endDate), '' when unset.
+  const [newTripStartDate, setNewTripStartDate] = useState('')
+  const [newTripEndDate, setNewTripEndDate] = useState('')
   const [newBio, setNewBio] = useState('')
   const [newInstagram, setNewInstagram] = useState('')
   const [newDna, setNewDna] = useState<NewDnaData>(EMPTY_DNA)
-  // 'momentum' step's social-proof count. null = still loading (shows a
-  // skeleton pulse); 0 (or a fetch error, which getActiveUsers30d already
-  // collapses to 0) falls back to non-numeric copy so this screen never looks
-  // broken before the get_active_users_30d migration has been run in prod.
+  // 'momentum' step's secondary social-proof count (the screen's PRIMARY
+  // message is priming the user for the upcoming Travel DNA questions — see
+  // that step's JSX). null = still loading; 0 (or a fetch error, which
+  // getActiveUsers30d already collapses to 0) falls back to non-numeric copy
+  // so this screen never looks broken before the get_active_users_30d
+  // migration has been run in prod. Both null and the fallback render the
+  // same generic caption text, so no separate loading UI is needed here.
   const [activeUsers30d, setActiveUsers30d] = useState<number | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -119,7 +128,7 @@ export default function OnboardingPage() {
 
   // NOTE: this is the /onboarding-preview copy, reachable only via the hidden
   // Settings > "Are you a TripAlong member?" gate. Unlike the real /onboarding
-  // route, it deliberately does NOT auto-skip to 'welcome' when a session
+  // route, it deliberately does NOT auto-skip to 'valueprop' when a session
   // already exists — the whole point of this route is to preview the new
   // splash/auth/birthday/attribution screens as a tester who is, in practice,
   // always already logged in. Prefilling the name from the session is still
@@ -140,7 +149,7 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: row } = await supabase.from('users').select('age').eq('id', user.id).single()
-      if (!row || row.age === null) setNewStage('welcome')
+      if (!row || row.age === null) setNewStage('valueprop')
       else router.push('/feed')
     }
     return () => { delete (window as any).__tripalongGoogleSignInResult }
@@ -212,7 +221,7 @@ export default function OnboardingPage() {
       if (authMode === 'signup') {
         const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword })
         if (error) throw error
-        goStage('welcome', 1)
+        goStage('valueprop', 1)
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword })
         if (error) throw error
@@ -229,7 +238,7 @@ export default function OnboardingPage() {
     if (memberCode.trim().toLowerCase() === 'gertrudis') {
       haptic(10)
       setMemberPreview(true)
-      goStage('welcome', 1)
+      goStage('valueprop', 1)
     } else {
       haptic([8, 20, 8])
       setMemberCodeError(true)
@@ -241,7 +250,11 @@ export default function OnboardingPage() {
     setLoading(true)
     setError('')
     if (memberPreview) {
-      goStage('finale', 1)
+      // The passport screen only ever reads local component state (name,
+      // photo, DNA answers, etc.) — none of it depends on the Supabase write
+      // this branch skips — so testers using the member-code shortcut should
+      // still see it, not get bounced straight to finale.
+      goStage('passport', 1)
       setLoading(false)
       return
     }
@@ -287,26 +300,40 @@ export default function OnboardingPage() {
   }
 
   // Swipe-right-to-go-back gesture shared by every quiz step's motion.div.
-  // dragConstraints of {left:0, right:0} keeps the element itself pinned (so
-  // it doesn't visually drift away from the existing slideVariants layout),
-  // while dragElastic still allows a rubber-band feel while the user is
-  // actively dragging. info.offset.x is the raw pointer delta since the drag
-  // started and is unaffected by the constraints, so the threshold check
-  // below works regardless of how far the element itself is allowed to move.
-  // Forward swipe (left) intentionally isn't wired to quizNext() here — several
-  // steps gate Continue with bespoke disabled logic (e.g. the photo step uses
-  // `!photoUrl || uploading` rather than canQuizContinue()), so a blanket
-  // swipe-forward could skip past an unfinished step. Back is safe in every
-  // case because quizBack() has no validation to bypass.
+  //
+  // This used to be Framer Motion's native `drag="x"` prop with
+  // dragConstraints pinning the element back to 0 on release. That caused a
+  // real bug: `drag` intercepts pointer gestures across the ENTIRE element,
+  // including buttons inside it (e.g. an attribution option, or Continue) —
+  // any few px of pointer jitter during an ordinary tap gets read as a tiny
+  // drag, and releasing it inside dragConstraints plays an elastic
+  // snap-back animation that visually collides with the real slide-out exit
+  // transition, which is exactly the "laggy/weird" feel reported after
+  // tapping through the attribution screen.
+  //
+  // Fixed by dropping Framer's `drag` gesture entirely in favor of plain
+  // Pointer Events that only ever read coordinates on down/up — no
+  // preventDefault, no pointer capture, so button clicks underneath are
+  // completely unaffected, and there's no live drag-follow or snap-back
+  // animation to collide with anything. We only act on the gesture once it
+  // ends, and only if it was mostly horizontal (guards against a vertical
+  // scroll/tap being misread as a swipe).
   const QUIZ_SWIPE_BACK_THRESHOLD = 90
-  const handleQuizDragEnd = (_e: unknown, info: { offset: { x: number } }) => {
-    if (info.offset.x > QUIZ_SWIPE_BACK_THRESHOLD) quizBack()
+  const quizPointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  const handleQuizPointerDown = (e: React.PointerEvent) => {
+    quizPointerStartRef.current = { x: e.clientX, y: e.clientY }
+  }
+  const handleQuizPointerUp = (e: React.PointerEvent) => {
+    const start = quizPointerStartRef.current
+    quizPointerStartRef.current = null
+    if (!start) return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (dx > QUIZ_SWIPE_BACK_THRESHOLD && Math.abs(dy) < 60) quizBack()
   }
   const quizDragProps = {
-    drag: 'x' as const,
-    dragConstraints: { left: 0, right: 0 },
-    dragElastic: 0.6,
-    onDragEnd: handleQuizDragEnd,
+    onPointerDown: handleQuizPointerDown,
+    onPointerUp: handleQuizPointerUp,
   }
 
   const canQuizContinue = () => {
@@ -666,55 +693,6 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
 
-                {newStage === 'welcome' && (
-                  <motion.div
-                    key="welcome"
-                    custom={newDirection}
-                    variants={slideVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.25, ease: 'easeInOut' }}
-                    className="flex-1 flex flex-col relative"
-                  >
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      style={{ background: 'radial-gradient(circle at 50% 38%, rgba(240,235,227,0.09), transparent 55%)' }}
-                    />
-                    <div className="flex-1 flex flex-col items-center justify-center text-center">
-                      <motion.div
-                        initial="hidden"
-                        animate="visible"
-                        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.14, delayChildren: 0.1 } } }}
-                      >
-                        <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-5">
-                          Welcome to
-                        </motion.p>
-                        <motion.h1 variants={fadeUpVariants} className="text-white font-extrabold text-5xl tracking-tight mb-5">
-                          TripAlong
-                        </motion.h1>
-                        <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed max-w-[260px] mx-auto">
-                          Find your people.<br />See the world together.
-                        </motion.p>
-                      </motion.div>
-                    </div>
-                    <motion.div
-                      className="mt-auto"
-                      initial={{ opacity: 0, y: 14 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.65, type: 'spring', stiffness: 300, damping: 28 }}
-                    >
-                      <button
-                        onClick={() => { haptic(8); goStage('valueprop', 1) }}
-                        className="w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
-                        style={CTA_STYLE}
-                      >
-                        Get started
-                      </button>
-                    </motion.div>
-                  </motion.div>
-                )}
-
                 {newStage === 'valueprop' && (
                   <motion.div
                     key="valueprop"
@@ -1023,6 +1001,18 @@ export default function OnboardingPage() {
                       </p>
                     </div>
 
+                    {/* A small spinner tucked inside the "+ Add" tile was easy to
+                        miss right after the native photo picker hands control
+                        back — normalizing + uploading each file sequentially can
+                        take a few seconds with no other feedback, which read as
+                        "stuck." This banner makes the wait unmistakable. */}
+                    {uploadingTravelPhotos && (
+                      <div className="mt-3 flex items-center gap-2.5 rounded-2xl px-4 py-3" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                        <div className="w-4 h-4 border-2 border-white/20 border-t-white/70 rounded-full animate-spin shrink-0" />
+                        <span className="text-white/60 text-xs font-medium">Uploading your photos…</span>
+                      </div>
+                    )}
+
                     <div className="flex-1 min-h-0 overflow-y-auto mt-3 -mx-1 px-1">
                       <div className="grid grid-cols-3 gap-1.5">
                         {newTravelPhotos.map(url => (
@@ -1060,7 +1050,11 @@ export default function OnboardingPage() {
 
                     {error && <p className="text-red-400 text-sm text-center mb-2">{error}</p>}
 
-                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue() || uploadingTravelPhotos} label="Continue →" />
+                    <QuizContinueButton
+                      onClick={quizNext}
+                      disabled={!canQuizContinue() || uploadingTravelPhotos}
+                      label={uploadingTravelPhotos ? 'Uploading…' : 'Continue →'}
+                    />
                   </motion.div>
                 )}
 
@@ -1113,6 +1107,12 @@ export default function OnboardingPage() {
                           </button>
                         ))}
                       </div>
+
+                      <TripDateRangePicker
+                        startDate={newTripStartDate}
+                        endDate={newTripEndDate}
+                        onChange={(start, end) => { setNewTripStartDate(start); setNewTripEndDate(end) }}
+                      />
                     </div>
 
                     <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
@@ -1185,14 +1185,20 @@ export default function OnboardingPage() {
                     {...quizDragProps}
                   >
                     <div className="flex-1 flex flex-col items-center justify-center text-center">
-                      {/* Big cream count circle ringed by 8 small trip-vibe emoji
-                          bubbles — modeled on a competitor's "1.8M travelers"
-                          momentum interstitial (see tripalong_nomadtable_screens.md,
-                          "13. Momentum/social-proof interstitial"), but reskinned
-                          with TripAlong's real getActiveUsers30d() count instead of
-                          a made-up number, and a ring of vibe emoji instead of fake
-                          user avatar photos — same "no fabricated people" rule
-                          SplashCarousel.tsx already follows for its bubble badges. */}
+                      {/* Cream circle ringed by 8 small trip-vibe emoji bubbles —
+                          same ring as before (reuses the app's real VIBES list,
+                          "no fabricated people" rule shared with
+                          SplashCarousel.tsx's bubble badges), but the circle's
+                          content and the copy below it were reframed: this used
+                          to be a pure social-proof momentum interstitial (a big
+                          live user count as the headline). It sits directly
+                          before the 6 Travel DNA questions, so its job now is
+                          priming — telling the user those specific questions
+                          feed the matching algorithm and that answering for
+                          real (not fast) is what makes their matches good. The
+                          real getActiveUsers30d() count still appears, just
+                          demoted to a small supporting line under the subtext
+                          instead of being the headline. */}
                       <div className="relative w-60 h-60 mb-8 shrink-0">
                         {MOMENTUM_VIBE_VALUES.map((value, i) => {
                           const vibe = VIBES.find(v => v.value === value)
@@ -1222,26 +1228,21 @@ export default function OnboardingPage() {
                           className="absolute inset-0 m-auto w-32 h-32 rounded-full flex items-center justify-center px-3"
                           style={{ backgroundColor: '#F0EBE3' }}
                         >
-                          {activeUsers30d === null ? (
-                            <div className="w-14 h-7 rounded-full animate-pulse" style={{ backgroundColor: 'rgba(0,0,0,0.1)' }} />
-                          ) : activeUsers30dDisplay ? (
-                            <span
-                              className={`text-black font-extrabold tracking-tight leading-none text-center ${activeUsers30dDisplay.length > 4 ? 'text-2xl' : 'text-4xl'}`}
-                            >
-                              {activeUsers30dDisplay}
-                            </span>
-                          ) : (
-                            <span className="text-3xl">🌍</span>
-                          )}
+                          <span className="text-4xl">🧬</span>
                         </div>
                       </div>
 
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-2 max-w-[280px]">
+                        This is your Travel DNA.
+                      </h1>
+                      <p className="text-white/38 text-sm max-w-[280px] mb-3">
+                        The next 6 questions are what actually match you with people and trips — answer for real, not fast.
+                      </p>
+                      <p className="text-white/25 text-xs">
                         {activeUsers30dDisplay
                           ? `${activeUsers30dDisplay} travelers were active this month`
                           : 'Travelers are joining trips right now'}
-                      </h1>
-                      <p className="text-white/38 text-sm">Let&apos;s find your next trip.</p>
+                      </p>
                     </div>
 
                     <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
