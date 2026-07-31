@@ -428,6 +428,13 @@ export default function SettingsPage() {
               <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
                 <Row label="TripAlong Earth" chevron border onPress={() => { haptic(8); router.push('/world') }} />
                 <Row
+                  label="New Onboarding Preview"
+                  sub="In-progress rebuild, not live yet"
+                  chevron
+                  border
+                  onPress={() => { haptic(8); router.push('/onboarding-preview') }}
+                />
+                <Row
                   label="Test New Features"
                   sub="See in-progress features early"
                   border
