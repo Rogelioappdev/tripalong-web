@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { createProfile, updateProfile, getActiveUsers30d } from '@/lib/queries'
 import { normalizeImageToJpeg } from '@/lib/image'
 import { haptic } from '@/lib/haptics'
+import { playStampSound } from '@/lib/stampSound'
 import { SEASONS, VIBES } from '@/lib/tripOptions'
 import { TripPreviewCard } from '@/components/onboarding/TripPreviewCard'
 import { WorldRouteMap } from '@/components/onboarding/WorldRouteMap'
@@ -107,6 +108,12 @@ export default function OnboardingPage() {
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const finaleControls = useAnimation()
+  // Drives the passport card's brief "thud" reaction (tiny scale-pulse +
+  // shake) the instant the APPROVED stamp finishes slamming down — see the
+  // 'passport' stage below. Imperative (via .start()) rather than a plain
+  // animate object so it can be fired precisely on stamp impact without
+  // fighting the card's own declarative entrance animation.
+  const passportImpactControls = useAnimation()
 
   const isSigninIntent = () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mode') === 'signin'
   const [authShowEmail, setAuthShowEmail] = useState(isSigninIntent)
@@ -200,6 +207,39 @@ export default function OnboardingPage() {
   }, [currentPreDnaStep])
 
   const goStage = (stage: typeof newStage, dir: number) => { setNewDirection(dir); setNewStage(stage) }
+
+  // Fired via onAnimationComplete on the passport card's APPROVED stamp
+  // (see 'passport' stage below) the instant its drop+bounce animation
+  // actually finishes — i.e. the real moment of "impact", not a guessed
+  // timeout. Plays the synthesized stamp thud and gives the card itself a
+  // tiny, brief scale/shake reaction so the two sell one "thud" together.
+  const handlePassportStampImpact = () => {
+    playStampSound()
+    passportImpactControls.start({
+      scale: [1, 1.018, 0.99, 1],
+      x: [0, -2, 2, -1, 0],
+      transition: { duration: 0.13, ease: 'easeInOut' },
+    })
+  }
+
+  // Bug fix ("moves down weirdly" on valueprop's Continue tap): the quiz
+  // header logo row below is `shrink-0` and sits directly above the
+  // AnimatePresence in a fixed-height, overflow-hidden flex column. It used
+  // to be conditioned directly on `newStage === 'quiz'`, which flips true the
+  // instant Continue is clicked — but AnimatePresence (mode="wait") keeps the
+  // outgoing 'valueprop' screen mounted and visibly sliding out for its full
+  // 250ms exit transition (goStage('quiz', 1) below is the *only* place that
+  // enters 'quiz', so this is where the glitch was reported). Inserting the
+  // header instantly shrank the sibling flex-1 region by the header's height,
+  // shoving the still-exiting valueprop content down mid-animation. Delaying
+  // the header's appearance by that same 250ms lets it show up alongside the
+  // next quiz screen's own entrance instead, once the old screen is gone.
+  const [quizChromeVisible, setQuizChromeVisible] = useState(false)
+  useEffect(() => {
+    if (newStage !== 'quiz') { setQuizChromeVisible(false); return }
+    const t = setTimeout(() => setQuizChromeVisible(true), 250)
+    return () => clearTimeout(t)
+  }, [newStage])
 
   const handleAuthGoogle = () => {
     haptic(8)
@@ -501,26 +541,58 @@ export default function OnboardingPage() {
           </div>
         ) : (
           <>
-            {/* No visible progress bar / step counter, by design — matches the
-                competitor reference this flow is modeled on, which relies on
-                momentum/social-proof interstitials rather than a literal
-                progress UI. quizProgressPct is still computed above in case a
-                future screen (or A/B test) wants it back. The old "← Back"
-                button was replaced by a swipe-right-to-go-back drag gesture on
-                each quiz step (see quizDragProps below); this small persistent
-                logo mark takes its place at the top of the quiz chrome. */}
-            {newStage === 'quiz' && !finalizing && (
-              <div className="shrink-0 mb-6 flex items-center justify-center gap-2">
-                {/* /tagalong-icon.png has generous transparent padding around the
-                    mark (see BottomTabBar's use of the same asset), so it's sized
-                    up past its visible content to read clearly at this scale —
-                    matches the competitor reference's bolder top-of-screen logo
-                    treatment (see tripalong_nomadtable_screens.md). Same block
-                    renders above every quiz step, so position is identical
-                    throughout. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/tagalong-icon.png" alt="" className="w-9 h-9 object-contain" />
-                <span className="text-white font-extrabold text-xl tracking-tight">TripAlong</span>
+            {/* No visible progress bar / step counter across the quiz at large,
+                by design — matches the competitor reference this flow is
+                modeled on, which relies on momentum/social-proof interstitials
+                rather than a literal progress UI. quizProgressPct is still
+                computed above in case a future screen (or A/B test) wants it
+                back. The old "← Back" button was replaced by a swipe-right-to-
+                go-back drag gesture on each quiz step (see quizDragProps
+                below); this small persistent logo mark takes its place at the
+                top of the quiz chrome. The one deliberate, narrow exception:
+                a thin "Question X of 6" progress bar shown only during the 6
+                Travel DNA dimension screens (currentStepKind === 'dna'),
+                added per explicit user request — see below. */}
+            {quizChromeVisible && !finalizing && (
+              <div className="shrink-0 mb-6 flex flex-col gap-3">
+                <div className="flex items-center justify-center gap-2">
+                  {/* /tagalong-icon.png has generous transparent padding around the
+                      mark (see BottomTabBar's use of the same asset), so it's sized
+                      up past its visible content to read clearly at this scale —
+                      matches the competitor reference's bolder top-of-screen logo
+                      treatment (see tripalong_nomadtable_screens.md). Same block
+                      renders above every quiz step, so position is identical
+                      throughout. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/tagalong-icon.png" alt="" className="w-9 h-9 object-contain" />
+                  <span className="text-white font-extrabold text-xl tracking-tight">TripAlong</span>
+                </div>
+
+                {/* Deliberate, narrow exception to this flow's "no progress bar"
+                    rule (see note below on quizProgressPct): shown ONLY for the
+                    6 Travel DNA questions (currentStepKind === 'dna'), per
+                    explicit user request — those 6 screens are a distinct,
+                    countable sub-sequence within the quiz, unlike every other
+                    step here. Width is driven off currentDnaIndex/DNA_DIMENSIONS
+                    (not the whole-quiz quizProgressPct), and animates between
+                    questions with the same spring this file already uses for
+                    other settle-into-place transitions (see the quiz CTA button
+                    and auth screen above). */}
+                {currentStepKind === 'dna' && (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: '#F0EBE3' }}
+                        animate={{ width: `${((currentDnaIndex + 1) / DNA_DIMENSIONS.length) * 100}%` }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+                      />
+                    </div>
+                    <span className="text-white/25 text-[10px] font-semibold tracking-wide">
+                      Question {currentDnaIndex + 1} of {DNA_DIMENSIONS.length}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1075,44 +1147,49 @@ export default function OnboardingPage() {
                       <p className="text-white/38 text-sm">Helps travelers nearby find you.</p>
                     </div>
 
-                    <div className="flex flex-col gap-3 mt-6">
+                    {/* Scrollable content area — this step's content (especially
+                        with the date-range calendar expanded) can run taller
+                        than the fixed h-[100dvh] shell allows; without this the
+                        calendar rendered off the bottom of the screen with no
+                        way to reach it, since the shell itself is overflow-hidden. */}
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-6">
                       <CitySearchPicker
                         value={newCity ? `${newCity}${newCountry ? `, ${newCountry}` : ''}` : ''}
                         onSelect={({ city, country }) => { setNewCity(city); setNewCountry(country) }}
                         placeholder="Search for your city"
                         autoFocus
                       />
-                    </div>
 
-                    <div className="mt-8">
-                      <h2 className="text-white font-bold text-lg mb-1">Got a trip coming up?</h2>
-                      <p className="text-white/30 text-xs mb-4">Totally optional — you can always add this later.</p>
-                      <CitySearchPicker
-                        value={newTripDestination}
-                        onSelect={({ city }) => setNewTripDestination(city)}
-                        placeholder="Where to?"
-                        className="mb-3"
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        {SEASONS.slice(0, 4).map(s => (
-                          <button
-                            key={s}
-                            onClick={() => { haptic(8); setNewTripWhen(w => w === s ? '' : s) }}
-                            className="px-3.5 py-2 rounded-full text-xs font-semibold border transition-colors"
-                            style={newTripWhen === s
-                              ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
-                              : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.12)' }}
-                          >
-                            {s}
-                          </button>
-                        ))}
+                      <div className="mt-8">
+                        <h2 className="text-white font-bold text-lg mb-1">Got a trip coming up?</h2>
+                        <p className="text-white/30 text-xs mb-4">Totally optional — you can always add this later.</p>
+                        <CitySearchPicker
+                          value={newTripDestination}
+                          onSelect={({ city }) => setNewTripDestination(city)}
+                          placeholder="Where to?"
+                          className="mb-3"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {SEASONS.slice(0, 4).map(s => (
+                            <button
+                              key={s}
+                              onClick={() => { haptic(8); setNewTripWhen(w => w === s ? '' : s) }}
+                              className="px-3.5 py-2 rounded-full text-xs font-semibold border transition-colors"
+                              style={newTripWhen === s
+                                ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
+                                : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.12)' }}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+
+                        <TripDateRangePicker
+                          startDate={newTripStartDate}
+                          endDate={newTripEndDate}
+                          onChange={(start, end) => { setNewTripStartDate(start); setNewTripEndDate(end) }}
+                        />
                       </div>
-
-                      <TripDateRangePicker
-                        startDate={newTripStartDate}
-                        endDate={newTripEndDate}
-                        onChange={(start, end) => { setNewTripStartDate(start); setNewTripEndDate(end) }}
-                      />
                     </div>
 
                     <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
@@ -1200,6 +1277,36 @@ export default function OnboardingPage() {
                           demoted to a small supporting line under the subtext
                           instead of being the headline. */}
                       <div className="relative w-60 h-60 mb-8 shrink-0">
+                        {/* sc-float is SplashCarousel.tsx's own ±8px bob keyframe,
+                            reused here (same @keyframes name/timing) so this ring
+                            reads as the same "alive" design language as that
+                            screen's vibe bubbles rather than a new animation
+                            style. Each bubble gets a staggered mount-in (scale+
+                            fade, small per-index delay) via Framer Motion, then
+                            settles into the CSS float loop — kept subtle (small
+                            drift, slow, per-bubble delay offsets) since this is a
+                            1-2s beat before 6 real questions, not a showcase. */}
+                        <style>{`
+                          @keyframes sc-float {
+                            0%, 100% { transform: translateY(0); }
+                            50% { transform: translateY(-8px); }
+                          }
+                          @keyframes momentum-glow {
+                            0%, 100% { opacity: 0.35; }
+                            50% { opacity: 0.7; }
+                          }
+                        `}</style>
+
+                        {/* Soft pulsing glow behind the ring — same cream, no new color. */}
+                        <div
+                          className="absolute inset-0 m-auto w-40 h-40 rounded-full pointer-events-none"
+                          style={{
+                            backgroundColor: '#F0EBE3',
+                            filter: 'blur(28px)',
+                            animation: 'momentum-glow 4.5s ease-in-out infinite',
+                          }}
+                        />
+
                         {MOMENTUM_VIBE_VALUES.map((value, i) => {
                           const vibe = VIBES.find(v => v.value === value)
                           if (!vibe) return null
@@ -1209,27 +1316,46 @@ export default function OnboardingPage() {
                           const x = Math.cos(angle) * ringRadius
                           const y = Math.sin(angle) * ringRadius
                           return (
-                            <div
+                            // Two nested layers on purpose: Framer Motion's spring
+                            // (opacity/scale, the entrance) and the CSS sc-float
+                            // keyframe (translateY, the idle bob) both animate
+                            // `transform` — stacking them on one element lets the
+                            // CSS keyframe clobber the in-flight scale spring the
+                            // instant its delay elapses. Splitting them onto an
+                            // outer (entrance) + inner (float) element keeps both
+                            // running independently with no fighting.
+                            <motion.div
                               key={vibe.value}
-                              className="absolute w-9 h-9 rounded-full flex items-center justify-center"
-                              style={{
-                                left: `calc(50% + ${x}px - 18px)`,
-                                top: `calc(50% + ${y}px - 18px)`,
-                                backgroundColor: 'rgba(255,255,255,0.08)',
-                                border: '1px solid rgba(255,255,255,0.12)',
-                              }}
+                              initial={{ opacity: 0, scale: 0.4 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ delay: 0.15 + i * 0.05, type: 'spring', stiffness: 320, damping: 22 }}
+                              className="absolute"
+                              style={{ left: `calc(50% + ${x}px - 18px)`, top: `calc(50% + ${y}px - 18px)` }}
                             >
-                              <span className="text-base">{vibe.emoji}</span>
-                            </div>
+                              <div
+                                className="w-9 h-9 rounded-full flex items-center justify-center"
+                                style={{
+                                  backgroundColor: 'rgba(255,255,255,0.08)',
+                                  border: '1px solid rgba(255,255,255,0.12)',
+                                  animation: 'sc-float 3.6s ease-in-out infinite',
+                                  animationDelay: `${0.6 + i * 0.22}s`,
+                                }}
+                              >
+                                <span className="text-base">{vibe.emoji}</span>
+                              </div>
+                            </motion.div>
                           )
                         })}
 
-                        <div
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.7 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.05, type: 'spring', stiffness: 280, damping: 22 }}
                           className="absolute inset-0 m-auto w-32 h-32 rounded-full flex items-center justify-center px-3"
                           style={{ backgroundColor: '#F0EBE3' }}
                         >
                           <span className="text-4xl">🧬</span>
-                        </div>
+                        </motion.div>
                       </div>
 
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-2 max-w-[280px]">
@@ -1332,119 +1458,178 @@ export default function OnboardingPage() {
                         answers as trait pills, and today's real date for the stamp
                         — nothing here is invented. */}
                     <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center py-2">
+                      {/* Outer wrapper: entrance only (the dashed card's own
+                          "arrive" motion). Everything below assembles itself
+                          piece by piece on top of this, each on its own
+                          motion element with a staggered delay, so the
+                          passport reads as being built rather than fading in
+                          as one unit. The impact "thud" reaction (part of the
+                          stamp landing, below) lives on a separate nested
+                          motion.div so it can be triggered imperatively
+                          without fighting this entrance animation. */}
                       <motion.div
                         initial={{ opacity: 0, y: 18, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ type: 'spring', stiffness: 260, damping: 24, delay: 0.1 }}
-                        className="relative w-full max-w-[290px] shrink-0 rounded-[28px] border-2 border-dashed overflow-hidden"
-                        style={{ borderColor: 'rgba(240,235,227,0.35)', backgroundColor: '#0d0d0d' }}
+                        transition={{ type: 'spring', stiffness: 280, damping: 24, delay: 0.08 }}
+                        className="relative w-full max-w-[290px] shrink-0"
                       >
-                        <div
-                          className="absolute inset-0 pointer-events-none"
-                          style={{ background: 'radial-gradient(circle at 50% 0%, rgba(240,235,227,0.09), transparent 60%)' }}
-                        />
-
-                        {/* Scattered decorative travel emoji, low-opacity — same
-                            "decorative, not data" role as the competitor's
-                            background emoji, just dark-brand appropriate. */}
-                        <span className="absolute text-lg opacity-[0.08]" style={{ top: 10, left: 14 }}>✈️</span>
-                        <span className="absolute text-lg opacity-[0.08]" style={{ top: 14, right: 18 }}>🌍</span>
-                        <span className="absolute text-lg opacity-[0.08]" style={{ bottom: 14, left: 20 }}>🧭</span>
-
-                        <div className="relative z-10 flex flex-col items-center text-center px-5 pt-5 pb-4">
-                          <p className="text-[10px] font-bold tracking-[0.32em]" style={{ color: 'rgba(240,235,227,0.5)' }}>
-                            TRIPALONG
-                          </p>
-
-                          <div className="relative mt-4 mb-3 w-24 h-24 shrink-0">
-                            <div
-                              className="w-24 h-24 rounded-full overflow-hidden border-2"
-                              style={{ borderColor: 'rgba(240,235,227,0.4)', backgroundColor: 'rgba(255,255,255,0.06)' }}
-                            >
-                              {photoUrl ? (
-                                <img src={photoUrl} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-3xl">🧳</div>
-                              )}
-                            </div>
-                            <span className="absolute -top-1.5 -left-2 text-base">⭐</span>
-                            <span className="absolute -bottom-0.5 -left-2.5 text-base">🎒</span>
-                            {newCountry && (
-                              <div
-                                className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center text-sm border-2"
-                                style={{ backgroundColor: '#F0EBE3', borderColor: '#0d0d0d' }}
-                              >
-                                {getFlag(newCountry) || '🌍'}
-                              </div>
-                            )}
-                          </div>
-
-                          <h2 className="text-white font-extrabold text-xl leading-tight">
-                            {newName.trim() || 'Traveler'}{newAge ? `, ${newAge}` : ''}
-                          </h2>
-                          {(newCity || newCountry) && (
-                            <p className="text-white/35 text-xs mt-1">
-                              {[newCity, newCountry].filter(Boolean).join(', ')}
-                            </p>
-                          )}
-
-                          <div className="my-4" style={{ transform: 'rotate(-9deg)' }}>
-                            <div className="border-2 rounded-xl px-4 py-1.5" style={{ borderColor: 'rgba(240,235,227,0.55)' }}>
-                              <p className="font-black text-base tracking-[0.14em] leading-tight" style={{ color: '#F0EBE3' }}>
-                                APPROVED
-                              </p>
-                              <p className="text-[9px] font-bold tracking-[0.2em] text-center" style={{ color: 'rgba(240,235,227,0.55)' }}>
-                                {passportIssuedDate}
-                              </p>
-                            </div>
-                          </div>
-
-                          {passportPills.length > 0 && (
-                            <div className="flex flex-wrap justify-center gap-1.5 mb-1">
-                              {passportPills.map(opt => (
-                                <span
-                                  key={opt.value}
-                                  className="text-[11px] font-semibold rounded-full px-3 py-1"
-                                  style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.22)', color: '#F0EBE3' }}
-                                >
-                                  {opt.emoji} {opt.label}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {newTravelPhotos.length > 0 && (
-                            <div className="flex gap-1.5 mt-3">
-                              {newTravelPhotos.slice(0, 4).map(url => (
-                                <div
-                                  key={url}
-                                  className="w-9 h-9 rounded-lg overflow-hidden border"
-                                  style={{ borderColor: 'rgba(240,235,227,0.2)' }}
-                                >
-                                  <img src={url} alt="" className="w-full h-full object-cover" />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
+                        <motion.div
+                          animate={passportImpactControls}
+                          className="relative rounded-[28px] border-2 border-dashed overflow-hidden"
+                          style={{ borderColor: 'rgba(240,235,227,0.35)', backgroundColor: '#0d0d0d' }}
+                        >
                           <div
-                            className="w-full flex items-center justify-between mt-4 pt-3 border-t"
-                            style={{ borderColor: 'rgba(240,235,227,0.15)' }}
-                          >
-                            <span className="text-[8px] font-semibold tracking-[0.16em]" style={{ color: 'rgba(240,235,227,0.28)' }}>
-                              ISSUED {passportIssuedDate}
-                            </span>
-                            <span className="text-[8px] font-semibold tracking-[0.16em]" style={{ color: 'rgba(240,235,227,0.28)' }}>
-                              TRIPALONG PASSPORT
-                            </span>
+                            className="absolute inset-0 pointer-events-none"
+                            style={{ background: 'radial-gradient(circle at 50% 0%, rgba(240,235,227,0.09), transparent 60%)' }}
+                          />
+
+                          {/* Scattered decorative travel emoji, low-opacity — same
+                              "decorative, not data" role as the competitor's
+                              background emoji, just dark-brand appropriate. */}
+                          <span className="absolute text-lg opacity-[0.08]" style={{ top: 10, left: 14 }}>✈️</span>
+                          <span className="absolute text-lg opacity-[0.08]" style={{ top: 14, right: 18 }}>🌍</span>
+                          <span className="absolute text-lg opacity-[0.08]" style={{ bottom: 14, left: 20 }}>🧭</span>
+
+                          <div className="relative z-10 flex flex-col items-center text-center px-5 pt-5 pb-4">
+                            <motion.p
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.28, duration: 0.3 }}
+                              className="text-[10px] font-bold tracking-[0.32em]"
+                              style={{ color: 'rgba(240,235,227,0.5)' }}
+                            >
+                              TRIPALONG
+                            </motion.p>
+
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.5, y: 6 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              transition={{ type: 'spring', stiffness: 340, damping: 20, delay: 0.42 }}
+                              className="relative mt-4 mb-3 w-24 h-24 shrink-0"
+                            >
+                              <div
+                                className="w-24 h-24 rounded-full overflow-hidden border-2"
+                                style={{ borderColor: 'rgba(240,235,227,0.4)', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                              >
+                                {photoUrl ? (
+                                  <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-3xl">🧳</div>
+                                )}
+                              </div>
+                              <span className="absolute -top-1.5 -left-2 text-base">⭐</span>
+                              <span className="absolute -bottom-0.5 -left-2.5 text-base">🎒</span>
+                              {newCountry && (
+                                <div
+                                  className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center text-sm border-2"
+                                  style={{ backgroundColor: '#F0EBE3', borderColor: '#0d0d0d' }}
+                                >
+                                  {getFlag(newCountry) || '🌍'}
+                                </div>
+                              )}
+                            </motion.div>
+
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.58, duration: 0.3 }}
+                              className="flex flex-col items-center"
+                            >
+                              <h2 className="text-white font-extrabold text-xl leading-tight">
+                                {newName.trim() || 'Traveler'}{newAge ? `, ${newAge}` : ''}
+                              </h2>
+                              {(newCity || newCountry) && (
+                                <p className="text-white/35 text-xs mt-1">
+                                  {[newCity, newCountry].filter(Boolean).join(', ')}
+                                </p>
+                              )}
+                            </motion.div>
+
+                            {/* APPROVED stamp: starts big, high, transparent and
+                                off-angle, then slams down into its resting size/
+                                position/rotation with a bouncy spring overshoot —
+                                the "getting stamped" moment. The instant this
+                                animation actually completes (not a guessed
+                                timeout), handlePassportStampImpact fires the
+                                synthesized thud sound and a tiny shake/pulse on
+                                the card itself so the two land together. */}
+                            <motion.div
+                              initial={{ opacity: 0, scale: 1.9, y: -46, rotate: -27 }}
+                              animate={{ opacity: 1, scale: 1, y: 0, rotate: -9 }}
+                              transition={{ type: 'spring', stiffness: 500, damping: 14, mass: 0.9, delay: 1 }}
+                              onAnimationComplete={handlePassportStampImpact}
+                              className="my-4"
+                            >
+                              <div className="border-2 rounded-xl px-4 py-1.5" style={{ borderColor: 'rgba(240,235,227,0.55)' }}>
+                                <p className="font-black text-base tracking-[0.14em] leading-tight" style={{ color: '#F0EBE3' }}>
+                                  APPROVED
+                                </p>
+                                <p className="text-[9px] font-bold tracking-[0.2em] text-center" style={{ color: 'rgba(240,235,227,0.55)' }}>
+                                  {passportIssuedDate}
+                                </p>
+                              </div>
+                            </motion.div>
+
+                            {passportPills.length > 0 && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 1.48, duration: 0.3 }}
+                                className="flex flex-wrap justify-center gap-1.5 mb-1"
+                              >
+                                {passportPills.map(opt => (
+                                  <span
+                                    key={opt.value}
+                                    className="text-[11px] font-semibold rounded-full px-3 py-1"
+                                    style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.22)', color: '#F0EBE3' }}
+                                  >
+                                    {opt.emoji} {opt.label}
+                                  </span>
+                                ))}
+                              </motion.div>
+                            )}
+
+                            {newTravelPhotos.length > 0 && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 1.64, duration: 0.3 }}
+                                className="flex gap-1.5 mt-3"
+                              >
+                                {newTravelPhotos.slice(0, 4).map(url => (
+                                  <div
+                                    key={url}
+                                    className="w-9 h-9 rounded-lg overflow-hidden border"
+                                    style={{ borderColor: 'rgba(240,235,227,0.2)' }}
+                                  >
+                                    <img src={url} alt="" className="w-full h-full object-cover" />
+                                  </div>
+                                ))}
+                              </motion.div>
+                            )}
+
+                            <motion.div
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 1.8, duration: 0.3 }}
+                              className="w-full flex items-center justify-between mt-4 pt-3 border-t"
+                              style={{ borderColor: 'rgba(240,235,227,0.15)' }}
+                            >
+                              <span className="text-[8px] font-semibold tracking-[0.16em]" style={{ color: 'rgba(240,235,227,0.28)' }}>
+                                ISSUED {passportIssuedDate}
+                              </span>
+                              <span className="text-[8px] font-semibold tracking-[0.16em]" style={{ color: 'rgba(240,235,227,0.28)' }}>
+                                TRIPALONG PASSPORT
+                              </span>
+                            </motion.div>
                           </div>
-                        </div>
+                        </motion.div>
                       </motion.div>
 
                       <motion.div
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
+                        transition={{ delay: 2 }}
                         className="text-center mt-6 shrink-0"
                       >
                         <h1 className="text-white font-extrabold text-2xl leading-tight mb-1.5">Profile created 🎉</h1>
@@ -1457,7 +1642,7 @@ export default function OnboardingPage() {
                     <motion.button
                       initial={{ opacity: 0, y: 14 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.55, type: 'spring', stiffness: 300, damping: 28 }}
+                      transition={{ delay: 2.2, type: 'spring', stiffness: 300, damping: 28 }}
                       onClick={() => { haptic(8); goStage('finale', 1) }}
                       className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform shrink-0"
                       style={CTA_STYLE}

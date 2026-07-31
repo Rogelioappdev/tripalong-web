@@ -3,17 +3,14 @@
 // Pre-auth marketing splash — the very first thing a new visitor sees, before
 // the 'auth' stage. Modeled on a competitor's onboarding splash (rotating world
 // clock + typewriter headline + scattered activity bubbles) but fully reskinned
-// in TripAlong's own dark brand: black background, cream (#F0EBE3) accent,
-// Playfair wordmark. Self-contained — the page only needs to render it and
-// wire its CTA to goStage('auth', 1).
+// in TripAlong's own dark brand: black background, cream (#F0EBE3) accent, the
+// app's real font (Outfit, applied globally — no serif). Self-contained — the
+// page only needs to render it and wire its CTA to goStage('auth', 1).
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Playfair_Display } from 'next/font/google'
 import { haptic } from '@/lib/haptics'
 import { VIBES } from '@/lib/tripOptions'
-
-const playfair = Playfair_Display({ subsets: ['latin'], weight: ['700', '800', '900'] })
 
 const CTA_STYLE = { backgroundColor: '#F0EBE3', color: '#000' } as const
 
@@ -98,7 +95,7 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className={`${playfair.className} text-white font-extrabold tracking-tight text-4xl text-center mt-2`}
+        className="text-white font-extrabold tracking-tight text-4xl text-center mt-2"
       >
         TripAlong
       </motion.h1>
@@ -179,21 +176,24 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
         })}
       </div>
 
-      <AnimatePresence>
-        {typingDone && (
-          <motion.button
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            onClick={() => { haptic(8); onContinue() }}
-            className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
-            style={CTA_STYLE}
-          >
-            I&apos;m in →
-          </motion.button>
-        )}
-      </AnimatePresence>
+      {/* Always mounted (not conditionally rendered) so its ~52px of height is
+          reserved in the flex column from the very first paint — it used to
+          only mount once typingDone flipped true, which meant the vibe-bubble
+          area above it (also flex-1) suddenly lost that height the instant
+          the button appeared, visibly shifting/shrinking everything else up.
+          Animating opacity/y instead of mount/unmount keeps the layout stable
+          throughout, and `disabled` blocks taps until typing finishes. */}
+      <motion.button
+        initial={false}
+        animate={typingDone ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+        onClick={() => { haptic(8); onContinue() }}
+        disabled={!typingDone}
+        className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
+        style={CTA_STYLE}
+      >
+        I&apos;m in →
+      </motion.button>
     </div>
   )
 }
