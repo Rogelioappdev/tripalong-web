@@ -58,24 +58,18 @@ export function TravelDnaStep({
                 onClick={() => { haptic(8); onToggle(opt.value) }}
                 className="flex items-center gap-4 p-4 rounded-2xl border text-left"
                 style={selected
-                  ? { backgroundColor: 'rgba(240,235,227,0.1)', borderColor: 'rgba(240,235,227,0.5)' }
+                  ? { backgroundColor: '#F0EBE3', borderColor: 'transparent' }
                   : { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}
               >
                 <span className="text-2xl shrink-0">{opt.emoji}</span>
                 <div>
-                  <p className="font-semibold text-sm" style={{ color: selected ? '#F0EBE3' : '#fff' }}>{opt.label}</p>
-                  {opt.desc && <p className="text-white/40 text-xs mt-0.5">{opt.desc}</p>}
+                  <p className="font-semibold text-sm" style={{ color: selected ? '#000' : '#fff' }}>{opt.label}</p>
+                  {opt.desc && (
+                    <p className="text-xs mt-0.5" style={{ color: selected ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.4)' }}>
+                      {opt.desc}
+                    </p>
+                  )}
                 </div>
-                {selected && (
-                  <motion.svg
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                    width="18" height="18" viewBox="0 0 24 24" fill="none" className="ml-auto shrink-0"
-                  >
-                    <path d="M20 6L9 17l-5-5" stroke="#F0EBE3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </motion.svg>
-                )}
               </motion.button>
             )
           })}

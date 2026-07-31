@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Playfair_Display } from 'next/font/google'
 import { motion, AnimatePresence, useAnimation } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { createProfile, updateProfile } from '@/lib/queries'
@@ -17,8 +16,6 @@ import { SplashCarousel } from '@/components/onboarding/SplashCarousel'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData } from '@/components/onboarding/dnaOptions'
 import type { UserProfile } from '@/lib/types'
-
-const playfair = Playfair_Display({ subsets: ['latin'], weight: ['700', '800', '900'] })
 
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
@@ -255,6 +252,29 @@ export default function OnboardingPage() {
     setStepIndex(s => s - 1)
   }
 
+  // Swipe-right-to-go-back gesture shared by every quiz step's motion.div.
+  // dragConstraints of {left:0, right:0} keeps the element itself pinned (so
+  // it doesn't visually drift away from the existing slideVariants layout),
+  // while dragElastic still allows a rubber-band feel while the user is
+  // actively dragging. info.offset.x is the raw pointer delta since the drag
+  // started and is unaffected by the constraints, so the threshold check
+  // below works regardless of how far the element itself is allowed to move.
+  // Forward swipe (left) intentionally isn't wired to quizNext() here — several
+  // steps gate Continue with bespoke disabled logic (e.g. the photo step uses
+  // `!photoUrl || uploading` rather than canQuizContinue()), so a blanket
+  // swipe-forward could skip past an unfinished step. Back is safe in every
+  // case because quizBack() has no validation to bypass.
+  const QUIZ_SWIPE_BACK_THRESHOLD = 90
+  const handleQuizDragEnd = (_e: unknown, info: { offset: { x: number } }) => {
+    if (info.offset.x > QUIZ_SWIPE_BACK_THRESHOLD) quizBack()
+  }
+  const quizDragProps = {
+    drag: 'x' as const,
+    dragConstraints: { left: 0, right: 0 },
+    dragElastic: 0.6,
+    onDragEnd: handleQuizDragEnd,
+  }
+
   const canQuizContinue = () => {
     if (currentStepKind === 'pre') {
       switch (currentPreDnaStep) {
@@ -335,12 +355,18 @@ export default function OnboardingPage() {
                 competitor reference this flow is modeled on, which relies on
                 momentum/social-proof interstitials rather than a literal
                 progress UI. quizProgressPct is still computed above in case a
-                future screen (or A/B test) wants it back. A minimal "← Back"
-                stays, since this is a web PWA without a native swipe-back
-                gesture to fall back on. */}
+                future screen (or A/B test) wants it back. The old "← Back"
+                button was replaced by a swipe-right-to-go-back drag gesture on
+                each quiz step (see quizDragProps below); this small persistent
+                logo mark takes its place at the top of the quiz chrome. */}
             {newStage === 'quiz' && !finalizing && (
-              <div className="shrink-0 mb-5">
-                <button onClick={quizBack} className="text-white/28 text-sm active:opacity-60 transition-opacity">← Back</button>
+              <div className="shrink-0 mb-5 flex items-center justify-center gap-1.5">
+                {/* /tagalong-icon.png has generous transparent padding around the
+                    mark (see BottomTabBar's use of the same asset), so it's sized
+                    at the top of the 20-24px range to stay visible at this scale. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/tagalong-icon.png" alt="" className="w-6 h-6 object-contain" />
+                <span className="text-white font-extrabold text-sm tracking-tight">TripAlong</span>
               </div>
             )}
 
@@ -375,7 +401,7 @@ export default function OnboardingPage() {
                       initial="hidden"
                       animate="visible"
                       variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.14, delayChildren: authShowEmail ? 0.05 : 0.4 } } }}
-                      className={authShowEmail ? 'flex-1 flex flex-col items-center justify-center' : 'mt-10'}
+                      className={authShowEmail ? 'flex-1 flex flex-col items-center justify-center' : 'flex-1 flex flex-col items-center justify-center text-center'}
                     >
                       {authShowEmail ? (
                         <motion.h1 variants={fadeUpVariants} className="text-white font-black tracking-tight text-4xl">
@@ -386,7 +412,7 @@ export default function OnboardingPage() {
                           <motion.p variants={fadeUpVariants} className="text-white/50 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
                             Welcome to
                           </motion.p>
-                          <motion.h1 variants={fadeUpVariants} className={`${playfair.className} text-white font-black tracking-tight text-5xl mb-4`}>
+                          <motion.h1 variants={fadeUpVariants} className="text-white font-black tracking-tight text-5xl mb-4">
                             TripAlong
                           </motion.h1>
                           <motion.p variants={fadeUpVariants} className="text-white/60 text-base leading-relaxed">
@@ -580,23 +606,6 @@ export default function OnboardingPage() {
                         Real trips, real people. Swipe right on a trip, join the group chat, and start planning with people who match your vibe.
                       </p>
                     </div>
-                    <div className="flex flex-col gap-2.5">
-                      {([
-                        ['1', 'Build your Travel DNA — takes about a minute'],
-                        ['2', 'Swipe trips that match your vibe'],
-                        ['3', 'Join the group chat and start planning'],
-                      ] as const).map(([n, text]) => (
-                        <div key={n} className="flex items-center gap-3">
-                          <span
-                            className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                            style={{ backgroundColor: 'rgba(240,235,227,0.15)', color: '#F0EBE3' }}
-                          >
-                            {n}
-                          </span>
-                          <span className="text-white/45 text-xs">{text}</span>
-                        </div>
-                      ))}
-                    </div>
                     <div className="flex-1 flex items-center justify-center py-2 min-h-0">
                       <TripPreviewCard />
                     </div>
@@ -620,6 +629,7 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">When&apos;s your birthday?</h1>
@@ -708,6 +718,7 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">How did you hear about us?</h1>
@@ -751,6 +762,7 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Let's build your profile.</h1>
@@ -807,6 +819,7 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Put a face to<br />your adventure.</h1>
@@ -866,6 +879,7 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Where are you based?</h1>
@@ -927,6 +941,7 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Tell your story.</h1>
@@ -979,6 +994,7 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <TravelDnaStep
                       dimension={dim}
