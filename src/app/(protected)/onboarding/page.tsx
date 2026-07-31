@@ -326,18 +326,24 @@ export default function OnboardingPage() {
                       initial="hidden"
                       animate="visible"
                       variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.14, delayChildren: authShowEmail ? 0.05 : 0.4 } } }}
-                      className={authShowEmail ? 'mt-3' : 'mt-10'}
+                      className={authShowEmail ? 'flex-1 flex flex-col items-center justify-center' : 'mt-10'}
                     >
-                      <motion.p variants={fadeUpVariants} className="text-white/50 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
-                        Welcome to
-                      </motion.p>
-                      <motion.h1 variants={fadeUpVariants} className={`${playfair.className} text-white font-black tracking-tight ${authShowEmail ? 'text-2xl mb-2' : 'text-5xl mb-4'}`}>
-                        TripAlong
-                      </motion.h1>
-                      {!authShowEmail && (
-                        <motion.p variants={fadeUpVariants} className="text-white/60 text-base leading-relaxed">
-                          Find your people.<br />See the world together.
-                        </motion.p>
+                      {authShowEmail ? (
+                        <motion.h1 variants={fadeUpVariants} className="text-white font-black tracking-tight text-4xl">
+                          TripAlong
+                        </motion.h1>
+                      ) : (
+                        <>
+                          <motion.p variants={fadeUpVariants} className="text-white/50 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
+                            Welcome to
+                          </motion.p>
+                          <motion.h1 variants={fadeUpVariants} className={`${playfair.className} text-white font-black tracking-tight text-5xl mb-4`}>
+                            TripAlong
+                          </motion.h1>
+                          <motion.p variants={fadeUpVariants} className="text-white/60 text-base leading-relaxed">
+                            Find your people.<br />See the world together.
+                          </motion.p>
+                        </>
                       )}
                     </motion.div>
 
