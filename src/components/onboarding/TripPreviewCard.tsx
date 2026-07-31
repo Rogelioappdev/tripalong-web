@@ -167,9 +167,17 @@ export function TripPreviewCard() {
   }, [index, !!trip])
 
   return (
-    <div className="w-full flex flex-col items-center gap-5">
+    <div className="w-full h-full flex flex-col items-center justify-center gap-4 min-h-0">
+      {/* Fixed max-width (not a percentage/aspect-ratio-vs-flex trick, which
+          resolves ambiguously against a flex column that also holds the
+          button row below) — 220px keeps the derived height (220*4.1/3≈300px)
+          comfortably inside the space actually available on the shortest
+          realistic device (iPhone SE) once the headline block, gaps, and
+          Continue button are accounted for. This is what actually fixes the
+          "still scrollable" bug: the old 280px cap derived a 383px-tall card,
+          which is taller than what's left over on a short viewport. */}
       <div
-        className="relative w-full max-w-[280px] aspect-[3/4.1] rounded-[26px] overflow-hidden"
+        className="relative w-full max-w-[220px] aspect-[3/4.1] rounded-[26px] overflow-hidden shrink-0"
         style={{ boxShadow: '0 30px 60px -20px rgba(0,0,0,0.6)' }}
       >
         {!trip || !nextTrip ? (

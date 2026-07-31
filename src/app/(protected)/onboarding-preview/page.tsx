@@ -337,9 +337,9 @@ export default function OnboardingPage() {
   const quizKey = `quiz-${stepIndex}`
 
   return (
-    <main className="min-h-screen bg-black flex flex-col">
+    <main className="h-[100dvh] overflow-hidden bg-black flex flex-col">
       <div
-        className="flex flex-col max-w-sm mx-auto w-full px-6 min-h-screen"
+        className="flex flex-col max-w-sm mx-auto w-full px-6 h-full overflow-hidden"
         style={{
           paddingTop: 'calc(env(safe-area-inset-top) + 36px)',
           paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
@@ -360,13 +360,17 @@ export default function OnboardingPage() {
                 each quiz step (see quizDragProps below); this small persistent
                 logo mark takes its place at the top of the quiz chrome. */}
             {newStage === 'quiz' && !finalizing && (
-              <div className="shrink-0 mb-5 flex items-center justify-center gap-1.5">
+              <div className="shrink-0 mb-6 flex items-center justify-center gap-2">
                 {/* /tagalong-icon.png has generous transparent padding around the
                     mark (see BottomTabBar's use of the same asset), so it's sized
-                    at the top of the 20-24px range to stay visible at this scale. */}
+                    up past its visible content to read clearly at this scale —
+                    matches the competitor reference's bolder top-of-screen logo
+                    treatment (see tripalong_nomadtable_screens.md). Same block
+                    renders above every quiz step, so position is identical
+                    throughout. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/tagalong-icon.png" alt="" className="w-6 h-6 object-contain" />
-                <span className="text-white font-extrabold text-sm tracking-tight">TripAlong</span>
+                <img src="/tagalong-icon.png" alt="" className="w-9 h-9 object-contain" />
+                <span className="text-white font-extrabold text-xl tracking-tight">TripAlong</span>
               </div>
             )}
 
@@ -606,7 +610,7 @@ export default function OnboardingPage() {
                         Real trips, real people. Swipe right on a trip, join the group chat, and start planning with people who match your vibe.
                       </p>
                     </div>
-                    <div className="flex-1 flex items-center justify-center py-2 min-h-0">
+                    <div className="flex-1 flex items-center justify-center py-2 min-h-0 overflow-hidden">
                       <TripPreviewCard />
                     </div>
                     <button
