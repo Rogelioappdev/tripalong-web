@@ -14,6 +14,8 @@ import { TripPreviewCard } from '@/components/onboarding/TripPreviewCard'
 import { WorldRouteMap } from '@/components/onboarding/WorldRouteMap'
 import { SplashCarousel } from '@/components/onboarding/SplashCarousel'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
+import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
+import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData } from '@/components/onboarding/dnaOptions'
 import type { UserProfile } from '@/lib/types'
 
@@ -73,6 +75,11 @@ export default function OnboardingPage() {
   const [newDna, setNewDna] = useState<NewDnaData>(EMPTY_DNA)
   const [photoUrl, setPhotoUrl] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [newTravelPhotos, setNewTravelPhotos] = useState<string[]>([])
+  const [uploadingTravelPhotos, setUploadingTravelPhotos] = useState(false)
+  const [rawPhotoFile, setRawPhotoFile] = useState<File | null>(null)
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null)
+  const [showCropModal, setShowCropModal] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -140,7 +147,7 @@ export default function OnboardingPage() {
   // user already confirmed it, so a corrected date gets re-confirmed.
   useEffect(() => { setAgeConfirmed(false) }, [newBirthDay, newBirthMonth, newBirthYear])
 
-  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'photo', 'location', 'bio'] as const
+  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'photo', 'travelPhotos', 'location', 'bio'] as const
   const POST_DNA_STEPS = [] as const
   type PreDnaStep = typeof PRE_DNA_STEPS[number]
   type PostDnaStep = typeof POST_DNA_STEPS[number]
@@ -223,6 +230,7 @@ export default function OnboardingPage() {
         bio: newBio.trim() || null,
         instagram_handle: newInstagram.trim() || null,
         profile_photo: photoUrl || undefined,
+        photos: newTravelPhotos,
         travel_styles: newDna.travel_styles,
         travel_pace: (newDna.travel_pace || null) as UserProfile['travel_pace'],
         social_energy: (newDna.social_energy || null) as UserProfile['social_energy'],
@@ -282,6 +290,7 @@ export default function OnboardingPage() {
         case 'attribution': return newHearAbout !== ''
         case 'nameGender': return newName.trim().length >= 2 && !!newGender
         case 'photo': return true
+        case 'travelPhotos': return newTravelPhotos.length >= 3
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
         case 'bio': return true
         default: return true
@@ -331,6 +340,66 @@ export default function OnboardingPage() {
     } finally {
       setUploading(false)
     }
+  }
+
+  // Multi-photo grid upload for the 'travelPhotos' step — same avatars bucket
+  // and path convention as Profile page's handleGridPhotosUpload (uploads
+  // sequentially, appends each public URL as it succeeds).
+  const handleTravelPhotosUpload = async (files: File[]) => {
+    if (files.length === 0) return
+    const remaining = 10 - newTravelPhotos.length
+    const toUpload = files.slice(0, Math.max(0, remaining))
+    if (toUpload.length === 0) return
+    setUploadingTravelPhotos(true)
+    setError('')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setError('Please sign in again.'); return }
+      for (const file of toUpload) {
+        const jpeg = await normalizeImageToJpeg(file)
+        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`
+        const { error: uploadError } = await supabase.storage.from('avatars')
+          .upload(path, jpeg, { upsert: true, contentType: 'image/jpeg' })
+        if (uploadError) throw uploadError
+        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+        setNewTravelPhotos(prev => [...prev, publicUrl])
+      }
+    } catch (e: any) {
+      setError(e?.message ?? 'Photo upload failed. Try again.')
+    } finally {
+      setUploadingTravelPhotos(false)
+    }
+  }
+
+  const removeTravelPhoto = (url: string) => {
+    setNewTravelPhotos(prev => prev.filter(p => p !== url))
+  }
+
+  // Object URL for whatever raw file the picker just returned, so the crop
+  // modal has something to render. Created/revoked in lockstep with
+  // rawPhotoFile so we never leak a blob: URL, whether the user confirms,
+  // cancels, or navigates away mid-crop.
+  useEffect(() => {
+    if (!rawPhotoFile) { setCropImageSrc(null); return }
+    const url = URL.createObjectURL(rawPhotoFile)
+    setCropImageSrc(url)
+    return () => URL.revokeObjectURL(url)
+  }, [rawPhotoFile])
+
+  const handlePhotoPicked = (file: File) => {
+    setRawPhotoFile(file)
+    setShowCropModal(true)
+  }
+
+  const handleCropConfirm = (croppedFile: File) => {
+    setShowCropModal(false)
+    setRawPhotoFile(null)
+    handlePhotoUpload(croppedFile)
+  }
+
+  const handleCropCancel = () => {
+    setShowCropModal(false)
+    setRawPhotoFile(null)
   }
 
   const dim = currentStepKind === 'dna' ? DNA_DIMENSIONS[currentDnaIndex] : DNA_DIMENSIONS[0]
@@ -855,7 +924,7 @@ export default function OnboardingPage() {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoPicked(f) }}
                       />
                     </div>
 
@@ -870,6 +939,74 @@ export default function OnboardingPage() {
                     >
                       Skip for now
                     </button>
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && currentPreDnaStep === 'travelPhotos' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Show off your travels.</h1>
+                      <p className="text-white/38 text-sm">Add 3–10 photos of you and your favorite trips — this is what other travelers see on your profile.</p>
+                    </div>
+
+                    <div className="mt-5 flex items-center justify-between">
+                      <p className="text-white/40 text-xs font-semibold">{newTravelPhotos.length} of 10 photos</p>
+                      <p
+                        className="text-xs font-bold"
+                        style={{ color: newTravelPhotos.length >= 3 ? '#30D158' : 'rgba(255,255,255,0.35)' }}
+                      >
+                        {newTravelPhotos.length >= 3 ? '✓ Minimum met' : `${3 - newTravelPhotos.length} more to continue`}
+                      </p>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-3 -mx-1 px-1">
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {newTravelPhotos.map(url => (
+                          <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
+                            <img src={url} alt="" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => removeTravelPhoto(url)}
+                              className="absolute top-1 right-1 z-10 w-7 h-7 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 12, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
+                            >✕</button>
+                          </div>
+                        ))}
+                        {newTravelPhotos.length < 10 && (
+                          <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer active:border-white/30 transition-colors">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={e => { const fs = Array.from(e.target.files ?? []); e.currentTarget.value = ''; handleTravelPhotosUpload(fs) }}
+                            />
+                            {uploadingTravelPhotos ? (
+                              <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                            ) : (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-white/30 text-2xl">+</span>
+                                <span className="text-white/20 text-xs">Add</span>
+                              </div>
+                            )}
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {error && <p className="text-red-400 text-sm text-center mb-2">{error}</p>}
+
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue() || uploadingTravelPhotos} label="Continue →" />
                   </motion.div>
                 )}
 
@@ -891,29 +1028,22 @@ export default function OnboardingPage() {
                     </div>
 
                     <div className="flex flex-col gap-3 mt-6">
-                      <input
-                        value={newCountry}
-                        onChange={e => setNewCountry(e.target.value)}
-                        placeholder="Country"
-                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
+                      <CitySearchPicker
+                        value={newCity ? `${newCity}${newCountry ? `, ${newCountry}` : ''}` : ''}
+                        onSelect={({ city, country }) => { setNewCity(city); setNewCountry(country) }}
+                        placeholder="Search for your city"
                         autoFocus
-                      />
-                      <input
-                        value={newCity}
-                        onChange={e => setNewCity(e.target.value)}
-                        placeholder="City"
-                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
                       />
                     </div>
 
                     <div className="mt-8">
                       <h2 className="text-white font-bold text-lg mb-1">Got a trip coming up?</h2>
                       <p className="text-white/30 text-xs mb-4">Totally optional — you can always add this later.</p>
-                      <input
+                      <CitySearchPicker
                         value={newTripDestination}
-                        onChange={e => setNewTripDestination(e.target.value)}
+                        onSelect={({ city }) => setNewTripDestination(city)}
                         placeholder="Where to?"
-                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30 mb-3"
+                        className="mb-3"
                       />
                       <div className="flex flex-wrap gap-2">
                         {SEASONS.slice(0, 4).map(s => (
@@ -1104,6 +1234,19 @@ export default function OnboardingPage() {
           </>
         )}
       </div>
+
+      {/* Rendered outside the AnimatePresence/quiz-step tree above (which is
+          mode="wait" and expects exactly one child at a time) since this
+          overlay can be visible at the same time as the 'photo' step
+          underneath it. It's a fixed, fullscreen overlay, so its position in
+          the tree doesn't matter for layout. */}
+      {showCropModal && cropImageSrc && (
+        <PhotoCropModal
+          imageSrc={cropImageSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
     </main>
   )
 }

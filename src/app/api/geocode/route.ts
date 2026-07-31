@@ -65,6 +65,20 @@ function toResult(m: any) {
   return { lat: m.latitude, lng: m.longitude, name: m.name, country: m.country ?? null }
 }
 
+// Sibling to toResult(), for the ?list=true search-as-you-type path — keeps
+// name/admin1/country separate (rather than collapsing to a single label) so
+// the UI can format "City, Region, Country" itself.
+function toListResult(m: any) {
+  if (typeof m?.latitude !== 'number' || typeof m?.longitude !== 'number' || !m?.name) return null
+  return {
+    name: m.name,
+    admin1: m.admin1 ?? null,
+    country: m.country ?? null,
+    lat: m.latitude,
+    lng: m.longitude,
+  }
+}
+
 async function resolve(destination: string, country?: string) {
   const wanted = normCountry(country)
   for (const cand of placeCandidates(destination)) {
@@ -88,7 +102,25 @@ async function resolve(destination: string, country?: string) {
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q')?.trim()
   const country = req.nextUrl.searchParams.get('country')?.trim() || undefined
-  if (!q) return NextResponse.json({ result: null })
+  const list = req.nextUrl.searchParams.get('list') === 'true'
+
+  if (!q) return NextResponse.json(list ? { results: [] } : { result: null })
+
+  // Search-as-you-type path (typed city pickers): a straight passthrough of
+  // Open-Meteo's own ranked results for the raw query — no candidate-ladder
+  // or fuzzy-matching, unlike resolve() below which is tuned for messy
+  // free-text trip descriptions. Byte-identical single-result behavior below
+  // is preserved for CreateTripModal / scripts/backfill-coords.mjs.
+  if (list) {
+    try {
+      const matches = await fetchMatches(q)
+      const results = matches.slice(0, 8).map(toListResult).filter((r): r is NonNullable<typeof r> => r !== null)
+      return NextResponse.json({ results })
+    } catch (e) {
+      console.error('[geocode] error', e)
+      return NextResponse.json({ results: [] })
+    }
+  }
 
   try {
     return NextResponse.json({ result: await resolve(q, country) })
