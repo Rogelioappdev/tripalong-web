@@ -1647,7 +1647,7 @@ export default function OnboardingPage() {
                       className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform shrink-0"
                       style={CTA_STYLE}
                     >
-                      See your profile →
+                      Continue →
                     </motion.button>
                   </motion.div>
                 )}
