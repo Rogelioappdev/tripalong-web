@@ -8,7 +8,7 @@
 // page only needs to render it and wire its CTA to goStage('auth', 1).
 
 import { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useAnimation } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { VIBES } from '@/lib/tripOptions'
 
@@ -57,6 +57,24 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
   const [tickerStart, setTickerStart] = useState(0)
   const [charCount, setCharCount] = useState(0)
   const [typingDone, setTypingDone] = useState(false)
+  // Verified via direct browser inspection (real getComputedStyle checks,
+  // not a guess): the previous version drove this button's fade-in purely
+  // through a declarative `animate={typingDone ? {...} : {...}}` prop, and
+  // it reproducibly got stuck at its opacity:0/translateY(14px) state
+  // forever — `disabled` correctly flipped to false (proving typingDone did
+  // become true), but the inline opacity/transform Framer had set never
+  // updated to match. Switched to the same imperative useAnimation()
+  // pattern already proven to work elsewhere in this exact codebase
+  // (finaleControls, passportImpactControls) — an explicit .start() call in
+  // an effect, rather than relying on Framer re-diffing a new object
+  // literal on every render.
+  const buttonControls = useAnimation()
+
+  useEffect(() => {
+    if (typingDone) {
+      buttonControls.start({ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } })
+    }
+  }, [typingDone, buttonControls])
 
   // Rotate which 3 of the 5 cities are shown, every 4s.
   useEffect(() => {
@@ -194,9 +212,8 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
           Animating opacity/y instead of mount/unmount keeps the layout stable
           throughout, and `disabled` blocks taps until typing finishes. */}
       <motion.button
-        initial={false}
-        animate={typingDone ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+        initial={{ opacity: 0, y: 14 }}
+        animate={buttonControls}
         onClick={() => { haptic(8); onContinue() }}
         disabled={!typingDone}
         className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
