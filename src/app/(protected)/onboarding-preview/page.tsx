@@ -18,6 +18,7 @@ import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
 import { TripDateRangePicker } from '@/components/onboarding/TripDateRangePicker'
+import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
 import { getFlag } from '@/lib/countries'
 import type { UserProfile } from '@/lib/types'
@@ -106,6 +107,13 @@ export default function OnboardingPage() {
   const [finalizing, setFinalizing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Real signed-up user's id, captured once finishQuiz's Supabase write
+  // succeeds — needed to show <NotificationPrompt> (it requires a real
+  // userId to register a push subscription against). Stays null in the
+  // memberPreview test path, where there's no real account; the prompt is
+  // skipped entirely in that case rather than shown against a fake id.
+  const [authedUserId, setAuthedUserId] = useState<string | null>(null)
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const finaleControls = useAnimation()
   // Drives the passport card's brief "thud" reaction (tiny scale-pulse +
@@ -301,6 +309,7 @@ export default function OnboardingPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Please sign in again.')
+      setAuthedUserId(user.id)
       await createProfile(user.id, user.email ?? '', newName.trim(), newAge!)
       await updateProfile(user.id, {
         gender: (newGender || null) as UserProfile['gender'],
@@ -1657,7 +1666,16 @@ export default function OnboardingPage() {
                       initial={{ opacity: 0, y: 14 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 2.2, type: 'spring', stiffness: 300, damping: 28 }}
-                      onClick={() => { haptic(8); goStage('finale', 1) }}
+                      onClick={() => {
+                        haptic(8)
+                        // Ask for notifications right here — right after the
+                        // profile-created reward moment, before the finale —
+                        // matching where the competitor reference places this
+                        // exact ask. Skipped for the memberPreview test path,
+                        // since there's no real userId to register push for.
+                        if (authedUserId) setShowNotifPrompt(true)
+                        else goStage('finale', 1)
+                      }}
                       className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform shrink-0"
                       style={CTA_STYLE}
                     >
@@ -1731,6 +1749,20 @@ export default function OnboardingPage() {
           imageSrc={cropImageSrc}
           onConfirm={handleCropConfirm}
           onCancel={handleCropCancel}
+        />
+      )}
+
+      {/* Reuses the app's real, already-battle-tested notification prompt
+          (also shown from Settings and via NotifReminderHost's post-signup
+          nudge) rather than building a new one — it already handles the
+          native-app bridge, the "already blocked" fallback instructions,
+          the unsupported-browser silent skip, and success/skip states, all
+          in this app's real dark/cream visual language. It portals itself
+          to document.body, so its position in this tree doesn't matter. */}
+      {showNotifPrompt && authedUserId && (
+        <NotificationPrompt
+          userId={authedUserId}
+          onDone={() => { setShowNotifPrompt(false); goStage('finale', 1) }}
         />
       )}
     </main>
