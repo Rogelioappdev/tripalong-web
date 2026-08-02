@@ -127,9 +127,19 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
       <div className="text-center px-1">
         <h2 className="text-white font-extrabold text-3xl leading-tight min-h-[76px]">
           {HEADLINE.slice(0, charCount)}
-          {!typingDone && (
-            <span className="inline-block w-[3px] h-[0.85em] bg-white/50 ml-0.5 align-middle animate-pulse" />
-          )}
+          {/* Always rendered (not conditionally), toggling opacity instead of
+              removing it from the DOM — the real cause of the "everything
+              shifts when the button appears" bug wasn't the button itself
+              (already fixed to always be mounted below), it was this cursor:
+              being an inline-block, unmounting it right when typingDone flips
+              true could change the headline's own line-wrap and shrink its
+              height by a line at that exact moment, shoving the bubble area
+              and button up right as the button was fading in. Reserving its
+              space the same way fixes both at once. */}
+          <span
+            className="inline-block w-[3px] h-[0.85em] bg-white/50 ml-0.5 align-middle animate-pulse"
+            style={{ opacity: typingDone ? 0 : 1 }}
+          />
         </h2>
       </div>
 
