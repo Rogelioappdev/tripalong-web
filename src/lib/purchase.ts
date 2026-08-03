@@ -35,6 +35,14 @@ interface NativePurchaseResult {
 export async function purchasePlus(billing: BillingInterval, trigger?: PaywallTrigger): Promise<void> {
   const bridge = typeof window !== 'undefined' && (window as any).ReactNativeWebView
   if (bridge) {
+    // Weekly billing support was just added to the native app's code (see
+    // tripalong_paywall_conversion_plan.md), but that only ships once a new
+    // build clears App Store review and users actually update — until then,
+    // real installed builds' OLDER purchasePlus() falls back to `annual ?
+    // annual : monthly` for anything that isn't 'annual', which would
+    // silently charge Monthly instead of Weekly. Block it here until we've
+    // confirmed a weekly-aware build is actually out in the wild.
+    if (billing === 'weekly') throw new Error('Weekly isn\'t available in the app yet — try Yearly instead.')
     track('checkout_started', { rail: 'native', billing })
     try {
       await purchaseViaNative(bridge, billing)
