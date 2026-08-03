@@ -17,7 +17,6 @@ import { SplashCarousel } from '@/components/onboarding/SplashCarousel'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
-import { TripDateRangePicker } from '@/components/onboarding/TripDateRangePicker'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
 import { getFlag } from '@/lib/countries'
@@ -81,9 +80,10 @@ export default function OnboardingPage() {
   const [newCity, setNewCity] = useState('')
   const [newTripDestination, setNewTripDestination] = useState('')
   const [newTripWhen, setNewTripWhen] = useState('')
-  // Exact-dates alternative to the newTripWhen season chips, via
-  // TripDateRangePicker's react-day-picker calendar. ISO YYYY-MM-DD strings
-  // (same convention as CreateTripModal's startDate/endDate), '' when unset.
+  // Exact-dates alternative to the newTripWhen season chips, via two native
+  // <input type="date"> fields (Depart/Return) on the 'tripTeaser' step —
+  // same ISO YYYY-MM-DD convention as CreateTripModal's startDate/endDate,
+  // '' when unset.
   const [newTripStartDate, setNewTripStartDate] = useState('')
   const [newTripEndDate, setNewTripEndDate] = useState('')
   const [newBio, setNewBio] = useState('')
@@ -184,7 +184,7 @@ export default function OnboardingPage() {
   // user already confirmed it, so a corrected date gets re-confirmed.
   useEffect(() => { setAgeConfirmed(false) }, [newBirthDay, newBirthMonth, newBirthYear])
 
-  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'photo', 'travelPhotos', 'location', 'bio', 'momentum'] as const
+  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'photo', 'travelPhotos', 'location', 'tripTeaser', 'bio', 'momentum'] as const
   const POST_DNA_STEPS = [] as const
   type PreDnaStep = typeof PRE_DNA_STEPS[number]
   type PostDnaStep = typeof POST_DNA_STEPS[number]
@@ -394,6 +394,7 @@ export default function OnboardingPage() {
         case 'photo': return true
         case 'travelPhotos': return newTravelPhotos.length >= 3
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
+        case 'tripTeaser': return true
         case 'bio': return true
         case 'momentum': return true
         default: return true
@@ -1170,48 +1171,94 @@ export default function OnboardingPage() {
                       <p className="text-white/38 text-sm">Helps travelers nearby find you.</p>
                     </div>
 
-                    {/* Scrollable content area — this step's content (especially
-                        with the date-range calendar expanded) can run taller
-                        than the fixed h-[100dvh] shell allows; without this the
-                        calendar rendered off the bottom of the screen with no
-                        way to reach it, since the shell itself is overflow-hidden. */}
-                    <div className="flex-1 min-h-0 overflow-y-auto mt-6">
+                    <div className="mt-6">
                       <CitySearchPicker
                         value={newCity ? `${newCity}${newCountry ? `, ${newCountry}` : ''}` : ''}
                         onSelect={({ city, country }) => { setNewCity(city); setNewCountry(country) }}
                         placeholder="Search for your city"
                         autoFocus
                       />
+                    </div>
 
-                      <div className="mt-8">
-                        <h2 className="text-white font-bold text-lg mb-1">Got a trip coming up?</h2>
-                        <p className="text-white/30 text-xs mb-4">Totally optional — you can always add this later.</p>
-                        <CitySearchPicker
-                          value={newTripDestination}
-                          onSelect={({ city }) => setNewTripDestination(city)}
-                          placeholder="Where to?"
-                          className="mb-3"
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          {SEASONS.slice(0, 4).map(s => (
-                            <button
-                              key={s}
-                              onClick={() => { haptic(8); setNewTripWhen(w => w === s ? '' : s) }}
-                              className="px-3.5 py-2 rounded-full text-xs font-semibold border transition-colors"
-                              style={newTripWhen === s
-                                ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
-                                : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.12)' }}
-                            >
-                              {s}
-                            </button>
-                          ))}
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                  </motion.div>
+                )}
+
+                {/* Split out from the 'location' step above (used to be one
+                    combined screen asking "where are you based" AND "got a
+                    trip coming up" together) — one question per screen is
+                    less overwhelming, per explicit user request. Exact dates
+                    now use two native <input type="date"> fields (Depart /
+                    Return) instead of a custom in-app calendar — the custom
+                    react-day-picker modal only ever captured a single date,
+                    not a real from/to range, and native date inputs already
+                    work correctly for exactly this elsewhere in this app
+                    (CreateTripModal, FilterSheet) — they also automatically
+                    render the real OS calendar (iOS wheel / Android Material
+                    date picker) rather than an in-app approximation of one. */}
+                {newStage === 'quiz' && currentPreDnaStep === 'tripTeaser' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Got a trip coming up?</h1>
+                      <p className="text-white/38 text-sm">Totally optional — you can always add this later.</p>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-6">
+                      <CitySearchPicker
+                        value={newTripDestination}
+                        onSelect={({ city }) => setNewTripDestination(city)}
+                        placeholder="Where to?"
+                        className="mb-3"
+                        autoFocus
+                      />
+                      <div className="flex flex-wrap gap-2 mb-5">
+                        {SEASONS.slice(0, 4).map(s => (
+                          <button
+                            key={s}
+                            onClick={() => { haptic(8); setNewTripWhen(w => w === s ? '' : s) }}
+                            className="px-3.5 py-2 rounded-full text-xs font-semibold border transition-colors"
+                            style={newTripWhen === s
+                              ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
+                              : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.12)' }}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+
+                      <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Or exact dates</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-white/30 text-[10px] font-semibold uppercase tracking-wide mb-1.5 block">Depart</span>
+                          <input
+                            type="date"
+                            value={newTripStartDate}
+                            onChange={e => setNewTripStartDate(e.target.value)}
+                            className="w-full rounded-2xl px-3.5 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+                          />
                         </div>
-
-                        <TripDateRangePicker
-                          startDate={newTripStartDate}
-                          endDate={newTripEndDate}
-                          onChange={(start, end) => { setNewTripStartDate(start); setNewTripEndDate(end) }}
-                        />
+                        <div>
+                          <span className="text-white/30 text-[10px] font-semibold uppercase tracking-wide mb-1.5 block">Return</span>
+                          <input
+                            type="date"
+                            value={newTripEndDate}
+                            min={newTripStartDate || undefined}
+                            onChange={e => setNewTripEndDate(e.target.value)}
+                            className="w-full rounded-2xl px-3.5 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+                          />
+                        </div>
                       </div>
                     </div>
 
