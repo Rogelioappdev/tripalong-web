@@ -261,6 +261,25 @@ export default function OnboardingPage() {
     })
   }
 
+  // Native-app only — mirrors handleAuthGoogle's native branch exactly. Apple
+  // sign-in is NOT wired up for the plain web/PWA case on purpose (no button
+  // renders there at all, see isNativeApp below) — only the native app needs
+  // it right now. tripalong-app/App.tsx's LoginScreen handles this message
+  // the same way it already handles 'google_signin': opens Supabase's OAuth
+  // URL in a system browser tab (ASWebAuthenticationSession on iOS) rather
+  // than running signInWithOAuth inside the embedded WebView.
+  const handleAuthApple = () => {
+    haptic(8)
+    if ((window as any).ReactNativeWebView) {
+      ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'apple_signin' }))
+    }
+  }
+
+  // Only ever true inside the native app's WebView — gates the Apple button
+  // so it doesn't render at all on the plain website/PWA, per explicit scope
+  // ("just need it for native Apple users, don't worry about the website").
+  const isNativeApp = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
+
   const handleAuthEmailSubmit = async () => {
     if (!authEmail || !authPassword) return
     setAuthError('')
@@ -678,6 +697,24 @@ export default function OnboardingPage() {
                             </span>
                             <span className="text-white/55 text-xs font-medium">Join travelers finding their people right now 🌍</span>
                           </div>
+                        )}
+
+                        {/* Native-app only (see isNativeApp/handleAuthApple above) —
+                            no button renders here at all on the plain website.
+                            Apple goes first/primary, matching the convention the
+                            competitor reference this flow is modeled on uses
+                            (Apple as the top button, Google secondary). */}
+                        {isNativeApp && (
+                          <button
+                            onClick={handleAuthApple}
+                            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-bold text-white text-base active:scale-[0.98] transition-transform"
+                            style={{ backgroundColor: '#000', border: '1px solid rgba(255,255,255,0.15)' }}
+                          >
+                            <svg width="17" height="17" viewBox="0 0 384 512" fill="#fff">
+                              <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
+                            </svg>
+                            Continue with Apple
+                          </button>
                         )}
 
                         <button
