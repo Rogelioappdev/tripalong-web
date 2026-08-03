@@ -56,7 +56,7 @@ export default function HangPage() {
   }, [])
 
   const { data: hangalongs, isLoading, isError, refetch } = useQuery({
-    queryKey: ['hangalongs'],
+    queryKey: ['hangalongs', userId],
     queryFn: getHangalongs,
     staleTime: 2 * 60 * 1000,
   })
