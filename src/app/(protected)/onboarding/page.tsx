@@ -4,20 +4,25 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Playfair_Display } from 'next/font/google'
 import { motion, AnimatePresence, useAnimation } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { createProfile, updateProfile } from '@/lib/queries'
+import { createProfile, updateProfile, getActiveUsers30d } from '@/lib/queries'
 import { normalizeImageToJpeg } from '@/lib/image'
 import { haptic } from '@/lib/haptics'
-import { SEASONS } from '@/lib/tripOptions'
+import { playStampSound } from '@/lib/stampSound'
+import { SEASONS, VIBES } from '@/lib/tripOptions'
 import { TripPreviewCard } from '@/components/onboarding/TripPreviewCard'
 import { WorldRouteMap } from '@/components/onboarding/WorldRouteMap'
+import { SplashCarousel } from '@/components/onboarding/SplashCarousel'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
-import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData } from '@/components/onboarding/dnaOptions'
+import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
+import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
+import { NotificationPrompt } from '@/components/NotificationPrompt'
+import { TrialOfferPaywall } from '@/components/onboarding/TrialOfferPaywall'
+import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
+import { getFlag } from '@/lib/countries'
+import { TRAVELER_TYPES, MAX_TRAVELER_TYPES } from '@/lib/travelerTypes'
 import type { UserProfile } from '@/lib/types'
-
-const playfair = Playfair_Display({ subsets: ['latin'], weight: ['700', '800', '900'] })
 
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
@@ -31,6 +36,13 @@ const fadeUpVariants = {
 }
 
 const CTA_STYLE = { backgroundColor: '#F0EBE3', color: '#000' } as const
+
+// 'momentum' step's ring of small bubbles around the big count circle — reuses
+// the app's real VIBES list (lib/tripOptions.ts) rather than fabricating fake
+// user avatars/photos, same reasoning as SplashCarousel.tsx's activity bubbles
+// (see that file's BADGE_COLORS/BADGE_INITIALS comment). 8 of VIBES' 10 entries,
+// picked for visual/emoji variety around the ring.
+const MOMENTUM_VIBE_VALUES = ['adventure', 'foodie', 'beach', 'nature', 'party', 'backpacking', 'cultural', 'chill'] as const
 
 function QuizContinueButton({ onClick, disabled, label }: { onClick: () => void; disabled?: boolean; label: string }) {
   return (
@@ -49,29 +61,74 @@ export default function OnboardingPage() {
   const router = useRouter()
 
   const [authChecked, setAuthChecked] = useState(false)
-  const [newStage, setNewStage] = useState<'auth' | 'welcome' | 'valueprop' | 'quiz' | 'finale'>('auth')
+  const [newStage, setNewStage] = useState<'splash' | 'auth' | 'valueprop' | 'quiz' | 'passport' | 'finale'>('splash')
   const [newDirection, setNewDirection] = useState(1)
-  const [quizStep, setQuizStep] = useState(0)
-  const [dnaIndex, setDnaIndex] = useState(0)
+  // Flat ordered step-key system (replaces an old quizStep+dnaIndex pair).
+  // PRE_DNA_STEPS run first, then one screen per DNA_DIMENSIONS entry, then
+  // POST_DNA_STEPS. Each batch of onboarding work inserts its own keys into
+  // whichever array is appropriate and adds a matching JSX block + a case in
+  // canQuizContinue() — the array is the single source of truth for order,
+  // progress %, and back/next navigation, so no other function needs touching
+  // when a new step is inserted.
+  const [stepIndex, setStepIndex] = useState(0)
+  const [newHearAbout, setNewHearAbout] = useState('')
+  const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [newName, setNewName] = useState('')
   const [newBirthDay, setNewBirthDay] = useState('')
   const [newBirthMonth, setNewBirthMonth] = useState('')
   const [newBirthYear, setNewBirthYear] = useState('')
   const [newGender, setNewGender] = useState<'' | 'male' | 'female' | 'other'>('')
+  // Traveler-type identity labels (up to MAX_TRAVELER_TYPES) — see
+  // src/lib/travelerTypes.ts, also imported by PublicProfileModal so the
+  // options shown here match what's rendered on the profile exactly.
+  const [newTravelerTypes, setNewTravelerTypes] = useState<string[]>([])
   const [newCountry, setNewCountry] = useState('')
   const [newCity, setNewCity] = useState('')
   const [newTripDestination, setNewTripDestination] = useState('')
   const [newTripWhen, setNewTripWhen] = useState('')
+  // Exact-dates alternative to the newTripWhen season chips, via two native
+  // <input type="date"> fields (Depart/Return) on the 'tripTeaser' step —
+  // same ISO YYYY-MM-DD convention as CreateTripModal's startDate/endDate,
+  // '' when unset.
+  const [newTripStartDate, setNewTripStartDate] = useState('')
+  const [newTripEndDate, setNewTripEndDate] = useState('')
   const [newBio, setNewBio] = useState('')
   const [newInstagram, setNewInstagram] = useState('')
   const [newDna, setNewDna] = useState<NewDnaData>(EMPTY_DNA)
+  // 'momentum' step's secondary social-proof count (the screen's PRIMARY
+  // message is priming the user for the upcoming Travel DNA questions — see
+  // that step's JSX). null = still loading; 0 (or a fetch error, which
+  // getActiveUsers30d already collapses to 0) falls back to non-numeric copy
+  // so this screen never looks broken before the get_active_users_30d
+  // migration has been run in prod. Both null and the fallback render the
+  // same generic caption text, so no separate loading UI is needed here.
+  const [activeUsers30d, setActiveUsers30d] = useState<number | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [newTravelPhotos, setNewTravelPhotos] = useState<string[]>([])
+  const [uploadingTravelPhotos, setUploadingTravelPhotos] = useState(false)
+  const [rawPhotoFile, setRawPhotoFile] = useState<File | null>(null)
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null)
+  const [showCropModal, setShowCropModal] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Real signed-up user's id, captured once finishQuiz's Supabase write
+  // succeeds — needed to show <NotificationPrompt> (it requires a real
+  // userId to register a push subscription against). Stays null in the
+  // memberPreview test path, where there's no real account; the prompt is
+  // skipped entirely in that case rather than shown against a fake id.
+  const [authedUserId, setAuthedUserId] = useState<string | null>(null)
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false)
+  const [showTrialPaywall, setShowTrialPaywall] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const finaleControls = useAnimation()
+  // Drives the passport card's brief "thud" reaction (tiny scale-pulse +
+  // shake) the instant the APPROVED stamp finishes slamming down — see the
+  // 'passport' stage below. Imperative (via .start()) rather than a plain
+  // animate object so it can be fired precisely on stamp impact without
+  // fighting the card's own declarative entrance animation.
+  const passportImpactControls = useAnimation()
 
   const isSigninIntent = () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mode') === 'signin'
   const [authShowEmail, setAuthShowEmail] = useState(isSigninIntent)
@@ -91,12 +148,22 @@ export default function OnboardingPage() {
   const [memberCodeError, setMemberCodeError] = useState(false)
   const [memberPreview, setMemberPreview] = useState(false)
 
+  // Real users can land here already authenticated — native's LoginScreen
+  // completes Google/Apple sign-in before this page ever mounts, so by the
+  // time WebViewScreen loads /onboarding the session already exists. Skip
+  // straight past splash+auth in that case (matches the old /onboarding's
+  // behavior) rather than showing a redundant "sign up" flow to someone
+  // who's already signed up. onboarding-preview (the WIP testing route)
+  // deliberately does NOT do this skip, since testers reach it via the
+  // Settings member-code gate and are always already logged in — skipping
+  // there would make it impossible to preview the splash/auth screens at
+  // all. Keep that route's behavior as-is; this divergence is intentional.
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         if (data.user.user_metadata?.full_name) setNewName(data.user.user_metadata.full_name)
         else if (data.user.user_metadata?.name) setNewName(data.user.user_metadata.name)
-        setNewStage('welcome')
+        setNewStage('valueprop')
       }
       setAuthChecked(true)
     })
@@ -108,7 +175,7 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: row } = await supabase.from('users').select('age').eq('id', user.id).single()
-      if (!row || row.age === null) setNewStage('welcome')
+      if (!row || row.age === null) setNewStage('valueprop')
       else router.push('/feed')
     }
     return () => { delete (window as any).__tripalongGoogleSignInResult }
@@ -124,11 +191,74 @@ export default function OnboardingPage() {
     : null
   const newAgeValid = newAge !== null && newAge >= 16
 
-  const QUIZ_TOTAL_UNITS = 4 + DNA_DIMENSIONS.length
-  const quizUnitIndex = quizStep < 4 ? quizStep : 4 + dnaIndex
-  const quizProgressPct = ((quizUnitIndex + 1) / QUIZ_TOTAL_UNITS) * 100
+  // Reset the inline age-confirmation once any date field changes after the
+  // user already confirmed it, so a corrected date gets re-confirmed.
+  useEffect(() => { setAgeConfirmed(false) }, [newBirthDay, newBirthMonth, newBirthYear])
+
+  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'travelerType', 'photo', 'travelPhotos', 'location', 'tripTeaser', 'bio', 'momentum'] as const
+  const POST_DNA_STEPS = [] as const
+  type PreDnaStep = typeof PRE_DNA_STEPS[number]
+  type PostDnaStep = typeof POST_DNA_STEPS[number]
+
+  const QUIZ_TOTAL_UNITS = PRE_DNA_STEPS.length + DNA_DIMENSIONS.length + POST_DNA_STEPS.length
+  const quizProgressPct = ((stepIndex + 1) / QUIZ_TOTAL_UNITS) * 100
+
+  const currentStepKind: 'pre' | 'dna' | 'post' =
+    stepIndex < PRE_DNA_STEPS.length ? 'pre'
+    : stepIndex < PRE_DNA_STEPS.length + DNA_DIMENSIONS.length ? 'dna'
+    : 'post'
+  const currentPreDnaStep: PreDnaStep | null = currentStepKind === 'pre' ? PRE_DNA_STEPS[stepIndex] : null
+  const currentDnaIndex = currentStepKind === 'dna' ? stepIndex - PRE_DNA_STEPS.length : -1
+  const currentPostDnaStep: PostDnaStep | null =
+    currentStepKind === 'post' ? POST_DNA_STEPS[stepIndex - PRE_DNA_STEPS.length - DNA_DIMENSIONS.length] : null
+
+  // Fetch the momentum step's real active-user count only when that step is
+  // actually on screen (not on every render of the whole page). Guarded with
+  // `cancelled` so a resolved fetch never calls setState after the user has
+  // swiped away from this step. getActiveUsers30d() already collapses any RPC
+  // error to 0, so no separate error state is needed here — a 0 (or a fetch
+  // error) both fall through to the non-numeric fallback copy in the JSX below.
+  useEffect(() => {
+    if (currentPreDnaStep !== 'momentum') return
+    let cancelled = false
+    getActiveUsers30d().then(count => { if (!cancelled) setActiveUsers30d(count) })
+    return () => { cancelled = true }
+  }, [currentPreDnaStep])
 
   const goStage = (stage: typeof newStage, dir: number) => { setNewDirection(dir); setNewStage(stage) }
+
+  // Fired via onAnimationComplete on the passport card's APPROVED stamp
+  // (see 'passport' stage below) the instant its drop+bounce animation
+  // actually finishes — i.e. the real moment of "impact", not a guessed
+  // timeout. Plays the synthesized stamp thud and gives the card itself a
+  // tiny, brief scale/shake reaction so the two sell one "thud" together.
+  const handlePassportStampImpact = () => {
+    playStampSound()
+    passportImpactControls.start({
+      scale: [1, 1.018, 0.99, 1],
+      x: [0, -2, 2, -1, 0],
+      transition: { duration: 0.13, ease: 'easeInOut' },
+    })
+  }
+
+  // Bug fix ("moves down weirdly" on valueprop's Continue tap): the quiz
+  // header logo row below is `shrink-0` and sits directly above the
+  // AnimatePresence in a fixed-height, overflow-hidden flex column. It used
+  // to be conditioned directly on `newStage === 'quiz'`, which flips true the
+  // instant Continue is clicked — but AnimatePresence (mode="wait") keeps the
+  // outgoing 'valueprop' screen mounted and visibly sliding out for its full
+  // 250ms exit transition (goStage('quiz', 1) below is the *only* place that
+  // enters 'quiz', so this is where the glitch was reported). Inserting the
+  // header instantly shrank the sibling flex-1 region by the header's height,
+  // shoving the still-exiting valueprop content down mid-animation. Delaying
+  // the header's appearance by that same 250ms lets it show up alongside the
+  // next quiz screen's own entrance instead, once the old screen is gone.
+  const [quizChromeVisible, setQuizChromeVisible] = useState(false)
+  useEffect(() => {
+    if (newStage !== 'quiz') { setQuizChromeVisible(false); return }
+    const t = setTimeout(() => setQuizChromeVisible(true), 250)
+    return () => clearTimeout(t)
+  }, [newStage])
 
   const handleAuthGoogle = () => {
     haptic(8)
@@ -142,6 +272,25 @@ export default function OnboardingPage() {
     })
   }
 
+  // Native-app only — mirrors handleAuthGoogle's native branch exactly. Apple
+  // sign-in is NOT wired up for the plain web/PWA case on purpose (no button
+  // renders there at all, see isNativeApp below) — only the native app needs
+  // it right now. tripalong-app/App.tsx's LoginScreen handles this message
+  // the same way it already handles 'google_signin': opens Supabase's OAuth
+  // URL in a system browser tab (ASWebAuthenticationSession on iOS) rather
+  // than running signInWithOAuth inside the embedded WebView.
+  const handleAuthApple = () => {
+    haptic(8)
+    if ((window as any).ReactNativeWebView) {
+      ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'apple_signin' }))
+    }
+  }
+
+  // Only ever true inside the native app's WebView — gates the Apple button
+  // so it doesn't render at all on the plain website/PWA, per explicit scope
+  // ("just need it for native Apple users, don't worry about the website").
+  const isNativeApp = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
+
   const handleAuthEmailSubmit = async () => {
     if (!authEmail || !authPassword) return
     setAuthError('')
@@ -150,7 +299,7 @@ export default function OnboardingPage() {
       if (authMode === 'signup') {
         const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword })
         if (error) throw error
-        goStage('welcome', 1)
+        goStage('valueprop', 1)
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword })
         if (error) throw error
@@ -167,7 +316,7 @@ export default function OnboardingPage() {
     if (memberCode.trim().toLowerCase() === 'gertrudis') {
       haptic(10)
       setMemberPreview(true)
-      goStage('welcome', 1)
+      goStage('valueprop', 1)
     } else {
       haptic([8, 20, 8])
       setMemberCodeError(true)
@@ -179,13 +328,18 @@ export default function OnboardingPage() {
     setLoading(true)
     setError('')
     if (memberPreview) {
-      goStage('finale', 1)
+      // The passport screen only ever reads local component state (name,
+      // photo, DNA answers, etc.) — none of it depends on the Supabase write
+      // this branch skips — so testers using the member-code shortcut should
+      // still see it, not get bounced straight to finale.
+      goStage('passport', 1)
       setLoading(false)
       return
     }
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Please sign in again.')
+      setAuthedUserId(user.id)
       await createProfile(user.id, user.email ?? '', newName.trim(), newAge!)
       await updateProfile(user.id, {
         gender: (newGender || null) as UserProfile['gender'],
@@ -194,14 +348,16 @@ export default function OnboardingPage() {
         bio: newBio.trim() || null,
         instagram_handle: newInstagram.trim() || null,
         profile_photo: photoUrl || undefined,
+        photos: newTravelPhotos,
         travel_styles: newDna.travel_styles,
+        traveler_types: newTravelerTypes,
         travel_pace: (newDna.travel_pace || null) as UserProfile['travel_pace'],
         social_energy: (newDna.social_energy || null) as UserProfile['social_energy'],
         planning_style: (newDna.planning_style || null) as UserProfile['planning_style'],
         experience_level: (newDna.experience_level || null) as UserProfile['experience_level'],
         travel_with: (newDna.travel_with || null) as UserProfile['travel_with'],
       })
-      goStage('finale', 1)
+      goStage('passport', 1)
     } catch (e: any) {
       setError(e?.message ?? 'Something went wrong. Please try again.')
     } finally {
@@ -211,28 +367,77 @@ export default function OnboardingPage() {
 
   const quizNext = () => {
     haptic(8)
-    if (quizStep < 3) { setNewDirection(1); setQuizStep(s => s + 1); return }
-    if (quizStep === 3) { setNewDirection(1); setQuizStep(4); setDnaIndex(0); return }
-    if (dnaIndex < DNA_DIMENSIONS.length - 1) { setNewDirection(1); setDnaIndex(d => d + 1); return }
-    finishQuiz()
+    if (stepIndex >= QUIZ_TOTAL_UNITS - 1) { finishQuiz(); return }
+    setNewDirection(1)
+    setStepIndex(s => s + 1)
   }
 
   const quizBack = () => {
     haptic(6)
-    if (quizStep === 4 && dnaIndex > 0) { setNewDirection(-1); setDnaIndex(d => d - 1); return }
-    if (quizStep === 0) { goStage('valueprop', -1); return }
+    if (stepIndex === 0) { goStage('valueprop', -1); return }
     setNewDirection(-1)
-    setQuizStep(s => s - 1)
+    setStepIndex(s => s - 1)
+  }
+
+  // Swipe-right-to-go-back gesture shared by every quiz step's motion.div.
+  //
+  // This used to be Framer Motion's native `drag="x"` prop with
+  // dragConstraints pinning the element back to 0 on release. That caused a
+  // real bug: `drag` intercepts pointer gestures across the ENTIRE element,
+  // including buttons inside it (e.g. an attribution option, or Continue) —
+  // any few px of pointer jitter during an ordinary tap gets read as a tiny
+  // drag, and releasing it inside dragConstraints plays an elastic
+  // snap-back animation that visually collides with the real slide-out exit
+  // transition, which is exactly the "laggy/weird" feel reported after
+  // tapping through the attribution screen.
+  //
+  // Fixed by dropping Framer's `drag` gesture entirely in favor of plain
+  // Pointer Events that only ever read coordinates on down/up — no
+  // preventDefault, no pointer capture, so button clicks underneath are
+  // completely unaffected, and there's no live drag-follow or snap-back
+  // animation to collide with anything. We only act on the gesture once it
+  // ends, and only if it was mostly horizontal (guards against a vertical
+  // scroll/tap being misread as a swipe).
+  const QUIZ_SWIPE_BACK_THRESHOLD = 90
+  const quizPointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  const handleQuizPointerDown = (e: React.PointerEvent) => {
+    quizPointerStartRef.current = { x: e.clientX, y: e.clientY }
+  }
+  const handleQuizPointerUp = (e: React.PointerEvent) => {
+    const start = quizPointerStartRef.current
+    quizPointerStartRef.current = null
+    if (!start) return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (dx > QUIZ_SWIPE_BACK_THRESHOLD && Math.abs(dy) < 60) quizBack()
+  }
+  const quizDragProps = {
+    onPointerDown: handleQuizPointerDown,
+    onPointerUp: handleQuizPointerUp,
   }
 
   const canQuizContinue = () => {
-    if (quizStep === 0) return newName.trim().length >= 2 && newAgeValid && !!newGender
-    if (quizStep === 1) return true
-    if (quizStep === 2) return newCountry.trim().length > 0 && newCity.trim().length > 0
-    if (quizStep === 3) return true
-    const dim = DNA_DIMENSIONS[dnaIndex]
-    const v = newDna[dim.key]
-    return Array.isArray(v) ? v.length > 0 : v !== ''
+    if (currentStepKind === 'pre') {
+      switch (currentPreDnaStep) {
+        case 'birthday': return newAgeValid && ageConfirmed
+        case 'attribution': return newHearAbout !== ''
+        case 'nameGender': return newName.trim().length >= 2 && !!newGender
+        case 'travelerType': return newTravelerTypes.length > 0
+        case 'photo': return true
+        case 'travelPhotos': return newTravelPhotos.length >= 3
+        case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
+        case 'tripTeaser': return true
+        case 'bio': return true
+        case 'momentum': return true
+        default: return true
+      }
+    }
+    if (currentStepKind === 'dna') {
+      const dim = DNA_DIMENSIONS[currentDnaIndex]
+      const v = newDna[dim.key]
+      return Array.isArray(v) ? v.length > 0 : v !== ''
+    }
+    return true
   }
 
   const toggleDna = (key: keyof NewDnaData, value: string, multi: boolean) => {
@@ -273,13 +478,100 @@ export default function OnboardingPage() {
     }
   }
 
-  const dim = DNA_DIMENSIONS[dnaIndex]
-  const quizKey = `quiz-${quizStep}-${dnaIndex}`
+  // Multi-photo grid upload for the 'travelPhotos' step — same avatars bucket
+  // and path convention as Profile page's handleGridPhotosUpload (uploads
+  // sequentially, appends each public URL as it succeeds).
+  const handleTravelPhotosUpload = async (files: File[]) => {
+    if (files.length === 0) return
+    const remaining = 10 - newTravelPhotos.length
+    const toUpload = files.slice(0, Math.max(0, remaining))
+    if (toUpload.length === 0) return
+    setUploadingTravelPhotos(true)
+    setError('')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setError('Please sign in again.'); return }
+      for (const file of toUpload) {
+        const jpeg = await normalizeImageToJpeg(file)
+        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`
+        const { error: uploadError } = await supabase.storage.from('avatars')
+          .upload(path, jpeg, { upsert: true, contentType: 'image/jpeg' })
+        if (uploadError) throw uploadError
+        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+        setNewTravelPhotos(prev => [...prev, publicUrl])
+      }
+    } catch (e: any) {
+      setError(e?.message ?? 'Photo upload failed. Try again.')
+    } finally {
+      setUploadingTravelPhotos(false)
+    }
+  }
+
+  const removeTravelPhoto = (url: string) => {
+    setNewTravelPhotos(prev => prev.filter(p => p !== url))
+  }
+
+  // Object URL for whatever raw file the picker just returned, so the crop
+  // modal has something to render. Created/revoked in lockstep with
+  // rawPhotoFile so we never leak a blob: URL, whether the user confirms,
+  // cancels, or navigates away mid-crop.
+  useEffect(() => {
+    if (!rawPhotoFile) { setCropImageSrc(null); return }
+    const url = URL.createObjectURL(rawPhotoFile)
+    setCropImageSrc(url)
+    return () => URL.revokeObjectURL(url)
+  }, [rawPhotoFile])
+
+  const handlePhotoPicked = (file: File) => {
+    setRawPhotoFile(file)
+    setShowCropModal(true)
+  }
+
+  const handleCropConfirm = (croppedFile: File) => {
+    setShowCropModal(false)
+    setRawPhotoFile(null)
+    handlePhotoUpload(croppedFile)
+  }
+
+  const handleCropCancel = () => {
+    setShowCropModal(false)
+    setRawPhotoFile(null)
+  }
+
+  const dim = currentStepKind === 'dna' ? DNA_DIMENSIONS[currentDnaIndex] : DNA_DIMENSIONS[0]
+  const quizKey = `quiz-${stepIndex}`
+
+  // 'momentum' step's formatted count — plain digits with thousands separators,
+  // no K/M abbreviation (this app is early-stage; that logic isn't needed yet).
+  // null (still loading) and 0 (migration not run yet, or genuinely brand new)
+  // both fall through to the non-numeric fallback copy in the JSX below, so the
+  // screen never looks broken regardless of backend state.
+  const activeUsers30dDisplay = activeUsers30d !== null && activeUsers30d > 0 ? activeUsers30d.toLocaleString() : null
+
+  // 'passport' stage's trait pills — pulled straight from the DNA answers just
+  // collected, nothing fabricated. Shows up to 2 travel_styles (the multi-select,
+  // most "vibe"-defining dimension — closest thing this app has to the
+  // competitor passport card's traveler-type pills) plus the single
+  // experience_level pick (a nice "well-traveled" flourish that fits the
+  // passport metaphor). Falls back gracefully to fewer pills if the user left
+  // some DNA answers blank (shouldn't happen since canQuizContinue() requires
+  // every dimension, but this stays defensive either way).
+  const dnaOption = (key: keyof NewDnaData, value: string): DnaOption | undefined =>
+    DNA_DIMENSIONS.find(d => d.key === key)?.options.find(o => o.value === value)
+  const passportPills: DnaOption[] = [
+    ...newDna.travel_styles.slice(0, 2).map(v => dnaOption('travel_styles', v)),
+    dnaOption('experience_level', newDna.experience_level),
+  ].filter((o): o is DnaOption => !!o)
+
+  // Real "issued" date for the passport stamp — today, formatted plainly
+  // (e.g. "31 JUL 2026"), never a hardcoded placeholder.
+  const passportNow = new Date()
+  const passportIssuedDate = `${String(passportNow.getDate()).padStart(2, '0')} ${passportNow.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()} ${passportNow.getFullYear()}`
 
   return (
-    <main className="min-h-screen bg-black flex flex-col">
+    <main className="h-[100dvh] overflow-hidden bg-black flex flex-col">
       <div
-        className="flex flex-col max-w-sm mx-auto w-full px-6 min-h-screen"
+        className="flex flex-col max-w-sm mx-auto w-full px-6 h-full overflow-hidden"
         style={{
           paddingTop: 'calc(env(safe-area-inset-top) + 36px)',
           paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
@@ -291,26 +583,77 @@ export default function OnboardingPage() {
           </div>
         ) : (
           <>
-            {newStage === 'quiz' && !finalizing && (
-              <div className="shrink-0">
-                <div className="flex items-center justify-between mb-5">
-                  <button onClick={quizBack} className="text-white/28 text-sm active:opacity-60 transition-opacity">← Back</button>
-                  <span className="text-white/25 text-xs font-medium">
-                    {quizStep < 4 ? `Step ${quizStep + 1} of 4` : `Travel DNA · ${dnaIndex + 1} of ${DNA_DIMENSIONS.length}`}
-                  </span>
+            {/* No visible progress bar / step counter across the quiz at large,
+                by design — matches the competitor reference this flow is
+                modeled on, which relies on momentum/social-proof interstitials
+                rather than a literal progress UI. quizProgressPct is still
+                computed above in case a future screen (or A/B test) wants it
+                back. The old "← Back" button was replaced by a swipe-right-to-
+                go-back drag gesture on each quiz step (see quizDragProps
+                below); this small persistent logo mark takes its place at the
+                top of the quiz chrome. The one deliberate, narrow exception:
+                a thin "Question X of 6" progress bar shown only during the 6
+                Travel DNA dimension screens (currentStepKind === 'dna'),
+                added per explicit user request — see below. */}
+            {quizChromeVisible && !finalizing && (
+              <div className="shrink-0 mb-6 flex flex-col gap-3">
+                <div className="flex items-center justify-center gap-2">
+                  {/* /tagalong-icon.png has generous transparent padding around the
+                      mark (see BottomTabBar's use of the same asset), so it's sized
+                      up past its visible content to read clearly at this scale —
+                      matches the competitor reference's bolder top-of-screen logo
+                      treatment (see tripalong_nomadtable_screens.md). Same block
+                      renders above every quiz step, so position is identical
+                      throughout. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/tagalong-icon.png" alt="" className="w-9 h-9 object-contain" />
+                  <span className="text-white font-extrabold text-xl tracking-tight">TripAlong</span>
                 </div>
-                <div className="w-full h-1 bg-white/10 rounded-full mb-7 overflow-hidden">
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ backgroundColor: '#F0EBE3' }}
-                    animate={{ width: `${quizProgressPct}%` }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-                  />
-                </div>
+
+                {/* Deliberate, narrow exception to this flow's "no progress bar"
+                    rule (see note below on quizProgressPct): shown ONLY for the
+                    6 Travel DNA questions (currentStepKind === 'dna'), per
+                    explicit user request — those 6 screens are a distinct,
+                    countable sub-sequence within the quiz, unlike every other
+                    step here. Width is driven off currentDnaIndex/DNA_DIMENSIONS
+                    (not the whole-quiz quizProgressPct), and animates between
+                    questions with the same spring this file already uses for
+                    other settle-into-place transitions (see the quiz CTA button
+                    and auth screen above). */}
+                {currentStepKind === 'dna' && (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: '#F0EBE3' }}
+                        animate={{ width: `${((currentDnaIndex + 1) / DNA_DIMENSIONS.length) * 100}%` }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+                      />
+                    </div>
+                    <span className="text-white/25 text-[10px] font-semibold tracking-wide">
+                      Question {currentDnaIndex + 1} of {DNA_DIMENSIONS.length}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
             <AnimatePresence custom={newDirection} mode="wait">
+                {newStage === 'splash' && (
+                  <motion.div
+                    key="splash"
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col relative"
+                  >
+                    <SplashCarousel onContinue={() => goStage('auth', 1)} />
+                  </motion.div>
+                )}
+
                 {newStage === 'auth' && (
                   <motion.div
                     key="auth"
@@ -326,7 +669,7 @@ export default function OnboardingPage() {
                       initial="hidden"
                       animate="visible"
                       variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.14, delayChildren: authShowEmail ? 0.05 : 0.4 } } }}
-                      className={authShowEmail ? 'flex-1 flex flex-col items-center justify-center' : 'mt-10'}
+                      className={authShowEmail ? 'flex-1 flex flex-col items-center justify-center' : 'flex-1 flex flex-col items-center justify-center text-center'}
                     >
                       {authShowEmail ? (
                         <motion.h1 variants={fadeUpVariants} className="text-white font-black tracking-tight text-4xl">
@@ -337,7 +680,7 @@ export default function OnboardingPage() {
                           <motion.p variants={fadeUpVariants} className="text-white/50 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
                             Welcome to
                           </motion.p>
-                          <motion.h1 variants={fadeUpVariants} className={`${playfair.className} text-white font-black tracking-tight text-5xl mb-4`}>
+                          <motion.h1 variants={fadeUpVariants} className="text-white font-black tracking-tight text-5xl mb-4">
                             TripAlong
                           </motion.h1>
                           <motion.p variants={fadeUpVariants} className="text-white/60 text-base leading-relaxed">
@@ -353,6 +696,40 @@ export default function OnboardingPage() {
                         transition={{ delay: 0.45, type: 'spring', stiffness: 300, damping: 28 }}
                         className="mt-auto flex flex-col gap-2.5"
                       >
+                        {/* Honest social-proof pill — no fabricated live number. The `users`
+                            table's RLS policy (supabase/migrations/20260606_rls_security.sql,
+                            "users_select") only grants SELECT to the `authenticated` role, and
+                            this screen renders pre-auth, so a real count isn't safely gettable
+                            here without a new anon-safe policy or public stats endpoint. Swap
+                            this copy for a real live count if one becomes available. */}
+                        {!authShowEmail && (
+                          <div className="self-center flex items-center gap-2 bg-white/6 border border-white/12 rounded-full px-3.5 py-2 mb-1">
+                            <span className="relative flex h-2 w-2 shrink-0">
+                              <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ backgroundColor: '#30D158' }} />
+                              <span className="relative inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: '#30D158' }} />
+                            </span>
+                            <span className="text-white/55 text-xs font-medium">Join travelers finding their people right now 🌍</span>
+                          </div>
+                        )}
+
+                        {/* Native-app only (see isNativeApp/handleAuthApple above) —
+                            no button renders here at all on the plain website.
+                            Apple goes first/primary, matching the convention the
+                            competitor reference this flow is modeled on uses
+                            (Apple as the top button, Google secondary). */}
+                        {isNativeApp && (
+                          <button
+                            onClick={handleAuthApple}
+                            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-bold text-white text-base active:scale-[0.98] transition-transform"
+                            style={{ backgroundColor: '#000', border: '1px solid rgba(255,255,255,0.15)' }}
+                          >
+                            <svg width="17" height="17" viewBox="0 0 384 512" fill="#fff">
+                              <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
+                            </svg>
+                            Continue with Apple
+                          </button>
+                        )}
+
                         <button
                           onClick={handleAuthGoogle}
                           className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-black text-base active:scale-[0.98] transition-transform"
@@ -371,7 +748,7 @@ export default function OnboardingPage() {
                           <button
                             onClick={() => { haptic(6); setAuthShowEmail(true) }}
                             className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
-                            style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.55)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+                            style={{ backgroundColor: 'transparent', color: '#F0EBE3', border: '1.5px solid rgba(240,235,227,0.45)' }}
                           >
                             Continue with Email
                           </button>
@@ -448,55 +825,6 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
 
-                {newStage === 'welcome' && (
-                  <motion.div
-                    key="welcome"
-                    custom={newDirection}
-                    variants={slideVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.25, ease: 'easeInOut' }}
-                    className="flex-1 flex flex-col relative"
-                  >
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      style={{ background: 'radial-gradient(circle at 50% 38%, rgba(240,235,227,0.09), transparent 55%)' }}
-                    />
-                    <div className="flex-1 flex flex-col items-center justify-center text-center">
-                      <motion.div
-                        initial="hidden"
-                        animate="visible"
-                        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.14, delayChildren: 0.1 } } }}
-                      >
-                        <motion.p variants={fadeUpVariants} className="text-white/30 text-xs font-semibold uppercase tracking-[0.22em] mb-5">
-                          Welcome to
-                        </motion.p>
-                        <motion.h1 variants={fadeUpVariants} className="text-white font-extrabold text-5xl tracking-tight mb-5">
-                          TripAlong
-                        </motion.h1>
-                        <motion.p variants={fadeUpVariants} className="text-white/40 text-base leading-relaxed max-w-[260px] mx-auto">
-                          Find your people.<br />See the world together.
-                        </motion.p>
-                      </motion.div>
-                    </div>
-                    <motion.div
-                      className="mt-auto"
-                      initial={{ opacity: 0, y: 14 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.65, type: 'spring', stiffness: 300, damping: 28 }}
-                    >
-                      <button
-                        onClick={() => { haptic(8); goStage('valueprop', 1) }}
-                        className="w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
-                        style={CTA_STYLE}
-                      >
-                        Get started
-                      </button>
-                    </motion.div>
-                  </motion.div>
-                )}
-
                 {newStage === 'valueprop' && (
                   <motion.div
                     key="valueprop"
@@ -515,7 +843,7 @@ export default function OnboardingPage() {
                         Real trips, real people. Swipe right on a trip, join the group chat, and start planning with people who match your vibe.
                       </p>
                     </div>
-                    <div className="flex-1 flex items-center justify-center py-2 min-h-0">
+                    <div className="flex-1 flex items-center justify-center py-2 min-h-0 overflow-hidden">
                       <TripPreviewCard />
                     </div>
                     <button
@@ -528,7 +856,7 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
 
-                {newStage === 'quiz' && quizStep === 0 && (
+                {newStage === 'quiz' && currentPreDnaStep === 'birthday' && (
                   <motion.div
                     key={quizKey}
                     custom={newDirection}
@@ -538,6 +866,154 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">When&apos;s your birthday?</h1>
+                      <p className="text-white/38 text-sm">You must be at least 16 to use TripAlong.</p>
+                    </div>
+
+                    <div className="mt-7">
+                      <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Date of birth</label>
+                      <div className="grid grid-cols-3 gap-2.5">
+                        <select
+                          value={newBirthDay}
+                          onChange={e => setNewBirthDay(e.target.value)}
+                          className="bg-white/6 border border-white/12 rounded-2xl px-3 py-4 text-white text-sm outline-none [color-scheme:dark]"
+                        >
+                          <option value="">Day</option>
+                          {Array.from({ length: 31 }, (_, i) => (
+                            <option key={i + 1} value={String(i + 1)}>{i + 1}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={newBirthMonth}
+                          onChange={e => setNewBirthMonth(e.target.value)}
+                          className="bg-white/6 border border-white/12 rounded-2xl px-3 py-4 text-white text-sm outline-none [color-scheme:dark]"
+                        >
+                          <option value="">Month</option>
+                          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                            <option key={i} value={String(i + 1)}>{m}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={newBirthYear}
+                          onChange={e => setNewBirthYear(e.target.value)}
+                          className="bg-white/6 border border-white/12 rounded-2xl px-3 py-4 text-white text-sm outline-none [color-scheme:dark]"
+                        >
+                          <option value="">Year</option>
+                          {Array.from({ length: 80 }, (_, i) => currentYear - 16 - i).map(y => (
+                            <option key={y} value={String(y)}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {newBirthYear && !newAgeValid && (
+                        <p className="text-red-400 text-xs mt-2.5">Must be 16 or older to use TripAlong</p>
+                      )}
+
+                      {newAgeValid && !ageConfirmed && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-5 rounded-2xl border border-white/12 bg-white/6 overflow-hidden"
+                        >
+                          <div className="px-5 py-4 text-center">
+                            <p className="text-white font-bold text-sm mb-1.5">Confirm your age</p>
+                            <p className="text-white/45 text-xs leading-relaxed">You are {newAge} years old right now. Go back if this is not correct.</p>
+                          </div>
+                          <div className="flex border-t border-white/10">
+                            <button
+                              onClick={() => { haptic(6); setNewBirthDay(''); setNewBirthMonth(''); setNewBirthYear('') }}
+                              className="flex-1 py-3.5 text-xs font-semibold border-r border-white/10 active:opacity-60 transition-opacity"
+                              style={{ color: 'rgba(255,255,255,0.5)' }}
+                            >
+                              Go back
+                            </button>
+                            <button
+                              onClick={() => { haptic(8); setAgeConfirmed(true) }}
+                              className="flex-1 py-3.5 text-xs font-bold active:opacity-60 transition-opacity"
+                              style={{ color: '#F0EBE3' }}
+                            >
+                              It&apos;s correct
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && currentPreDnaStep === 'attribution' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">How did you hear about us?</h1>
+                      <p className="text-white/38 text-sm">Help us understand how you found TripAlong.</p>
+                    </div>
+
+                    {/* Scrollable content area — 7 stacked option buttons (each
+                        py-5, rounded-3xl) plus the heading routinely add up to
+                        more than the fixed h-[100dvh] shell's height on
+                        mainstream phone viewports (e.g. ~390x844), and the
+                        shell itself is overflow-hidden with no scroll. Without
+                        this, the last option(s) and/or the Continue button got
+                        hard-clipped at the bottom edge — invisible or
+                        partially cut off — which is what made this step's
+                        Continue transition look broken/different from every
+                        other (fully-visible, shorter) quiz step's clean slide.
+                        Same fix already applied to 'location' above and
+                        'travelPhotos' below for the same reason. */}
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-7">
+                      <div className="flex flex-col gap-3">
+                        {([
+                          { v: 'instagram', e: '📸', l: 'Instagram' },
+                          { v: 'tiktok', e: '🎵', l: 'TikTok' },
+                          { v: 'youtube', e: '▶️', l: 'YouTube Shorts' },
+                          { v: 'twitter', e: '✕', l: 'X (Twitter)' },
+                          { v: 'reddit', e: '🤖', l: 'Reddit' },
+                          { v: 'friend', e: '👥', l: 'A friend' },
+                          { v: 'other', e: '🌐', l: 'Other' },
+                        ]).map(o => (
+                          <button
+                            key={o.v}
+                            onClick={() => { haptic(8); setNewHearAbout(o.v) }}
+                            className="w-full flex items-center gap-3.5 py-5 px-5 rounded-3xl text-sm font-semibold border transition-colors"
+                            style={newHearAbout === o.v
+                              ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
+                              : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)', borderColor: 'rgba(255,255,255,0.12)' }}
+                          >
+                            <span className="text-xl">{o.e}</span> {o.l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="next" />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && currentPreDnaStep === 'nameGender' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Let's build your profile.</h1>
@@ -555,45 +1031,6 @@ export default function OnboardingPage() {
                           className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
                           autoFocus
                         />
-                      </div>
-
-                      <div>
-                        <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Birthday</label>
-                        <div className="grid grid-cols-3 gap-2">
-                          <select
-                            value={newBirthDay}
-                            onChange={e => setNewBirthDay(e.target.value)}
-                            className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
-                          >
-                            <option value="">Day</option>
-                            {Array.from({ length: 31 }, (_, i) => (
-                              <option key={i + 1} value={String(i + 1)}>{i + 1}</option>
-                            ))}
-                          </select>
-                          <select
-                            value={newBirthMonth}
-                            onChange={e => setNewBirthMonth(e.target.value)}
-                            className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
-                          >
-                            <option value="">Month</option>
-                            {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                              <option key={i} value={String(i + 1)}>{m}</option>
-                            ))}
-                          </select>
-                          <select
-                            value={newBirthYear}
-                            onChange={e => setNewBirthYear(e.target.value)}
-                            className="bg-white/6 border border-white/12 rounded-2xl px-3 py-3.5 text-white text-sm outline-none [color-scheme:dark]"
-                          >
-                            <option value="">Year</option>
-                            {Array.from({ length: 80 }, (_, i) => currentYear - 16 - i).map(y => (
-                              <option key={y} value={String(y)}>{y}</option>
-                            ))}
-                          </select>
-                        </div>
-                        {newBirthYear && !newAgeValid && (
-                          <p className="text-red-400 text-xs mt-2">Must be 16 or older to use TripAlong</p>
-                        )}
                       </div>
 
                       <div>
@@ -623,7 +1060,7 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
 
-                {newStage === 'quiz' && quizStep === 1 && (
+                {newStage === 'quiz' && currentPreDnaStep === 'travelerType' && (
                   <motion.div
                     key={quizKey}
                     custom={newDirection}
@@ -633,6 +1070,65 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">What kind of traveler are you?</h1>
+                      <p className="text-white/38 text-sm">Pick up to {MAX_TRAVELER_TYPES} — this helps us match you right.</p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 mt-6">
+                      {TRAVELER_TYPES.map((t, i) => {
+                        const selected = newTravelerTypes.includes(t.value)
+                        const atMax = newTravelerTypes.length >= MAX_TRAVELER_TYPES
+                        return (
+                          <motion.button
+                            key={t.value}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.05, type: 'spring', stiffness: 380, damping: 32 }}
+                            whileTap={{ scale: 0.98 }}
+                            disabled={!selected && atMax}
+                            onClick={() => {
+                              haptic(8)
+                              setNewTravelerTypes(prev =>
+                                prev.includes(t.value)
+                                  ? prev.filter(v => v !== t.value)
+                                  : prev.length >= MAX_TRAVELER_TYPES ? prev : [...prev, t.value]
+                              )
+                            }}
+                            className="flex items-center gap-4 p-4 rounded-2xl border text-left disabled:opacity-40"
+                            style={selected
+                              ? { backgroundColor: '#F0EBE3', borderColor: 'transparent' }
+                              : { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}
+                          >
+                            <span className="text-2xl shrink-0">{t.emoji}</span>
+                            <div>
+                              <p className="font-semibold text-sm" style={{ color: selected ? '#000' : '#fff' }}>{t.label}</p>
+                              <p className="text-xs mt-0.5" style={{ color: selected ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.4)' }}>
+                                {t.desc}
+                              </p>
+                            </div>
+                          </motion.button>
+                        )
+                      })}
+                    </div>
+
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && currentPreDnaStep === 'photo' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Put a face to<br />your adventure.</h1>
@@ -664,7 +1160,7 @@ export default function OnboardingPage() {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoPicked(f) }}
                       />
                     </div>
 
@@ -682,7 +1178,7 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
 
-                {newStage === 'quiz' && quizStep === 2 && (
+                {newStage === 'quiz' && currentPreDnaStep === 'travelPhotos' && (
                   <motion.div
                     key={quizKey}
                     custom={newDirection}
@@ -692,38 +1188,148 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Show off your travels.</h1>
+                      <p className="text-white/38 text-sm">Add 3–10 photos of you and your favorite trips — this is what other travelers see on your profile.</p>
+                    </div>
+
+                    <div className="mt-5 flex items-center justify-between">
+                      <p className="text-white/40 text-xs font-semibold">{newTravelPhotos.length} of 10 photos</p>
+                      <p
+                        className="text-xs font-bold"
+                        style={{ color: newTravelPhotos.length >= 3 ? '#30D158' : 'rgba(255,255,255,0.35)' }}
+                      >
+                        {newTravelPhotos.length >= 3 ? '✓ Minimum met' : `${3 - newTravelPhotos.length} more to continue`}
+                      </p>
+                    </div>
+
+                    {/* A small spinner tucked inside the "+ Add" tile was easy to
+                        miss right after the native photo picker hands control
+                        back — normalizing + uploading each file sequentially can
+                        take a few seconds with no other feedback, which read as
+                        "stuck." This banner makes the wait unmistakable. */}
+                    {uploadingTravelPhotos && (
+                      <div className="mt-3 flex items-center gap-2.5 rounded-2xl px-4 py-3" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                        <div className="w-4 h-4 border-2 border-white/20 border-t-white/70 rounded-full animate-spin shrink-0" />
+                        <span className="text-white/60 text-xs font-medium">Uploading your photos…</span>
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-3 -mx-1 px-1">
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {newTravelPhotos.map(url => (
+                          <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
+                            <img src={url} alt="" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => removeTravelPhoto(url)}
+                              className="absolute top-1 right-1 z-10 w-7 h-7 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 12, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
+                            >✕</button>
+                          </div>
+                        ))}
+                        {newTravelPhotos.length < 10 && (
+                          <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer active:border-white/30 transition-colors">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={e => { const fs = Array.from(e.target.files ?? []); e.currentTarget.value = ''; handleTravelPhotosUpload(fs) }}
+                            />
+                            {uploadingTravelPhotos ? (
+                              <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                            ) : (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-white/30 text-2xl">+</span>
+                                <span className="text-white/20 text-xs">Add</span>
+                              </div>
+                            )}
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {error && <p className="text-red-400 text-sm text-center mb-2">{error}</p>}
+
+                    <QuizContinueButton
+                      onClick={quizNext}
+                      disabled={!canQuizContinue() || uploadingTravelPhotos}
+                      label={uploadingTravelPhotos ? 'Uploading…' : 'Continue →'}
+                    />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && currentPreDnaStep === 'location' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Where are you based?</h1>
                       <p className="text-white/38 text-sm">Helps travelers nearby find you.</p>
                     </div>
 
-                    <div className="flex flex-col gap-3 mt-6">
-                      <input
-                        value={newCountry}
-                        onChange={e => setNewCountry(e.target.value)}
-                        placeholder="Country"
-                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
+                    <div className="mt-6">
+                      <CitySearchPicker
+                        value={newCity ? `${newCity}${newCountry ? `, ${newCountry}` : ''}` : ''}
+                        onSelect={({ city, country }) => { setNewCity(city); setNewCountry(country) }}
+                        placeholder="Search for your city"
                         autoFocus
-                      />
-                      <input
-                        value={newCity}
-                        onChange={e => setNewCity(e.target.value)}
-                        placeholder="City"
-                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30"
                       />
                     </div>
 
-                    <div className="mt-8">
-                      <h2 className="text-white font-bold text-lg mb-1">Got a trip coming up?</h2>
-                      <p className="text-white/30 text-xs mb-4">Totally optional — you can always add this later.</p>
-                      <input
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                  </motion.div>
+                )}
+
+                {/* Split out from the 'location' step above (used to be one
+                    combined screen asking "where are you based" AND "got a
+                    trip coming up" together) — one question per screen is
+                    less overwhelming, per explicit user request. Exact dates
+                    now use two native <input type="date"> fields (Depart /
+                    Return) instead of a custom in-app calendar — the custom
+                    react-day-picker modal only ever captured a single date,
+                    not a real from/to range, and native date inputs already
+                    work correctly for exactly this elsewhere in this app
+                    (CreateTripModal, FilterSheet) — they also automatically
+                    render the real OS calendar (iOS wheel / Android Material
+                    date picker) rather than an in-app approximation of one. */}
+                {newStage === 'quiz' && currentPreDnaStep === 'tripTeaser' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Got a trip coming up?</h1>
+                      <p className="text-white/38 text-sm">Totally optional — you can always add this later.</p>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-6">
+                      <CitySearchPicker
                         value={newTripDestination}
-                        onChange={e => setNewTripDestination(e.target.value)}
+                        onSelect={({ city }) => setNewTripDestination(city)}
                         placeholder="Where to?"
-                        className="w-full bg-white/6 border border-white/12 rounded-2xl px-4 py-4 text-white placeholder-white/25 text-sm outline-none focus:border-white/30 mb-3"
+                        className="mb-3"
+                        autoFocus
                       />
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 mb-5">
                         {SEASONS.slice(0, 4).map(s => (
                           <button
                             key={s}
@@ -737,13 +1343,38 @@ export default function OnboardingPage() {
                           </button>
                         ))}
                       </div>
+
+                      <label className="text-white/45 text-xs mb-2 block font-semibold uppercase tracking-wider">Or exact dates</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-white/30 text-[10px] font-semibold uppercase tracking-wide mb-1.5 block">Depart</span>
+                          <input
+                            type="date"
+                            value={newTripStartDate}
+                            onChange={e => setNewTripStartDate(e.target.value)}
+                            className="w-full rounded-2xl px-3.5 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+                          />
+                        </div>
+                        <div>
+                          <span className="text-white/30 text-[10px] font-semibold uppercase tracking-wide mb-1.5 block">Return</span>
+                          <input
+                            type="date"
+                            value={newTripEndDate}
+                            min={newTripStartDate || undefined}
+                            onChange={e => setNewTripEndDate(e.target.value)}
+                            className="w-full rounded-2xl px-3.5 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.1)' }}
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
                   </motion.div>
                 )}
 
-                {newStage === 'quiz' && quizStep === 3 && (
+                {newStage === 'quiz' && currentPreDnaStep === 'bio' && (
                   <motion.div
                     key={quizKey}
                     custom={newDirection}
@@ -753,6 +1384,7 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Tell your story.</h1>
@@ -795,7 +1427,7 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
 
-                {newStage === 'quiz' && quizStep === 4 && !finalizing && (
+                {newStage === 'quiz' && currentPreDnaStep === 'momentum' && (
                   <motion.div
                     key={quizKey}
                     custom={newDirection}
@@ -805,6 +1437,133 @@ export default function OnboardingPage() {
                     exit="exit"
                     transition={{ duration: 0.22, ease: 'easeInOut' }}
                     className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div className="flex-1 flex flex-col items-center justify-center text-center">
+                      {/* Cream circle ringed by 8 small trip-vibe emoji bubbles —
+                          same ring as before (reuses the app's real VIBES list,
+                          "no fabricated people" rule shared with
+                          SplashCarousel.tsx's bubble badges), but the circle's
+                          content and the copy below it were reframed: this used
+                          to be a pure social-proof momentum interstitial (a big
+                          live user count as the headline). It sits directly
+                          before the 6 Travel DNA questions, so its job now is
+                          priming — telling the user those specific questions
+                          feed the matching algorithm and that answering for
+                          real (not fast) is what makes their matches good. The
+                          real getActiveUsers30d() count still appears, just
+                          demoted to a small supporting line under the subtext
+                          instead of being the headline. */}
+                      <div className="relative w-60 h-60 mb-8 shrink-0">
+                        {/* sc-float is SplashCarousel.tsx's own ±8px bob keyframe,
+                            reused here (same @keyframes name/timing) so this ring
+                            reads as the same "alive" design language as that
+                            screen's vibe bubbles rather than a new animation
+                            style. Each bubble gets a staggered mount-in (scale+
+                            fade, small per-index delay) via Framer Motion, then
+                            settles into the CSS float loop — kept subtle (small
+                            drift, slow, per-bubble delay offsets) since this is a
+                            1-2s beat before 6 real questions, not a showcase. */}
+                        <style>{`
+                          @keyframes sc-float {
+                            0%, 100% { transform: translateY(0); }
+                            50% { transform: translateY(-8px); }
+                          }
+                          @keyframes momentum-glow {
+                            0%, 100% { opacity: 0.35; }
+                            50% { opacity: 0.7; }
+                          }
+                        `}</style>
+
+                        {/* Soft pulsing glow behind the ring — same cream, no new color. */}
+                        <div
+                          className="absolute inset-0 m-auto w-40 h-40 rounded-full pointer-events-none"
+                          style={{
+                            backgroundColor: '#F0EBE3',
+                            filter: 'blur(28px)',
+                            animation: 'momentum-glow 4.5s ease-in-out infinite',
+                          }}
+                        />
+
+                        {MOMENTUM_VIBE_VALUES.map((value, i) => {
+                          const vibe = VIBES.find(v => v.value === value)
+                          if (!vibe) return null
+                          // Evenly spaced around the ring, starting at 12 o'clock.
+                          const angle = (i / MOMENTUM_VIBE_VALUES.length) * 2 * Math.PI - Math.PI / 2
+                          const ringRadius = 92
+                          const x = Math.cos(angle) * ringRadius
+                          const y = Math.sin(angle) * ringRadius
+                          return (
+                            // Two nested layers on purpose: Framer Motion's spring
+                            // (opacity/scale, the entrance) and the CSS sc-float
+                            // keyframe (translateY, the idle bob) both animate
+                            // `transform` — stacking them on one element lets the
+                            // CSS keyframe clobber the in-flight scale spring the
+                            // instant its delay elapses. Splitting them onto an
+                            // outer (entrance) + inner (float) element keeps both
+                            // running independently with no fighting.
+                            <motion.div
+                              key={vibe.value}
+                              initial={{ opacity: 0, scale: 0.4 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ delay: 0.15 + i * 0.05, type: 'spring', stiffness: 320, damping: 22 }}
+                              className="absolute"
+                              style={{ left: `calc(50% + ${x}px - 18px)`, top: `calc(50% + ${y}px - 18px)` }}
+                            >
+                              <div
+                                className="w-9 h-9 rounded-full flex items-center justify-center"
+                                style={{
+                                  backgroundColor: 'rgba(255,255,255,0.08)',
+                                  border: '1px solid rgba(255,255,255,0.12)',
+                                  animation: 'sc-float 3.6s ease-in-out infinite',
+                                  animationDelay: `${0.6 + i * 0.22}s`,
+                                }}
+                              >
+                                <span className="text-base">{vibe.emoji}</span>
+                              </div>
+                            </motion.div>
+                          )
+                        })}
+
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.7 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.05, type: 'spring', stiffness: 280, damping: 22 }}
+                          className="absolute inset-0 m-auto w-32 h-32 rounded-full flex items-center justify-center px-3"
+                          style={{ backgroundColor: '#F0EBE3' }}
+                        >
+                          <span className="text-4xl">🧬</span>
+                        </motion.div>
+                      </div>
+
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-2 max-w-[280px]">
+                        This is your Travel DNA.
+                      </h1>
+                      <p className="text-white/38 text-sm max-w-[280px] mb-3">
+                        The next 6 questions are what actually match you with people and trips — answer for real, not fast.
+                      </p>
+                      <p className="text-white/25 text-xs">
+                        {activeUsers30dDisplay
+                          ? `${activeUsers30dDisplay} travelers were active this month`
+                          : 'Travelers are joining trips right now'}
+                      </p>
+                    </div>
+
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && currentStepKind === 'dna' && !finalizing && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
                   >
                     <TravelDnaStep
                       dimension={dim}
@@ -814,7 +1573,7 @@ export default function OnboardingPage() {
                     <QuizContinueButton
                       onClick={quizNext}
                       disabled={!canQuizContinue()}
-                      label={dnaIndex === DNA_DIMENSIONS.length - 1 ? 'Finish →' : 'Next →'}
+                      label={currentDnaIndex === DNA_DIMENSIONS.length - 1 ? 'Finish →' : 'Next →'}
                     />
                   </motion.div>
                 )}
@@ -853,6 +1612,230 @@ export default function OnboardingPage() {
                         <p className="text-white/40 text-sm">Setting up your profile...</p>
                       </>
                     )}
+                  </motion.div>
+                )}
+
+                {newStage === 'passport' && (
+                  <motion.div
+                    key="passport"
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                  >
+                    {/* TripAlong's take on the competitor's "passport celebration"
+                        screen (see tripalong_nomadtable_screens.md, "15. Profile
+                        created — 'passport' celebration") — same dashed-border
+                        passport/visa-stamp metaphor, but reskinned entirely in this
+                        app's dark/cream brand (no white/blush-pink) and built from
+                        real just-collected state only: newName/newAge, the real
+                        cropped photoUrl, newCity/newCountry, a couple of the DNA
+                        answers as trait pills, and today's real date for the stamp
+                        — nothing here is invented. */}
+                    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center py-2">
+                      {/* Outer wrapper: entrance only (the dashed card's own
+                          "arrive" motion). Everything below assembles itself
+                          piece by piece on top of this, each on its own
+                          motion element with a staggered delay, so the
+                          passport reads as being built rather than fading in
+                          as one unit. The impact "thud" reaction (part of the
+                          stamp landing, below) lives on a separate nested
+                          motion.div so it can be triggered imperatively
+                          without fighting this entrance animation. */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 18, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 280, damping: 24, delay: 0.08 }}
+                        className="relative w-full max-w-[290px] shrink-0"
+                      >
+                        <motion.div
+                          animate={passportImpactControls}
+                          className="relative rounded-[28px] border-2 border-dashed overflow-hidden"
+                          style={{ borderColor: 'rgba(240,235,227,0.35)', backgroundColor: '#0d0d0d' }}
+                        >
+                          <div
+                            className="absolute inset-0 pointer-events-none"
+                            style={{ background: 'radial-gradient(circle at 50% 0%, rgba(240,235,227,0.09), transparent 60%)' }}
+                          />
+
+                          {/* Scattered decorative travel emoji, low-opacity — same
+                              "decorative, not data" role as the competitor's
+                              background emoji, just dark-brand appropriate. */}
+                          <span className="absolute text-lg opacity-[0.08]" style={{ top: 10, left: 14 }}>✈️</span>
+                          <span className="absolute text-lg opacity-[0.08]" style={{ top: 14, right: 18 }}>🌍</span>
+                          <span className="absolute text-lg opacity-[0.08]" style={{ bottom: 14, left: 20 }}>🧭</span>
+
+                          <div className="relative z-10 flex flex-col items-center text-center px-5 pt-5 pb-4">
+                            <motion.p
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.28, duration: 0.3 }}
+                              className="text-[10px] font-bold tracking-[0.32em]"
+                              style={{ color: 'rgba(240,235,227,0.5)' }}
+                            >
+                              TRIPALONG
+                            </motion.p>
+
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.5, y: 6 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              transition={{ type: 'spring', stiffness: 340, damping: 20, delay: 0.42 }}
+                              className="relative mt-4 mb-3 w-24 h-24 shrink-0"
+                            >
+                              <div
+                                className="w-24 h-24 rounded-full overflow-hidden border-2"
+                                style={{ borderColor: 'rgba(240,235,227,0.4)', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                              >
+                                {photoUrl ? (
+                                  <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-3xl">🧳</div>
+                                )}
+                              </div>
+                              <span className="absolute -top-1.5 -left-2 text-base">⭐</span>
+                              <span className="absolute -bottom-0.5 -left-2.5 text-base">🎒</span>
+                              {newCountry && (
+                                <div
+                                  className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center text-sm border-2"
+                                  style={{ backgroundColor: '#F0EBE3', borderColor: '#0d0d0d' }}
+                                >
+                                  {getFlag(newCountry) || '🌍'}
+                                </div>
+                              )}
+                            </motion.div>
+
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.58, duration: 0.3 }}
+                              className="flex flex-col items-center"
+                            >
+                              <h2 className="text-white font-extrabold text-xl leading-tight">
+                                {newName.trim() || 'Traveler'}{newAge ? `, ${newAge}` : ''}
+                              </h2>
+                              {(newCity || newCountry) && (
+                                <p className="text-white/35 text-xs mt-1">
+                                  {[newCity, newCountry].filter(Boolean).join(', ')}
+                                </p>
+                              )}
+                            </motion.div>
+
+                            {/* APPROVED stamp: starts big, high, transparent and
+                                off-angle, then slams down into its resting size/
+                                position/rotation with a bouncy spring overshoot —
+                                the "getting stamped" moment. The instant this
+                                animation actually completes (not a guessed
+                                timeout), handlePassportStampImpact fires the
+                                synthesized thud sound and a tiny shake/pulse on
+                                the card itself so the two land together. */}
+                            <motion.div
+                              initial={{ opacity: 0, scale: 1.9, y: -46, rotate: -27 }}
+                              animate={{ opacity: 1, scale: 1, y: 0, rotate: -9 }}
+                              transition={{ type: 'spring', stiffness: 500, damping: 14, mass: 0.9, delay: 1 }}
+                              onAnimationComplete={handlePassportStampImpact}
+                              className="my-4"
+                            >
+                              <div className="border-2 rounded-xl px-4 py-1.5" style={{ borderColor: 'rgba(240,235,227,0.55)' }}>
+                                <p className="font-black text-base tracking-[0.14em] leading-tight" style={{ color: '#F0EBE3' }}>
+                                  APPROVED
+                                </p>
+                                <p className="text-[9px] font-bold tracking-[0.2em] text-center" style={{ color: 'rgba(240,235,227,0.55)' }}>
+                                  {passportIssuedDate}
+                                </p>
+                              </div>
+                            </motion.div>
+
+                            {passportPills.length > 0 && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 1.48, duration: 0.3 }}
+                                className="flex flex-wrap justify-center gap-1.5 mb-1"
+                              >
+                                {passportPills.map(opt => (
+                                  <span
+                                    key={opt.value}
+                                    className="text-[11px] font-semibold rounded-full px-3 py-1"
+                                    style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '1px solid rgba(240,235,227,0.22)', color: '#F0EBE3' }}
+                                  >
+                                    {opt.emoji} {opt.label}
+                                  </span>
+                                ))}
+                              </motion.div>
+                            )}
+
+                            {newTravelPhotos.length > 0 && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 1.64, duration: 0.3 }}
+                                className="flex gap-1.5 mt-3"
+                              >
+                                {newTravelPhotos.slice(0, 4).map(url => (
+                                  <div
+                                    key={url}
+                                    className="w-9 h-9 rounded-lg overflow-hidden border"
+                                    style={{ borderColor: 'rgba(240,235,227,0.2)' }}
+                                  >
+                                    <img src={url} alt="" className="w-full h-full object-cover" />
+                                  </div>
+                                ))}
+                              </motion.div>
+                            )}
+
+                            <motion.div
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 1.8, duration: 0.3 }}
+                              className="w-full flex items-center justify-between mt-4 pt-3 border-t"
+                              style={{ borderColor: 'rgba(240,235,227,0.15)' }}
+                            >
+                              <span className="text-[8px] font-semibold tracking-[0.16em]" style={{ color: 'rgba(240,235,227,0.28)' }}>
+                                ISSUED {passportIssuedDate}
+                              </span>
+                              <span className="text-[8px] font-semibold tracking-[0.16em]" style={{ color: 'rgba(240,235,227,0.28)' }}>
+                                TRIPALONG PASSPORT
+                              </span>
+                            </motion.div>
+                          </div>
+                        </motion.div>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 2 }}
+                        className="text-center mt-6 shrink-0"
+                      >
+                        <h1 className="text-white font-extrabold text-2xl leading-tight mb-1.5">Profile created 🎉</h1>
+                        <p className="text-white/38 text-sm leading-relaxed max-w-[260px] mx-auto">
+                          Stamped and ready. Trips and travelers who match your vibe are just ahead.
+                        </p>
+                      </motion.div>
+                    </div>
+
+                    <motion.button
+                      initial={{ opacity: 0, y: 14 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 2.2, type: 'spring', stiffness: 300, damping: 28 }}
+                      onClick={() => {
+                        haptic(8)
+                        // Ask for notifications right here — right after the
+                        // profile-created reward moment, before the finale —
+                        // matching where the competitor reference places this
+                        // exact ask. Skipped for the memberPreview test path,
+                        // since there's no real userId to register push for.
+                        if (authedUserId) setShowNotifPrompt(true)
+                        else goStage('finale', 1)
+                      }}
+                      className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform shrink-0"
+                      style={CTA_STYLE}
+                    >
+                      Continue →
+                    </motion.button>
                   </motion.div>
                 )}
 
@@ -910,6 +1893,43 @@ export default function OnboardingPage() {
           </>
         )}
       </div>
+
+      {/* Rendered outside the AnimatePresence/quiz-step tree above (which is
+          mode="wait" and expects exactly one child at a time) since this
+          overlay can be visible at the same time as the 'photo' step
+          underneath it. It's a fixed, fullscreen overlay, so its position in
+          the tree doesn't matter for layout. */}
+      {showCropModal && cropImageSrc && (
+        <PhotoCropModal
+          imageSrc={cropImageSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
+
+      {/* Reuses the app's real, already-battle-tested notification prompt
+          (also shown from Settings and via NotifReminderHost's post-signup
+          nudge) rather than building a new one — it already handles the
+          native-app bridge, the "already blocked" fallback instructions,
+          the unsupported-browser silent skip, and success/skip states, all
+          in this app's real dark/cream visual language. It portals itself
+          to document.body, so its position in this tree doesn't matter. */}
+      {showNotifPrompt && authedUserId && (
+        <NotificationPrompt
+          userId={authedUserId}
+          onDone={() => { setShowNotifPrompt(false); setShowTrialPaywall(true) }}
+        />
+      )}
+
+      {/* Peak-excitement ask, right after the reward (passport) and the small
+          foot-in-the-door ask (notifications) — X to skip either way, so this
+          is never a hard gate. See tripalong_paywall_conversion_plan.md. */}
+      {showTrialPaywall && authedUserId && (
+        <TrialOfferPaywall
+          userId={authedUserId}
+          onDone={() => { setShowTrialPaywall(false); goStage('finale', 1) }}
+        />
+      )}
     </main>
   )
 }
