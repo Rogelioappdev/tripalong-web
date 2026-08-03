@@ -103,6 +103,7 @@ export default function SettingsPage() {
   const [deletePhase, setDeletePhase] = useState<'idle' | 'confirm' | 'typing'>('idle')
   const [deleteInput, setDeleteInput] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   // Notification toggles (localStorage)
   const [notifMessages, setNotifMessages] = useState(true)
@@ -183,6 +184,23 @@ export default function SettingsPage() {
   const handleDeleteAccount = async () => {
     if (deleteInput !== 'DELETE') return
     setDeleting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const res = await fetch('/api/account/delete', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error ?? `Server error ${res.status}`)
+        }
+      }
+    } catch (err: any) {
+      setDeleting(false)
+      setDeleteError(err?.message ?? 'Something went wrong. Try again.')
+      return
+    }
     await supabase.auth.signOut()
     router.replace('/')
   }
@@ -461,7 +479,7 @@ export default function SettingsPage() {
                     style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
                     Cancel
                   </button>
-                  <button type="button" onClick={() => { haptic(8); setDeletePhase('typing') }}
+                  <button type="button" onClick={() => { haptic(8); setDeleteError(''); setDeletePhase('typing') }}
                     className="flex-1 py-3 rounded-2xl text-sm font-semibold active:scale-95 transition-transform"
                     style={{ backgroundColor: '#FF3B30', color: '#fff' }}>
                     Continue
@@ -481,8 +499,9 @@ export default function SettingsPage() {
                   className="w-full bg-white/6 border rounded-2xl px-4 py-3 text-red-400 font-mono text-sm outline-none"
                   style={{ borderColor: deleteInput === 'DELETE' ? '#FF3B30' : 'rgba(255,255,255,0.12)', fontSize: 16 }}
                 />
+                {deleteError && <p className="text-red-400 text-xs">{deleteError}</p>}
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => { haptic(8); setDeletePhase('idle'); setDeleteInput('') }}
+                  <button type="button" onClick={() => { haptic(8); setDeletePhase('idle'); setDeleteInput(''); setDeleteError('') }}
                     className="flex-1 py-3 rounded-2xl text-sm active:scale-95 transition-transform"
                     style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
                     Cancel
