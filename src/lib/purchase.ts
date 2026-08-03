@@ -35,10 +35,6 @@ interface NativePurchaseResult {
 export async function purchasePlus(billing: BillingInterval, trigger?: PaywallTrigger): Promise<void> {
   const bridge = typeof window !== 'undefined' && (window as any).ReactNativeWebView
   if (bridge) {
-    // Weekly has no RevenueCat/App Store Connect product yet (web-only for
-    // now — see tripalong_paywall_conversion_plan.md) — fail clearly instead
-    // of sending a billing value the native bridge can't map to a package.
-    if (billing === 'weekly') throw new Error('Weekly isn\'t available in the app yet — try Yearly instead.')
     track('checkout_started', { rail: 'native', billing })
     try {
       await purchaseViaNative(bridge, billing)
