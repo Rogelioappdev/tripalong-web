@@ -14,6 +14,7 @@ import { haptic } from '@/lib/haptics'
 import { hasPlus } from '@/lib/trial'
 import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
 import { resizedImage } from '@/lib/imageUrl'
+import { TRAVELER_TYPES } from '@/lib/travelerTypes'
 import type { UserProfile, TripWithDetails } from '@/lib/types'
 
 interface PublicProfileModalProps {
@@ -418,6 +419,7 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
         ) : (() => {
           const mainPhoto = allPhotos[photoIndex] ?? null
           const travelStyles = profile.travel_styles ?? []
+          const travelerTypes = profile.traveler_types ?? []
           const languages = profile.languages ?? []
           const placesVisited = profile.places_visited ?? []
           const bucketList = profile.bucket_list ?? []
@@ -596,6 +598,26 @@ export function PublicProfileModal({ userId, onClose, locked = false, onRevealRe
                           @{profile.instagram_handle}
                         </a>
                       )}
+                    </div>
+                  )}
+
+                  {/* Traveler Type */}
+                  {travelerTypes.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span>🧭</span>
+                        <p className="text-white font-semibold text-lg">Traveler Type</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2" style={contentBlur}>
+                        {travelerTypes.map((t, i) => {
+                          const tt = TRAVELER_TYPES.find(x => x.value === t)
+                          return (
+                            <span key={i} className="font-medium rounded-full px-4 py-2" style={{ backgroundColor: 'rgba(240,235,227,0.08)', border: '0.5px solid rgba(240,235,227,0.22)', color: '#F0EBE3', fontSize: 14 }}>
+                              {tt ? `${tt.emoji} ${tt.label}` : t}
+                            </span>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
 

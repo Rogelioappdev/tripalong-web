@@ -10,6 +10,7 @@ export type UserProfile = {
   city: string | null
   gender: 'male' | 'female' | 'other' | null
   travel_styles: string[]
+  traveler_types: string[]
   travel_pace: 'slow' | 'balanced' | 'fast' | null
   travel_with: 'male' | 'female' | 'everyone' | null
   social_energy: 'introvert' | 'extrovert' | 'ambivert' | null

@@ -20,6 +20,7 @@ import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
 import { getFlag } from '@/lib/countries'
+import { TRAVELER_TYPES, MAX_TRAVELER_TYPES } from '@/lib/travelerTypes'
 import type { UserProfile } from '@/lib/types'
 
 const slideVariants = {
@@ -76,6 +77,10 @@ export default function OnboardingPage() {
   const [newBirthMonth, setNewBirthMonth] = useState('')
   const [newBirthYear, setNewBirthYear] = useState('')
   const [newGender, setNewGender] = useState<'' | 'male' | 'female' | 'other'>('')
+  // Traveler-type identity labels (up to MAX_TRAVELER_TYPES) — see
+  // src/lib/travelerTypes.ts, also imported by PublicProfileModal so the
+  // options shown here match what's rendered on the profile exactly.
+  const [newTravelerTypes, setNewTravelerTypes] = useState<string[]>([])
   const [newCountry, setNewCountry] = useState('')
   const [newCity, setNewCity] = useState('')
   const [newTripDestination, setNewTripDestination] = useState('')
@@ -184,7 +189,7 @@ export default function OnboardingPage() {
   // user already confirmed it, so a corrected date gets re-confirmed.
   useEffect(() => { setAgeConfirmed(false) }, [newBirthDay, newBirthMonth, newBirthYear])
 
-  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'photo', 'travelPhotos', 'location', 'tripTeaser', 'bio', 'momentum'] as const
+  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'travelerType', 'photo', 'travelPhotos', 'location', 'tripTeaser', 'bio', 'momentum'] as const
   const POST_DNA_STEPS = [] as const
   type PreDnaStep = typeof PRE_DNA_STEPS[number]
   type PostDnaStep = typeof POST_DNA_STEPS[number]
@@ -339,6 +344,7 @@ export default function OnboardingPage() {
         profile_photo: photoUrl || undefined,
         photos: newTravelPhotos,
         travel_styles: newDna.travel_styles,
+        traveler_types: newTravelerTypes,
         travel_pace: (newDna.travel_pace || null) as UserProfile['travel_pace'],
         social_energy: (newDna.social_energy || null) as UserProfile['social_energy'],
         planning_style: (newDna.planning_style || null) as UserProfile['planning_style'],
@@ -410,6 +416,7 @@ export default function OnboardingPage() {
         case 'birthday': return newAgeValid && ageConfirmed
         case 'attribution': return newHearAbout !== ''
         case 'nameGender': return newName.trim().length >= 2 && !!newGender
+        case 'travelerType': return newTravelerTypes.length > 0
         case 'photo': return true
         case 'travelPhotos': return newTravelPhotos.length >= 3
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
@@ -1041,6 +1048,64 @@ export default function OnboardingPage() {
                           ))}
                         </div>
                       </div>
+                    </div>
+
+                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && currentPreDnaStep === 'travelerType' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <div>
+                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">What kind of traveler are you?</h1>
+                      <p className="text-white/38 text-sm">Pick up to {MAX_TRAVELER_TYPES} — this helps us match you right.</p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 mt-6">
+                      {TRAVELER_TYPES.map((t, i) => {
+                        const selected = newTravelerTypes.includes(t.value)
+                        const atMax = newTravelerTypes.length >= MAX_TRAVELER_TYPES
+                        return (
+                          <motion.button
+                            key={t.value}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.05, type: 'spring', stiffness: 380, damping: 32 }}
+                            whileTap={{ scale: 0.98 }}
+                            disabled={!selected && atMax}
+                            onClick={() => {
+                              haptic(8)
+                              setNewTravelerTypes(prev =>
+                                prev.includes(t.value)
+                                  ? prev.filter(v => v !== t.value)
+                                  : prev.length >= MAX_TRAVELER_TYPES ? prev : [...prev, t.value]
+                              )
+                            }}
+                            className="flex items-center gap-4 p-4 rounded-2xl border text-left disabled:opacity-40"
+                            style={selected
+                              ? { backgroundColor: '#F0EBE3', borderColor: 'transparent' }
+                              : { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}
+                          >
+                            <span className="text-2xl shrink-0">{t.emoji}</span>
+                            <div>
+                              <p className="font-semibold text-sm" style={{ color: selected ? '#000' : '#fff' }}>{t.label}</p>
+                              <p className="text-xs mt-0.5" style={{ color: selected ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.4)' }}>
+                                {t.desc}
+                              </p>
+                            </div>
+                          </motion.button>
+                        )
+                      })}
                     </div>
 
                     <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
