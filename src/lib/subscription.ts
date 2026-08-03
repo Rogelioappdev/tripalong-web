@@ -9,7 +9,7 @@ export async function startCheckout(planKey: PlanKey, trigger?: string) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.user) throw new Error('Not logged in')
 
-  track('checkout_started', { rail: 'web', billing: planKey.includes('annual') ? 'annual' : 'monthly' })
+  track('checkout_started', { rail: 'web', billing: planKey.includes('annual') ? 'annual' : planKey.includes('weekly') ? 'weekly' : 'monthly' })
 
   const res = await fetch('/api/stripe/checkout', {
     method: 'POST',

@@ -8,18 +8,19 @@ import type { FilterDimension } from './tripFilters'
 // measurable in PostHog. Fire-and-forget: analytics must never break the app.
 
 export type Rail = 'web' | 'native'
-export type Billing = 'monthly' | 'annual'
+export type Billing = 'weekly' | 'monthly' | 'annual'
 
 // Which paywall surface the user saw. Lets us see *which* wall converts.
 export type PaywallSurface =
-  | 'swipe_paywall'   // PaywallModal (hit limit / rewind / who-viewed / compatibility)
-  | 'plus_details'    // PlusDetailsSheet (Settings → membership)
-  | 'trial_expired'   // TrialExpiredPaywall
-  | 'founding_member' // FoundingMemberPaywall
-  | 'profile_views'   // ProfileViewsSheet
+  | 'swipe_paywall'     // PaywallModal (hit limit / rewind / who-viewed / compatibility)
+  | 'plus_details'      // PlusDetailsSheet (Settings → membership)
+  | 'trial_expired'     // TrialExpiredPaywall
+  | 'founding_member'   // FoundingMemberPaywall
+  | 'profile_views'     // ProfileViewsSheet
+  | 'onboarding_trial'  // TrialOfferPaywall — post-onboarding, pre-first-swipe
 
 // The PaywallModal's contextual trigger (why the wall appeared).
-export type PaywallTrigger = 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins' | 'filters'
+export type PaywallTrigger = 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins' | 'filters' | 'onboarding-trial'
 
 type EventProps = {
   // ── Conversion funnel ───────────────────────────────────────────────

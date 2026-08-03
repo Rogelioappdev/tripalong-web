@@ -18,6 +18,7 @@ import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
+import { TrialOfferPaywall } from '@/components/onboarding/TrialOfferPaywall'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
 import { getFlag } from '@/lib/countries'
 import { TRAVELER_TYPES, MAX_TRAVELER_TYPES } from '@/lib/travelerTypes'
@@ -119,6 +120,7 @@ export default function OnboardingPage() {
   // skipped entirely in that case rather than shown against a fake id.
   const [authedUserId, setAuthedUserId] = useState<string | null>(null)
   const [showNotifPrompt, setShowNotifPrompt] = useState(false)
+  const [showTrialPaywall, setShowTrialPaywall] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const finaleControls = useAnimation()
   // Drives the passport card's brief "thud" reaction (tiny scale-pulse +
@@ -1911,7 +1913,17 @@ export default function OnboardingPage() {
       {showNotifPrompt && authedUserId && (
         <NotificationPrompt
           userId={authedUserId}
-          onDone={() => { setShowNotifPrompt(false); goStage('finale', 1) }}
+          onDone={() => { setShowNotifPrompt(false); setShowTrialPaywall(true) }}
+        />
+      )}
+
+      {/* Peak-excitement ask, right after the reward (passport) and the small
+          foot-in-the-door ask (notifications) — X to skip either way, so this
+          is never a hard gate. See tripalong_paywall_conversion_plan.md. */}
+      {showTrialPaywall && authedUserId && (
+        <TrialOfferPaywall
+          userId={authedUserId}
+          onDone={() => { setShowTrialPaywall(false); goStage('finale', 1) }}
         />
       )}
     </main>

@@ -3,7 +3,7 @@ import { track, type PaywallTrigger } from './analytics'
 import { supabase } from './supabase'
 import type { PlanKey } from './stripe'
 
-export type BillingInterval = 'monthly' | 'annual'
+export type BillingInterval = 'weekly' | 'monthly' | 'annual'
 
 // Persist which wall drove the sale, first-write-wins (never overwrite an
 // existing attribution). Used for the native rail, where the purchase completes
@@ -35,6 +35,10 @@ interface NativePurchaseResult {
 export async function purchasePlus(billing: BillingInterval, trigger?: PaywallTrigger): Promise<void> {
   const bridge = typeof window !== 'undefined' && (window as any).ReactNativeWebView
   if (bridge) {
+    // Weekly has no RevenueCat/App Store Connect product yet (web-only for
+    // now — see tripalong_paywall_conversion_plan.md) — fail clearly instead
+    // of sending a billing value the native bridge can't map to a package.
+    if (billing === 'weekly') throw new Error('Weekly isn\'t available in the app yet — try Yearly instead.')
     track('checkout_started', { rail: 'native', billing })
     try {
       await purchaseViaNative(bridge, billing)
@@ -51,7 +55,7 @@ export async function purchasePlus(billing: BillingInterval, trigger?: PaywallTr
   // Web (Stripe) rail — startCheckout fires 'checkout_started'; the purchase
   // itself completes after the redirect back to /feed?upgrade=success, so the
   // trigger is carried in the checkout metadata and persisted by the webhook.
-  const planKey: PlanKey = billing === 'annual' ? 'plus_annual' : 'plus_monthly'
+  const planKey: PlanKey = billing === 'annual' ? 'plus_annual' : billing === 'weekly' ? 'plus_weekly' : 'plus_monthly'
   await startCheckout(planKey, trigger)
 }
 

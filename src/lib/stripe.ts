@@ -13,6 +13,13 @@ export const stripe = new Proxy({} as Stripe, {
 })
 
 export const PLANS = {
+  plus_weekly: {
+    priceId: process.env.STRIPE_PLUS_WEEKLY_PRICE_ID!,
+    tier: 'plus' as const,
+    label: 'Plus Weekly',
+    amount: 699,
+    interval: 'week' as const,
+  },
   plus_monthly: {
     priceId: process.env.STRIPE_PLUS_MONTHLY_PRICE_ID!,
     tier: 'plus' as const,
@@ -26,6 +33,7 @@ export const PLANS = {
     label: 'Plus Annual',
     amount: 3999,
     interval: 'year' as const,
+    trialPeriodDays: 3,
   },
   pro_monthly: {
     priceId: process.env.STRIPE_PRO_MONTHLY_PRICE_ID!,

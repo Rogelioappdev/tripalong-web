@@ -63,7 +63,12 @@ export async function POST(req: NextRequest) {
         // conversion_trigger rides along on the subscription so the webhook can
         // attribute the sale after the redirect back from Stripe's checkout.
         metadata: { supabase_user_id: userId, tier: plan.tier, ...(trigger ? { conversion_trigger: trigger } : {}) },
+        ...('trialPeriodDays' in plan ? { trial_period_days: plan.trialPeriodDays } : {}),
       },
+      // A real card is still required up front for trial plans — Stripe holds
+      // it and only charges after trial_period_days, but this stops the
+      // Day-0-cancel-prone "free with no commitment" pattern from before.
+      ...('trialPeriodDays' in plan ? { payment_method_collection: 'always' as const } : {}),
       allow_promotion_codes: true,
     })
 
