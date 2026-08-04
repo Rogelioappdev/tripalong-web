@@ -563,9 +563,15 @@ export default function FeedPage() {
           </button>
         )}
 
-        {/* Mobile header */}
+        {/* Mobile header — paddingTop only reserves the safe-area gap itself
+            when nothing renders above it. Any of the banners above (guest,
+            trial-expired, notification nudge) already push themselves down
+            by that same safe-area inset via their own marginTop, so applying
+            it again here on top of an already-visible banner used to stack
+            the gap twice, shoving the header (and everything below it) way
+            down the screen. */}
         <div className="md:hidden flex items-center justify-between px-5 shrink-0"
-          style={{ paddingTop: isGuest ? 8 : 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
+          style={{ paddingTop: (isGuest || notifNudge || (trialExpiredNudge && !showTrialExpiredPaywall)) ? 8 : 'calc(env(safe-area-inset-top) + 12px)', paddingBottom: 10 }}>
           <h1 className="text-white font-extrabold text-2xl tracking-tight">
             TripAlong{isPlusUser ? '+' : ''}
           </h1>
