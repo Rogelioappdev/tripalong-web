@@ -15,6 +15,23 @@ interface Props {
   onDone: (profile: UserProfile | null) => void
 }
 
+function SelectDot({ selected }: { selected: boolean }) {
+  return (
+    <div style={{
+      width: 22, height: 22, borderRadius: 11, flexShrink: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      backgroundColor: selected ? '#F0EBE3' : 'transparent',
+      border: selected ? 'none' : '1.5px solid rgba(255,255,255,0.25)',
+    }}>
+      {selected && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+          <path d="M5 13l4 4L19 7" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </div>
+  )
+}
+
 const TIMELINE = [
   { icon: '🔓', title: 'Today', body: 'Every trip, every filter, unlimited swipes — all of it unlocks right now.' },
   { icon: '🔔', title: 'In 2 days', body: "We'll send a heads up before anything happens, if you've allowed notifications." },
@@ -132,30 +149,14 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
             </button>
           </div>
 
-          {/* Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, duration: 0.38, ease: 'easeOut' }}
-            style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}
-          >
-            <div style={{
-              padding: '6px 18px', borderRadius: 999,
-              backgroundColor: 'rgba(240,235,227,0.1)',
-              border: '0.5px solid rgba(240,235,227,0.28)',
-            }}>
-              <span style={{ color: '#F0EBE3', fontSize: 10, fontWeight: 700, letterSpacing: '0.14em' }}>
-                ✦ OUR TREAT ✦
-              </span>
-            </div>
-          </motion.div>
-
-          {/* Hero */}
+          {/* Hero — one badge's worth of "this is free" messaging lives on the
+              yearly card below; a second pill up here was saying the same
+              thing twice before the user even reached the offer itself. */}
           <motion.div
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.18, duration: 0.5, type: 'spring', stiffness: 260, damping: 22 }}
-            style={{ textAlign: 'center', lineHeight: 1, marginBottom: 4 }}
+            transition={{ delay: 0.15, duration: 0.5, type: 'spring', stiffness: 260, damping: 22 }}
+            style={{ textAlign: 'center', lineHeight: 1, marginBottom: 4, marginTop: 12 }}
           >
             <span style={{ fontSize: 84, fontWeight: 900, letterSpacing: '-4px', color: '#ffffff' }}>3 days</span>
           </motion.div>
@@ -218,14 +219,20 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
             transition={{ delay: 0.75, duration: 0.36, ease: 'easeOut' }}
             style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}
           >
+            {/* Selection state is deliberately quiet — a border + checkmark,
+                never a solid fill. Solid cream is reserved for the CTA
+                button alone, so there's exactly one thing on the whole
+                screen that reads as "the button to press." Before, the
+                selected card and the CTA used the identical fill and were
+                easy to confuse for the same control. */}
             <button
               type="button"
               onClick={() => { haptic(6); setPlan('annual') }}
               style={{
                 position: 'relative', textAlign: 'left', padding: '16px 16px 14px',
                 borderRadius: 18,
-                backgroundColor: plan === 'annual' ? '#F0EBE3' : 'rgba(255,255,255,0.05)',
-                border: plan === 'annual' ? '1px solid transparent' : '0.5px solid rgba(255,255,255,0.12)',
+                backgroundColor: plan === 'annual' ? 'rgba(240,235,227,0.07)' : 'rgba(255,255,255,0.04)',
+                border: plan === 'annual' ? '1.5px solid #F0EBE3' : '1.5px solid rgba(255,255,255,0.1)',
               }}
             >
               <span style={{
@@ -236,13 +243,18 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
               }}>
                 3 DAYS FREE
               </span>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ color: plan === 'annual' ? '#000' : '#fff', fontSize: 15, fontWeight: 700 }}>Yearly</span>
-                <span style={{ color: plan === 'annual' ? '#000' : '#fff', fontSize: 15, fontWeight: 700 }}>$39.99<span style={{ fontSize: 11, fontWeight: 500 }}>/yr</span></span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>Yearly</span>
+                    <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>$39.99<span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.5)' }}>/yr</span></span>
+                  </div>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11.5 }}>
+                    ~$3.33/mo — free for the first 3 days
+                  </span>
+                </div>
+                <SelectDot selected={plan === 'annual'} />
               </div>
-              <span style={{ color: plan === 'annual' ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.4)', fontSize: 11.5 }}>
-                ~$3.33/mo — free for the first 3 days
-              </span>
             </button>
 
             <button
@@ -251,17 +263,22 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
               style={{
                 textAlign: 'left', padding: '14px 16px',
                 borderRadius: 18,
-                backgroundColor: plan === 'weekly' ? '#F0EBE3' : 'rgba(255,255,255,0.05)',
-                border: plan === 'weekly' ? '1px solid transparent' : '0.5px solid rgba(255,255,255,0.12)',
+                backgroundColor: plan === 'weekly' ? 'rgba(240,235,227,0.07)' : 'rgba(255,255,255,0.04)',
+                border: plan === 'weekly' ? '1.5px solid #F0EBE3' : '1.5px solid rgba(255,255,255,0.1)',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ color: plan === 'weekly' ? '#000' : '#fff', fontSize: 15, fontWeight: 700 }}>Weekly</span>
-                <span style={{ color: plan === 'weekly' ? '#000' : '#fff', fontSize: 15, fontWeight: 700 }}>$6.99<span style={{ fontSize: 11, fontWeight: 500 }}>/wk</span></span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>Weekly</span>
+                    <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>$6.99<span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.5)' }}>/wk</span></span>
+                  </div>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11.5 }}>
+                    No trial — starts today
+                  </span>
+                </div>
+                <SelectDot selected={plan === 'weekly'} />
               </div>
-              <span style={{ color: plan === 'weekly' ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.4)', fontSize: 11.5 }}>
-                No trial — starts today
-              </span>
             </button>
           </motion.div>
 
