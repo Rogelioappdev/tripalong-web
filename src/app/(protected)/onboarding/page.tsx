@@ -16,6 +16,7 @@ import { WorldRouteMap } from '@/components/onboarding/WorldRouteMap'
 import { SplashCarousel } from '@/components/onboarding/SplashCarousel'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
+import { LiveVerificationCapture } from '@/components/onboarding/LiveVerificationCapture'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { TrialOfferPaywall } from '@/components/onboarding/TrialOfferPaywall'
@@ -107,6 +108,7 @@ export default function OnboardingPage() {
   const [uploading, setUploading] = useState(false)
   const [newTravelPhotos, setNewTravelPhotos] = useState<string[]>([])
   const [uploadingTravelPhotos, setUploadingTravelPhotos] = useState(false)
+  const [verificationCaptured, setVerificationCaptured] = useState(false)
   const [rawPhotoFile, setRawPhotoFile] = useState<File | null>(null)
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null)
   const [showCropModal, setShowCropModal] = useState(false)
@@ -207,7 +209,7 @@ export default function OnboardingPage() {
   // user already confirmed it, so a corrected date gets re-confirmed.
   useEffect(() => { setAgeConfirmed(false) }, [newBirthDay, newBirthMonth, newBirthYear])
 
-  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'travelerType', 'photo', 'travelPhotos', 'location', 'tripTeaser', 'bio', 'momentum'] as const
+  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'travelerType', 'photo', 'travelPhotos', 'verifyPhoto', 'location', 'tripTeaser', 'bio', 'momentum'] as const
   const POST_DNA_STEPS = [] as const
   type PreDnaStep = typeof PRE_DNA_STEPS[number]
   type PostDnaStep = typeof POST_DNA_STEPS[number]
@@ -460,6 +462,7 @@ export default function OnboardingPage() {
         case 'travelerType': return newTravelerTypes.length > 0
         case 'photo': return !!photoUrl && !uploading
         case 'travelPhotos': return newTravelPhotos.length >= 3
+        case 'verifyPhoto': return verificationCaptured
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
         case 'tripTeaser': return true
         case 'bio': return true
@@ -1310,6 +1313,28 @@ export default function OnboardingPage() {
                       onClick={quizNext}
                       disabled={!canQuizContinue() || uploadingTravelPhotos}
                       label={uploadingTravelPhotos ? 'Uploading…' : 'Continue →'}
+                    />
+                  </motion.div>
+                )}
+
+                {newStage === 'quiz' && currentPreDnaStep === 'verifyPhoto' && (
+                  <motion.div
+                    key={quizKey}
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col"
+                    {...quizDragProps}
+                  >
+                    <LiveVerificationCapture onComplete={() => setVerificationCaptured(true)} />
+
+                    <QuizContinueButton
+                      onClick={quizNext}
+                      disabled={!canQuizContinue()}
+                      label="Continue →"
                     />
                   </motion.div>
                 )}

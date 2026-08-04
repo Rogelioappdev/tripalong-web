@@ -388,7 +388,15 @@ export default function ProfilePage() {
 
           {/* Page header */}
           <div className="flex items-center justify-between -mb-2">
-            <h1 className="text-white font-bold text-lg">Profile</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-white font-bold text-lg">Profile</h1>
+              {profile?.is_verified && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="11" fill="#3B82F6" />
+                  <path d="M8 12.5l2.5 2.5L16 9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => { haptic(8); router.push('/settings') }}
@@ -402,6 +410,32 @@ export default function ProfilePage() {
               </svg>
             </button>
           </div>
+
+          {/* Get Verified row — /verify itself resolves the exact pending/
+              rejected/none status; this row only needs the binary
+              is_verified flag already on `profile`. */}
+          <button
+            type="button"
+            onClick={() => { haptic(8); router.push('/verify') }}
+            className="flex items-center justify-between px-4 py-3 rounded-2xl active:scale-[0.98] transition-transform"
+            style={{ backgroundColor: 'rgba(240,235,227,0.06)', border: '0.5px solid rgba(240,235,227,0.16)' }}
+          >
+            <div className="flex items-center gap-2.5">
+              {profile?.is_verified ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="11" fill="#3B82F6" />
+                  <path d="M8 12.5l2.5 2.5L16 9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ) : (
+                <span className="text-base">🤳</span>
+              )}
+              <div className="text-left">
+                <p className="text-white text-sm font-semibold">{profile?.is_verified ? 'Verified' : 'Get Verified'}</p>
+                <p className="text-white/40 text-xs">{profile?.is_verified ? 'Your identity is confirmed' : 'Confirm it\'s really you with a quick live photo'}</p>
+              </div>
+            </div>
+            <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
+          </button>
 
           {/* Hero photo */}
           <div className="relative w-full aspect-[3/2] rounded-3xl overflow-hidden bg-white/6">
