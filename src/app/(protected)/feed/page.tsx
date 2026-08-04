@@ -240,6 +240,18 @@ export default function FeedPage() {
       }
       // Fetch profile once — reused for trial check, SwipeStack, and TripDetailModal
       const profile = await getProfile(session.user.id)
+      // Real gap found 2026-08-03: native's LoginScreen always loads /feed
+      // directly after a successful Google/Apple sign-in (see App.tsx's
+      // MainApp — buildWebUrl(deepLinkPath ?? '/feed')), never /onboarding.
+      // This page never checked profile completeness, so a brand-new native
+      // user landed straight in the feed with no name/age/DNA, onboarding
+      // skipped entirely. AuthGate's email-signup path already redirected to
+      // /onboarding correctly — this was specifically a Google/Apple-via-
+      // native gap.
+      if (!profile || profile.age === null) {
+        router.replace('/onboarding')
+        return
+      }
       if (profile) {
         const override = getDevTrialOverride()
         const effectiveProfile = override ? { ...profile, trial_start_at: override } : profile
