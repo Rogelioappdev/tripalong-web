@@ -159,15 +159,27 @@ export default function OnboardingPage() {
   // there would make it impossible to preview the splash/auth screens at
   // all. Keep that route's behavior as-is; this divergence is intentional.
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       if (data.user) {
+        // Safety net for native's intent-based routing (see handleAuthGoogle/
+        // handleAuthApple and tripalong-app's App.tsx MainApp): intent is only
+        // a best-effort hint to avoid a visible reload, not a guarantee — e.g.
+        // someone taps "Sign in" but their Google account has no TripAlong
+        // profile yet, or taps "Create account" on a Google account that
+        // already finished onboarding. If the profile's already complete,
+        // bounce to /feed instead of showing a redundant signup flow.
+        const { data: row } = await supabase.from('users').select('age').eq('id', data.user.id).single()
+        if (row && row.age !== null) {
+          router.replace('/feed')
+          return
+        }
         if (data.user.user_metadata?.full_name) setNewName(data.user.user_metadata.full_name)
         else if (data.user.user_metadata?.name) setNewName(data.user.user_metadata.name)
         setNewStage('valueprop')
       }
       setAuthChecked(true)
     })
-  }, [])
+  }, [router])
 
   useEffect(() => {
     ;(window as any).__tripalongGoogleSignInResult = async (result: { success: boolean }) => {
@@ -263,7 +275,14 @@ export default function OnboardingPage() {
   const handleAuthGoogle = () => {
     haptic(8)
     if ((window as any).ReactNativeWebView) {
-      ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'google_signin' }))
+      // `intent` (authMode: 'signup' | 'signin') tells native which page to
+      // load once the session comes back — see App.tsx's LoginScreen and
+      // MainApp. Before this, native always loaded /feed blind regardless of
+      // which button the user actually tapped, then relied on /feed's own
+      // check to bounce incomplete profiles to /onboarding after the fact —
+      // a real, visible round-trip. Passing intent up front lets native go
+      // straight to the right page the first time.
+      ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'google_signin', intent: authMode }))
       return
     }
     supabase.auth.signInWithOAuth({
@@ -282,7 +301,7 @@ export default function OnboardingPage() {
   const handleAuthApple = () => {
     haptic(8)
     if ((window as any).ReactNativeWebView) {
-      ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'apple_signin' }))
+      ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'apple_signin', intent: authMode }))
     }
   }
 
@@ -296,6 +315,11 @@ export default function OnboardingPage() {
     setAuthError('')
     setAuthLoading(true)
     try {
+      // Native's SESSION_BRIDGE (App.tsx's LoginScreen) polls localStorage for
+      // the Supabase token and has no other way to learn which button the user
+      // tapped — stash intent alongside it so MainApp can route straight to
+      // /onboarding or /feed instead of always loading /feed and bouncing.
+      if (isNativeApp) localStorage.setItem('ta_auth_intent', authMode)
       if (authMode === 'signup') {
         const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword })
         if (error) throw error
@@ -679,8 +703,20 @@ export default function OnboardingPage() {
                     >
                       {authShowEmail ? (
                         <motion.h1 variants={fadeUpVariants} className="text-white font-black tracking-tight text-4xl">
-                          TripAlong
+                          {authMode === 'signin' ? 'Welcome back' : 'TripAlong'}
                         </motion.h1>
+                      ) : authMode === 'signin' ? (
+                        <>
+                          <motion.p variants={fadeUpVariants} className="text-white/50 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
+                            Good to see you
+                          </motion.p>
+                          <motion.h1 variants={fadeUpVariants} className="text-white font-black tracking-tight text-5xl mb-4">
+                            Welcome back
+                          </motion.h1>
+                          <motion.p variants={fadeUpVariants} className="text-white/60 text-base leading-relaxed">
+                            Sign back in to pick up<br />right where you left off.
+                          </motion.p>
+                        </>
                       ) : (
                         <>
                           <motion.p variants={fadeUpVariants} className="text-white/50 text-xs font-semibold uppercase tracking-[0.22em] mb-2">
@@ -708,7 +744,7 @@ export default function OnboardingPage() {
                             this screen renders pre-auth, so a real count isn't safely gettable
                             here without a new anon-safe policy or public stats endpoint. Swap
                             this copy for a real live count if one becomes available. */}
-                        {!authShowEmail && (
+                        {!authShowEmail && authMode === 'signup' && (
                           <div className="self-center flex items-center gap-2 bg-white/6 border border-white/12 rounded-full px-3.5 py-2 mb-1">
                             <span className="relative flex h-2 w-2 shrink-0">
                               <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ backgroundColor: '#30D158' }} />
@@ -732,7 +768,7 @@ export default function OnboardingPage() {
                             <svg width="17" height="17" viewBox="0 0 384 512" fill="#fff">
                               <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
                             </svg>
-                            Continue with Apple
+                            {authMode === 'signin' ? 'Sign in with Apple' : 'Continue with Apple'}
                           </button>
                         )}
 
@@ -747,8 +783,24 @@ export default function OnboardingPage() {
                             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                           </svg>
-                          Continue with Google
+                          {authMode === 'signin' ? 'Sign in with Google' : 'Continue with Google'}
                         </button>
+
+                        {/* Small mode-toggle beneath Apple/Google, separate from the
+                            email sub-flow's own toggle below — this one flips the whole
+                            screen (headline + button copy) between "create account" and
+                            "welcome back" framing, per the request to make it obvious
+                            which buttons are for first-time vs returning users. Hidden
+                            once the email form is open since that form has its own
+                            toggle already. */}
+                        {!authShowEmail && (
+                          <button
+                            onClick={() => { haptic(6); setAuthMode(m => m === 'signup' ? 'signin' : 'signup') }}
+                            className="text-white/40 text-xs text-center py-1 active:opacity-60 transition-opacity"
+                          >
+                            {authMode === 'signup' ? 'Already on TripAlong? Sign in' : 'New here? Create an account'}
+                          </button>
+                        )}
 
                         {!authShowEmail ? (
                           <button
