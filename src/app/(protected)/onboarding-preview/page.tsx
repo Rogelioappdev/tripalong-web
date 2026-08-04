@@ -1910,22 +1910,29 @@ export default function OnboardingPage() {
           the unsupported-browser silent skip, and success/skip states, all
           in this app's real dark/cream visual language. It portals itself
           to document.body, so its position in this tree doesn't matter. */}
-      {showNotifPrompt && authedUserId && (
-        <NotificationPrompt
-          userId={authedUserId}
-          onDone={() => { setShowNotifPrompt(false); setShowTrialPaywall(true) }}
-        />
-      )}
+      {/* Shared AnimatePresence so the handoff between these two full-screen
+          overlays actually crossfades instead of snap-cutting — see the same
+          fix in the real /onboarding page for the full explanation. */}
+      <AnimatePresence>
+        {showNotifPrompt && authedUserId && (
+          <NotificationPrompt
+            key="notif-prompt"
+            userId={authedUserId}
+            onDone={() => { setShowNotifPrompt(false); setShowTrialPaywall(true) }}
+          />
+        )}
 
-      {/* Peak-excitement ask, right after the reward (passport) and the small
-          foot-in-the-door ask (notifications) — X to skip either way, so this
-          is never a hard gate. See tripalong_paywall_conversion_plan.md. */}
-      {showTrialPaywall && authedUserId && (
-        <TrialOfferPaywall
-          userId={authedUserId}
-          onDone={() => { setShowTrialPaywall(false); goStage('finale', 1) }}
-        />
-      )}
+        {/* Peak-excitement ask, right after the reward (passport) and the small
+            foot-in-the-door ask (notifications) — X to skip either way, so this
+            is never a hard gate. See tripalong_paywall_conversion_plan.md. */}
+        {showTrialPaywall && authedUserId && (
+          <TrialOfferPaywall
+            key="trial-paywall"
+            userId={authedUserId}
+            onDone={() => { setShowTrialPaywall(false); goStage('finale', 1) }}
+          />
+        )}
+      </AnimatePresence>
     </main>
   )
 }

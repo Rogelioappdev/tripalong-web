@@ -100,7 +100,13 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
   }
 
   const content = (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, overflow: 'hidden' }}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.28, ease: 'easeInOut' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 100, overflow: 'hidden' }}
+    >
       {/* Travel photo background, same treatment as the founding-member reward screen */}
       {travelImages[0] && (
         <div style={{
@@ -339,7 +345,7 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
 
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 
   return createPortal(content, document.body)
