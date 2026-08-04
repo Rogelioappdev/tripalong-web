@@ -319,19 +319,15 @@ export default function OnboardingPage() {
     }
   }
 
-  const finishQuiz = async () => {
+  // Split from finishQuiz so a failed save can be retried from right where
+  // the user already is (the passport screen) instead of bouncing them back
+  // to a separate error step. `finalizing` now only gates the passport
+  // screen's own Continue button — it no longer drives a whole separate
+  // loading screen (see finishQuiz below for why).
+  const saveProfile = async () => {
     setFinalizing(true)
     setLoading(true)
     setError('')
-    if (memberPreview) {
-      // The passport screen only ever reads local component state (name,
-      // photo, DNA answers, etc.) — none of it depends on the Supabase write
-      // this branch skips — so testers using the member-code shortcut should
-      // still see it, not get bounced straight to finale.
-      goStage('passport', 1)
-      setLoading(false)
-      return
-    }
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Please sign in again.')
@@ -353,12 +349,21 @@ export default function OnboardingPage() {
         experience_level: (newDna.experience_level || null) as UserProfile['experience_level'],
         travel_with: (newDna.travel_with || null) as UserProfile['travel_with'],
       })
-      goStage('passport', 1)
     } catch (e: any) {
       setError(e?.message ?? 'Something went wrong. Please try again.')
     } finally {
+      setFinalizing(false)
       setLoading(false)
     }
+  }
+
+  // Moves to the passport reveal immediately and saves in the background —
+  // see the real /onboarding page for the full explanation of why.
+  const finishQuiz = () => {
+    setError('')
+    goStage('passport', 1)
+    if (memberPreview) return
+    saveProfile()
   }
 
   const quizNext = () => {
@@ -419,7 +424,7 @@ export default function OnboardingPage() {
         case 'attribution': return newHearAbout !== ''
         case 'nameGender': return newName.trim().length >= 2 && !!newGender
         case 'travelerType': return newTravelerTypes.length > 0
-        case 'photo': return true
+        case 'photo': return !!photoUrl && !uploading
         case 'travelPhotos': return newTravelPhotos.length >= 3
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
         case 'tripTeaser': return true
@@ -617,18 +622,13 @@ export default function OnboardingPage() {
                     other settle-into-place transitions (see the quiz CTA button
                     and auth screen above). */}
                 {currentStepKind === 'dna' && (
-                  <div className="flex flex-col items-center gap-1.5">
-                    <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full"
-                        style={{ backgroundColor: '#F0EBE3' }}
-                        animate={{ width: `${((currentDnaIndex + 1) / DNA_DIMENSIONS.length) * 100}%` }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-                      />
-                    </div>
-                    <span className="text-white/25 text-[10px] font-semibold tracking-wide">
-                      Question {currentDnaIndex + 1} of {DNA_DIMENSIONS.length}
-                    </span>
+                  <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: '#F0EBE3' }}
+                      animate={{ width: `${((currentDnaIndex + 1) / DNA_DIMENSIONS.length) * 100}%` }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+                    />
                   </div>
                 )}
               </div>
@@ -1163,14 +1163,6 @@ export default function OnboardingPage() {
                     {error && <p className="text-red-400 text-sm text-center mb-2">{error}</p>}
 
                     <QuizContinueButton onClick={quizNext} disabled={!photoUrl || uploading} label="Continue →" />
-                    <button
-                      onClick={() => { haptic(4); quizNext() }}
-                      disabled={uploading}
-                      className="w-full py-3 text-sm font-medium active:opacity-60 transition-opacity"
-                      style={{ color: 'rgba(255,255,255,0.25)' }}
-                    >
-                      Skip for now
-                    </button>
                   </motion.div>
                 )}
 
@@ -1574,43 +1566,6 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
 
-                {newStage === 'quiz' && finalizing && (
-                  <motion.div
-                    key="finalizing"
-                    custom={newDirection}
-                    variants={slideVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex-1 flex flex-col items-center justify-center text-center"
-                  >
-                    {error ? (
-                      <>
-                        <p className="text-red-400 text-sm mb-5">{error}</p>
-                        <button
-                          onClick={finishQuiz}
-                          className="px-6 py-3.5 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform mb-3"
-                          style={CTA_STYLE}
-                        >
-                          Try again
-                        </button>
-                        <button
-                          onClick={() => { setFinalizing(false); setError('') }}
-                          className="text-white/30 text-xs active:opacity-60 transition-opacity"
-                        >
-                          ← Back to Travel DNA
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-8 h-8 border-2 border-white/20 border-t-white/70 rounded-full animate-spin mb-4" />
-                        <p className="text-white/40 text-sm">Setting up your profile...</p>
-                      </>
-                    )}
-                  </motion.div>
-                )}
-
                 {newStage === 'passport' && (
                   <motion.div
                     key="passport"
@@ -1813,12 +1768,23 @@ export default function OnboardingPage() {
                       </motion.div>
                     </div>
 
+                    {error && (
+                      <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-red-400 text-xs text-center mb-2 shrink-0"
+                      >
+                        {error}
+                      </motion.p>
+                    )}
                     <motion.button
                       initial={{ opacity: 0, y: 14 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 2.2, type: 'spring', stiffness: 300, damping: 28 }}
                       onClick={() => {
                         haptic(8)
+                        if (finalizing) return
+                        if (error) { saveProfile(); return }
                         // Ask for notifications right here — right after the
                         // profile-created reward moment, before the finale —
                         // matching where the competitor reference places this
@@ -1827,10 +1793,16 @@ export default function OnboardingPage() {
                         if (authedUserId) setShowNotifPrompt(true)
                         else goStage('finale', 1)
                       }}
-                      className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform shrink-0"
+                      disabled={finalizing}
+                      className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform shrink-0 disabled:opacity-60"
                       style={CTA_STYLE}
                     >
-                      Continue →
+                      {finalizing ? (
+                        <span className="inline-flex items-center justify-center gap-2">
+                          <span className="w-4 h-4 border-2 border-black/25 border-t-black/70 rounded-full animate-spin" />
+                          Setting up your profile…
+                        </span>
+                      ) : error ? 'Try again' : 'Continue →'}
                     </motion.button>
                   </motion.div>
                 )}
@@ -1913,6 +1885,12 @@ export default function OnboardingPage() {
       {/* Shared AnimatePresence so the handoff between these two full-screen
           overlays actually crossfades instead of snap-cutting — see the same
           fix in the real /onboarding page for the full explanation. */}
+      {/* Permanent, never-animated backdrop underneath both overlays — see
+          the same fix in the real /onboarding page for the full explanation
+          (prevents the passport screen from showing through mid-crossfade). */}
+      {(showNotifPrompt || showTrialPaywall) && authedUserId && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 90, backgroundColor: '#000' }} />
+      )}
       <AnimatePresence>
         {showNotifPrompt && authedUserId && (
           <NotificationPrompt

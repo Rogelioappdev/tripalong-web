@@ -11,7 +11,7 @@ interface Props {
   onDone: () => void
 }
 
-type State = 'prompt' | 'loading' | 'denied' | 'success'
+type State = 'prompt' | 'loading' | 'denied' | 'success' | 'confirm-skip'
 
 export function NotificationPrompt({ userId, onDone }: Props) {
   const [state, setState] = useState<State>('prompt')
@@ -70,7 +70,11 @@ export function NotificationPrompt({ userId, onDone }: Props) {
     }
   }
 
-  const handleSkip = () => { haptic(6); onDone() }
+  // "Maybe later" no longer skips immediately — it's too easy to tap without
+  // registering what's being given up. One extra, more direct screen first;
+  // only handleFinalSkip actually moves on.
+  const handleSkip = () => { haptic(6); setState('confirm-skip') }
+  const handleFinalSkip = () => { haptic(6); onDone() }
 
   const isIOS = /iphone|ipad/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
   const isChrome = /chrome/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '') && !/edg/i.test(navigator.userAgent)
@@ -103,7 +107,7 @@ export function NotificationPrompt({ userId, onDone }: Props) {
           marginBottom: 32, fontSize: 44,
         }}
       >
-        {state === 'success' ? '✅' : state === 'denied' ? '🔕' : '✈️'}
+        {state === 'success' ? '✅' : state === 'denied' ? '🔕' : state === 'confirm-skip' ? '👀' : '✈️'}
       </motion.div>
 
       <motion.div
@@ -142,6 +146,19 @@ export function NotificationPrompt({ userId, onDone }: Props) {
                 </>
               )}
             </div>
+          </>
+        )}
+
+        {/* CONFIRM SKIP — a real, specific reason to reconsider, not a
+            generic "are you sure" */}
+        {state === 'confirm-skip' && (
+          <>
+            <h1 style={{ color: '#fff', fontWeight: 800, fontSize: 28, lineHeight: 1.1, letterSpacing: '-0.5px', marginBottom: 14 }}>
+              You could miss your next travel match.
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15, lineHeight: 1.65 }}>
+              Without notifications, someone could join your trip, message you, or match your vibe — and you won't know until you happen to open the app. Most travelers who turn this on never miss it.
+            </p>
           </>
         )}
 
@@ -195,10 +212,22 @@ export function NotificationPrompt({ userId, onDone }: Props) {
         style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 32 }}
       >
         {state === 'denied' && (
-          <button type="button" onClick={handleSkip}
+          <button type="button" onClick={handleFinalSkip}
             style={{ width: '100%', padding: '16px 0', borderRadius: 18, fontWeight: 700, fontSize: 16, backgroundColor: '#F0EBE3', color: '#000', border: 'none', cursor: 'pointer' }}>
             Got it
           </button>
+        )}
+        {state === 'confirm-skip' && (
+          <>
+            <button type="button" onClick={handleAllow}
+              style={{ width: '100%', padding: '16px 0', borderRadius: 18, fontWeight: 700, fontSize: 16, backgroundColor: '#F0EBE3', color: '#000', border: 'none', cursor: 'pointer' }}>
+              Turn on notifications
+            </button>
+            <button type="button" onClick={handleFinalSkip}
+              style={{ width: '100%', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', fontSize: 14, fontWeight: 500 }}>
+              No thanks, I'll miss it
+            </button>
+          </>
         )}
         {(state === 'prompt' || state === 'loading') && (
           <>
