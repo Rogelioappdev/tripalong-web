@@ -276,6 +276,7 @@ export default function OnboardingPage() {
 
   const handleAuthGoogle = () => {
     haptic(8)
+    setAuthError('')
     if ((window as any).ReactNativeWebView) {
       // `intent` (authMode: 'signup' | 'signin') tells native which page to
       // load once the session comes back — see App.tsx's LoginScreen and
@@ -302,6 +303,7 @@ export default function OnboardingPage() {
   // than running signInWithOAuth inside the embedded WebView.
   const handleAuthApple = () => {
     haptic(8)
+    setAuthError('')
     if ((window as any).ReactNativeWebView) {
       ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'apple_signin', intent: authMode }))
     }
@@ -311,6 +313,23 @@ export default function OnboardingPage() {
   // so it doesn't render at all on the plain website/PWA, per explicit scope
   // ("just need it for native Apple users, don't worry about the website").
   const isNativeApp = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
+
+  // Native → web direction (react-native-webview's webViewRef.postMessage()
+  // in App.tsx's LoginScreen dispatches a 'message' event here). Was missing
+  // entirely — a failed Google/Apple OAuth attempt on native previously had
+  // no way to tell this page anything went wrong at all, so the button just
+  // appeared to do nothing. Reuses the same authError state/display the
+  // email sub-flow already has.
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.type === 'auth_error' && typeof msg.message === 'string') setAuthError(msg.message)
+      } catch {}
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
 
   const handleAuthEmailSubmit = async () => {
     if (!authEmail || !authPassword) return
@@ -741,6 +760,12 @@ export default function OnboardingPage() {
                         transition={{ delay: 0.45, type: 'spring', stiffness: 300, damping: 28 }}
                         className="mt-auto flex flex-col gap-2.5"
                       >
+                        {/* Surfaces native Google/Apple OAuth failures too, not just the
+                            email sub-flow — see the 'auth_error' message listener above. */}
+                        {authError && !authShowEmail && (
+                          <p className="text-red-400 text-xs text-center px-2">{authError}</p>
+                        )}
+
                         {/* Honest social-proof pill — no fabricated live number. The `users`
                             table's RLS policy (supabase/migrations/20260606_rls_security.sql,
                             "users_select") only grants SELECT to the `authenticated` role, and
