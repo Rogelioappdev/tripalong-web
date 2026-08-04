@@ -18,26 +18,26 @@ import { useEffect, useRef, useState } from 'react'
 import { FaceLandmarker, FilesetResolver, type FaceLandmarkerResult } from '@mediapipe/tasks-vision'
 import { supabase } from '@/lib/supabase'
 
-type ChallengeAction = 'blink' | 'turnHead' | 'smile'
+type ChallengeAction = 'blink' | 'turnHead'
 
 const CHALLENGE_COPY: Record<ChallengeAction, string> = {
   blink: 'Blink twice',
   turnHead: 'Turn your head to the side',
-  smile: 'Give a little smile',
 }
 
-const ALL_ACTIONS: ChallengeAction[] = ['blink', 'turnHead', 'smile']
+const ALL_ACTIONS: ChallengeAction[] = ['blink', 'turnHead']
 
+// Just one random movement, not a combo — simpler and faster for the user,
+// still enough to prove it's a live person (a static photo can't blink or
+// turn on cue either way).
 function pickChallenge(): ChallengeAction[] {
-  const shuffled = [...ALL_ACTIONS].sort(() => Math.random() - 0.5)
-  return shuffled.slice(0, 2)
+  return [ALL_ACTIONS[Math.floor(Math.random() * ALL_ACTIONS.length)]]
 }
 
-// Blendshape score thresholds — MediaPipe's blendshape categories are 0-1.
-// Picked conservatively (a real blink/smile clears these easily; passive
-// resting-face scores sit well below them).
+// Blendshape score threshold — MediaPipe's blendshape categories are 0-1.
+// Picked conservatively (a real blink clears this easily; a resting/open eye
+// sits well below it).
 const BLINK_THRESHOLD = 0.55
-const SMILE_THRESHOLD = 0.45
 // Head-turn uses landmark z-depth asymmetry between left/right cheek
 // (indices 234 / 454 in MediaPipe's face mesh topology) instead of a
 // blendshape — turning your head makes one cheek noticeably closer to the
@@ -97,14 +97,23 @@ export function LiveVerificationCapture({ onComplete }: { onComplete: () => void
   const finishChallenge = async () => {
     if (capturingRef.current) return
     capturingRef.current = true
+    // Stop the detection loop/timeout only — NOT the camera stream yet. The
+    // stream's tracks have to stay alive until captureFrame actually reads a
+    // frame from the <video> element; stopping them first (the previous bug)
+    // kills the video feed, so drawImage draws a blank/zero-size frame and
+    // canvas.toBlob() resolves null, surfacing as "Could not process the
+    // camera frame."
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    rafRef.current = null
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
     const video = videoRef.current
-    stopCamera()
     setPhase('uploading')
     try {
       if (!video) throw new Error('Camera was not ready.')
+      const blob = await captureFrame(video)
+      stopCamera()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Please sign in again.')
-      const blob = await captureFrame(video)
       const path = `${user.id}/${Date.now()}.jpg`
       const { error: uploadError } = await supabase.storage
         .from('verification-selfies')
@@ -117,6 +126,7 @@ export function LiveVerificationCapture({ onComplete }: { onComplete: () => void
       setPhase('done')
       onComplete()
     } catch (e: any) {
+      stopCamera()
       setErrorMessage(e?.message ?? 'Verification upload failed. Try again.')
       setPhase('error')
     }
@@ -133,12 +143,6 @@ export function LiveVerificationCapture({ onComplete }: { onComplete: () => void
       const left = blendshapes.find(c => c.categoryName === 'eyeBlinkLeft')?.score ?? 0
       const right = blendshapes.find(c => c.categoryName === 'eyeBlinkRight')?.score ?? 0
       if (left > BLINK_THRESHOLD || right > BLINK_THRESHOLD) next.add('blink')
-    }
-
-    if (challenge.includes('smile') && !next.has('smile')) {
-      const left = blendshapes.find(c => c.categoryName === 'mouthSmileLeft')?.score ?? 0
-      const right = blendshapes.find(c => c.categoryName === 'mouthSmileRight')?.score ?? 0
-      if (left > SMILE_THRESHOLD || right > SMILE_THRESHOLD) next.add('smile')
     }
 
     if (challenge.includes('turnHead') && !next.has('turnHead')) {
