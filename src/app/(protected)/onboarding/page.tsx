@@ -334,24 +334,19 @@ export default function OnboardingPage() {
   // ("just need it for native Apple users, don't worry about the website").
   const isNativeApp = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
 
-  // Native → web direction (react-native-webview's webViewRef.postMessage()
-  // in App.tsx's LoginScreen dispatches a 'message' event here). Was missing
-  // entirely — a failed Google/Apple OAuth attempt on native previously had
-  // no way to tell this page anything went wrong at all, so the button just
-  // appeared to do nothing. Reuses the same authError state/display the
-  // email sub-flow already has.
+  // Native → web direction. Originally used webViewRef.postMessage() /
+  // window.addEventListener('message', ...), but a full device test showed
+  // that never actually delivered anything — not even a breadcrumb sent
+  // before any async native code ran. Switched to injectJavaScript calling
+  // this global function instead, matching the pattern already proven
+  // working elsewhere in this codebase (SwipeStack.tsx's
+  // __tripalongAdvanceFeed, WebViewScreen.tsx's __tripalongPurchaseResult).
   useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      try {
-        const msg = JSON.parse(event.data)
-        if (msg.type === 'auth_error' && typeof msg.message === 'string') {
-          if (authWatchdogRef.current) clearTimeout(authWatchdogRef.current)
-          setAuthError(msg.message)
-        }
-      } catch {}
+    ;(window as any).__tripalongAuthError = (message: string) => {
+      if (authWatchdogRef.current) clearTimeout(authWatchdogRef.current)
+      setAuthError(message)
     }
-    window.addEventListener('message', handler)
-    return () => window.removeEventListener('message', handler)
+    return () => { delete (window as any).__tripalongAuthError }
   }, [])
 
   const handleAuthEmailSubmit = async () => {
