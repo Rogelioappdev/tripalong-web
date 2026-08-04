@@ -2,19 +2,19 @@
 
 // Pre-auth marketing splash — the very first thing a new visitor sees, before
 // the 'auth' stage. Modeled on a competitor's onboarding splash (rotating world
-// clock + typewriter headline + scattered activity bubbles) but fully reskinned
-// in TripAlong's own dark brand: black background, cream (#F0EBE3) accent, the
-// app's real font (Outfit, applied globally — no serif). Self-contained — the
-// page only needs to render it and wire its CTA to goStage('auth', 1).
+// clock + typewriter headline) but fully reskinned in TripAlong's own dark
+// brand: black background, cream (#F0EBE3) accent, the app's real font
+// (Outfit, applied globally — no serif). Self-contained — the page only needs
+// to render it and wire its CTA to goStage('auth', 1).
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence, useAnimation } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
-import { VIBES } from '@/lib/tripOptions'
+import { TripPreviewCard } from '@/components/onboarding/TripPreviewCard'
 
 const CTA_STYLE = { backgroundColor: '#F0EBE3', color: '#000' } as const
 
-const HEADLINE = 'join trips and meet travelers wherever you go'
+const HEADLINE = 'Never travel alone again'
 
 // A handful of timezones spread across the globe — real local times computed
 // via Intl.DateTimeFormat (never faked). 3 of these 5 are shown at once, and
@@ -30,28 +30,6 @@ const CITIES: { name: string; flag: string; tz: string }[] = [
 function cityTime(tz: string) {
   return new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date())
 }
-
-// 7 vibes pulled from the app's real single-source-of-truth VIBES list (see
-// lib/tripOptions.ts) rather than inventing new emoji — keeps this splash's
-// icons consistent with the rest of the app (trip creation, World filters).
-const BUBBLE_VIBE_VALUES = ['adventure', 'foodie', 'beach', 'party', 'backpacking', 'cultural', 'chill'] as const
-
-// Loose, organic scatter (not a grid) — percentage anchors within a relative
-// container, staggered vertically so the cluster reads as hand-placed.
-const BUBBLE_LAYOUT: { top: string; left: string; size: number }[] = [
-  { top: '2%', left: '2%', size: 66 },
-  { top: '26%', left: '32%', size: 56 },
-  { top: '0%', left: '60%', size: 70 },
-  { top: '36%', left: '84%', size: 54 },
-  { top: '58%', left: '10%', size: 60 },
-  { top: '48%', left: '46%', size: 76 },
-  { top: '64%', left: '74%', size: 52 },
-]
-
-// Muted accent colors (the same gradient stops used on TripPreviewCard) for the
-// little photo-badge placeholders — no external images are hotlinked, ever.
-const BADGE_COLORS = ['#F0EBE3', '#A85A6B', '#4A3C6B', '#E0955B']
-const BADGE_INITIALS = ['M', 'J', 'K', 'S', 'L', 'R', 'A']
 
 export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
   const [tickerStart, setTickerStart] = useState(0)
@@ -72,7 +50,7 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
 
   useEffect(() => {
     if (typingDone) {
-      buttonControls.start({ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } })
+      buttonControls.start({ opacity: 1, transition: { duration: 0.6, ease: 'easeInOut' } })
     }
   }, [typingDone, buttonControls])
 
@@ -102,13 +80,6 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <style>{`
-        @keyframes sc-float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-8px); }
-        }
-      `}</style>
-
       <motion.h1
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -161,58 +132,23 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
         </h2>
       </div>
 
-      <div className="relative w-full flex-1 mt-6 mb-2">
-        {BUBBLE_LAYOUT.map((pos, i) => {
-          const vibe = VIBES.find(v => v.value === BUBBLE_VIBE_VALUES[i])
-          if (!vibe) return null
-          const badgeColor = BADGE_COLORS[i % BADGE_COLORS.length]
-          const badgeInitial = BADGE_INITIALS[i % BADGE_INITIALS.length]
-          const badgeSize = Math.max(20, Math.round(pos.size * 0.34))
-          return (
-            <div
-              key={vibe.value}
-              className="absolute rounded-full flex items-center justify-center"
-              style={{
-                top: pos.top,
-                left: pos.left,
-                width: pos.size,
-                height: pos.size,
-                backgroundColor: 'rgba(255,255,255,0.08)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                backdropFilter: 'blur(3px)',
-                animation: 'sc-float 3.6s ease-in-out infinite',
-                animationDelay: `${i * 0.22}s`,
-              }}
-            >
-              <span style={{ fontSize: Math.round(pos.size * 0.42) }}>{vibe.emoji}</span>
-              <div
-                className="absolute rounded-full flex items-center justify-center font-bold border-2 border-black"
-                style={{
-                  width: badgeSize,
-                  height: badgeSize,
-                  right: -4,
-                  bottom: -4,
-                  backgroundColor: badgeColor,
-                  color: badgeColor === '#F0EBE3' ? '#000' : '#fff',
-                  fontSize: 10,
-                }}
-              >
-                {badgeInitial}
-              </div>
-            </div>
-          )
-        })}
+      {/* Real trips, real swipes — the same self-driving demo deck used on
+          the 'valueprop' step right after auth (see TripPreviewCard), swapped
+          in here for the old scattered vibe-emoji bubbles so a brand-new
+          visitor sees the actual product, not an abstraction of it. */}
+      <div className="w-full flex-1 flex items-center justify-center mt-6 mb-2 min-h-0 overflow-hidden">
+        <TripPreviewCard />
       </div>
 
       {/* Always mounted (not conditionally rendered) so its ~52px of height is
           reserved in the flex column from the very first paint — it used to
-          only mount once typingDone flipped true, which meant the vibe-bubble
+          only mount once typingDone flipped true, which meant the trip-card
           area above it (also flex-1) suddenly lost that height the instant
           the button appeared, visibly shifting/shrinking everything else up.
-          Animating opacity/y instead of mount/unmount keeps the layout stable
+          Animating opacity instead of mount/unmount keeps the layout stable
           throughout, and `disabled` blocks taps until typing finishes. */}
       <motion.button
-        initial={{ opacity: 0, y: 14 }}
+        initial={{ opacity: 0 }}
         animate={buttonControls}
         onClick={() => { haptic(8); onContinue() }}
         disabled={!typingDone}
