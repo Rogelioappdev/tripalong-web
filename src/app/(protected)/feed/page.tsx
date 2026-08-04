@@ -113,6 +113,11 @@ export default function FeedPage() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
   const [isGuest, setIsGuest] = useState(false)
+  // Gates the entire page behind a blank screen until the incomplete-profile
+  // check below resolves — without this, the real feed chrome (nav, header)
+  // paints for a moment before the redirect to /onboarding fires, which reads
+  // as a jarring flash-then-redirect instead of a smooth transition.
+  const [checkingProfile, setCheckingProfile] = useState(true)
   const [authGateDestination, setAuthGateDestination] = useState<string | undefined>(undefined)
   const [showAuthGate, setShowAuthGate] = useState(false)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
@@ -214,6 +219,7 @@ export default function FeedPage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
         setIsGuest(true)
+        setCheckingProfile(false)
         return
       }
       setUserId(session.user.id)
@@ -249,9 +255,12 @@ export default function FeedPage() {
       // /onboarding correctly — this was specifically a Google/Apple-via-
       // native gap.
       if (!profile || profile.age === null) {
+        // Deliberately leave checkingProfile true — stay on the blank screen
+        // through the navigation instead of flashing feed content first.
         router.replace('/onboarding')
         return
       }
+      setCheckingProfile(false)
       if (profile) {
         const override = getDevTrialOverride()
         const effectiveProfile = override ? { ...profile, trial_start_at: override } : profile
@@ -396,6 +405,10 @@ export default function FeedPage() {
     bookmarkControls.start({ scale: [1, 1.55, 1], transition: { duration: 0.38, times: [0, 0.45, 1], ease: 'easeOut' } })
     setTimeout(() => setShowSaved(true), 800)
   }, [pendingTripId, trips, userId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Blank screen while the incomplete-profile check above is in flight —
+  // placed after every hook call (Rules of Hooks), not earlier.
+  if (checkingProfile) return <div style={{ position: 'fixed', inset: 0, backgroundColor: '#000' }} />
 
   return (
     <>
