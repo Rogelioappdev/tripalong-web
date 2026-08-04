@@ -50,7 +50,7 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
 
   useEffect(() => {
     if (typingDone) {
-      buttonControls.start({ opacity: 1, transition: { duration: 0.6, ease: 'easeInOut' } })
+      buttonControls.start({ opacity: 1, transition: { duration: 0.9, ease: 'easeInOut' } })
     }
   }, [typingDone, buttonControls])
 
@@ -62,7 +62,12 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
     return () => clearInterval(id)
   }, [])
 
-  // Typewriter reveal of the headline, character by character.
+  // Typewriter reveal of the headline, character by character — slower and
+  // more deliberate than a typical typing effect, so the reveal itself
+  // builds anticipation instead of just dumping the line on screen. The
+  // "I'm in" button's own fade-in (above) is tuned to the same slower pace
+  // so the whole sequence reads as one unhurried beat, not two mismatched
+  // speeds stitched together.
   useEffect(() => {
     let i = 0
     const id = setInterval(() => {
@@ -72,7 +77,7 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
         clearInterval(id)
         setTypingDone(true)
       }
-    }, 45)
+    }, 75)
     return () => clearInterval(id)
   }, [])
 

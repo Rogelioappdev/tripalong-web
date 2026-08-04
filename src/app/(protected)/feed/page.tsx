@@ -646,7 +646,7 @@ export default function FeedPage() {
           style={{ paddingBottom: TAB_BAR_CLEARANCE }}
         >
           {isLoading ? (
-            <div className="relative w-full max-w-sm flex flex-col">
+            <div className="relative w-full max-w-md flex flex-col">
               <AnimatePresence>
                 {slowLoad && (
                   <motion.div
@@ -683,7 +683,7 @@ export default function FeedPage() {
               </button>
             </div>
           ) : ((trips && trips.length > 0) || (myHangalongs as HangalongWithDetails[]).length > 0 || (hangalongs as HangalongWithDetails[]).length > 0) ? (
-            <div className="w-full max-w-sm flex flex-col">
+            <div className="w-full max-w-md flex flex-col">
               <SwipeStack
                 trips={filteredTrips}
                 filtersKey={JSON.stringify(filters)}

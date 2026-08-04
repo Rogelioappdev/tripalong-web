@@ -1201,10 +1201,17 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
         )}
       </AnimatePresence>
 
-      {/* Card area */}
+      {/* Card area — deliberately NOT overflow-hidden. It used to be, which
+          clipped the top card at this container's own edge (same rect as the
+          card itself, since SwipeCard is `inset:0` within it) — so a swipe
+          looked like the card reaching a dead zone and vanishing rather than
+          actually flying off the screen. The only wider clip boundary left is
+          <main>'s own overflow:hidden at the full viewport, so an exiting
+          card (translateX ±700) now visibly crosses the whole screen instead
+          of disappearing at this box's edge. */}
       <div
         ref={cardAreaRef}
-        className="relative w-full flex-1 min-h-0 overflow-hidden"
+        className="relative w-full flex-1 min-h-0"
         style={{ backgroundColor: '#111' }}
         onPointerDown={() => { if (hintVisible) dismissHint() }}
       >
