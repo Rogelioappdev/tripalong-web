@@ -756,17 +756,17 @@ export default function OnboardingPage() {
                         {!authShowEmail && (
                           <button
                             onClick={() => { haptic(6); setAuthMode(m => m === 'signup' ? 'signin' : 'signup') }}
-                            className="text-white/40 text-xs text-center py-1 active:opacity-60 transition-opacity"
+                            className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
+                            style={{ backgroundColor: 'transparent', color: '#F0EBE3', border: '1.5px solid rgba(240,235,227,0.45)' }}
                           >
-                            {authMode === 'signup' ? 'Already on TripAlong? Sign in' : 'New here? Create an account'}
+                            {authMode === 'signup' ? 'Already have an account? Sign in' : 'New here? Create an account'}
                           </button>
                         )}
 
                         {!authShowEmail ? (
                           <button
                             onClick={() => { haptic(6); setAuthShowEmail(true) }}
-                            className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
-                            style={{ backgroundColor: 'transparent', color: '#F0EBE3', border: '1.5px solid rgba(240,235,227,0.45)' }}
+                            className="text-white/40 text-xs text-center py-1 active:opacity-60 transition-opacity"
                           >
                             Continue with Email
                           </button>
@@ -808,7 +808,10 @@ export default function OnboardingPage() {
 
                         {!authShowEmail && (
                           <p className="text-white/18 text-xs text-center pt-1">
-                            By continuing you agree to our community guidelines
+                            By continuing you agree to our community guidelines,{' '}
+                            <a href="/terms" className="underline text-white/30">Terms of Service</a>{' '}
+                            and{' '}
+                            <a href="/privacy" className="underline text-white/30">Privacy Policy</a>
                           </p>
                         )}
 

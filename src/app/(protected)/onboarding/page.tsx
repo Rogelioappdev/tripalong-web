@@ -786,27 +786,26 @@ export default function OnboardingPage() {
                           {authMode === 'signin' ? 'Sign in with Google' : 'Continue with Google'}
                         </button>
 
-                        {/* Small mode-toggle beneath Apple/Google, separate from the
-                            email sub-flow's own toggle below — this one flips the whole
-                            screen (headline + button copy) between "create account" and
-                            "welcome back" framing, per the request to make it obvious
-                            which buttons are for first-time vs returning users. Hidden
-                            once the email form is open since that form has its own
-                            toggle already. */}
+                        {/* Boxed CTA beneath Apple/Google flips the whole screen
+                            (headline + button copy) between "create account" and
+                            "welcome back" framing — this is the primary way back for
+                            a returning user, so it gets the same visual weight the
+                            old "Continue with Email" box used to have. Email is now
+                            the tiny fallback link right below it. */}
                         {!authShowEmail && (
                           <button
                             onClick={() => { haptic(6); setAuthMode(m => m === 'signup' ? 'signin' : 'signup') }}
-                            className="text-white/40 text-xs text-center py-1 active:opacity-60 transition-opacity"
+                            className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
+                            style={{ backgroundColor: 'transparent', color: '#F0EBE3', border: '1.5px solid rgba(240,235,227,0.45)' }}
                           >
-                            {authMode === 'signup' ? 'Already on TripAlong? Sign in' : 'New here? Create an account'}
+                            {authMode === 'signup' ? 'Already have an account? Sign in' : 'New here? Create an account'}
                           </button>
                         )}
 
                         {!authShowEmail ? (
                           <button
                             onClick={() => { haptic(6); setAuthShowEmail(true) }}
-                            className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform"
-                            style={{ backgroundColor: 'transparent', color: '#F0EBE3', border: '1.5px solid rgba(240,235,227,0.45)' }}
+                            className="text-white/40 text-xs text-center py-1 active:opacity-60 transition-opacity"
                           >
                             Continue with Email
                           </button>
@@ -848,7 +847,10 @@ export default function OnboardingPage() {
 
                         {!authShowEmail && (
                           <p className="text-white/18 text-xs text-center pt-1">
-                            By continuing you agree to our community guidelines
+                            By continuing you agree to our community guidelines,{' '}
+                            <a href="/terms" className="underline text-white/30">Terms of Service</a>{' '}
+                            and{' '}
+                            <a href="/privacy" className="underline text-white/30">Privacy Policy</a>
                           </p>
                         )}
 
