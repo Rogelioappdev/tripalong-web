@@ -258,11 +258,30 @@ export default function OnboardingPage() {
     return () => clearTimeout(t)
   }, [newStage])
 
+  // Two rounds of fixes to App.tsx's native side (error reporting, then
+  // discovering a second dead WebView code path) still produced "truly
+  // nothing happens" on a real device, logged out, on the real signup
+  // screen — the exact path that's supposed to be fixed. That means either
+  // native never receives the postMessage at all, or it receives it and
+  // hangs forever (no throw, so nothing would ever reach any of the error
+  // reporting added so far). A client-side timeout settles this either way:
+  // if no reply of any kind (an auth_error, or the page navigating away on
+  // success) arrives within 6s, that's proof native never responded, not
+  // just "responded with nothing to show."
+  const authWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startAuthWatchdog = (provider: string) => {
+    if (authWatchdogRef.current) clearTimeout(authWatchdogRef.current)
+    authWatchdogRef.current = setTimeout(() => {
+      setAuthError(`No response from the app after tapping ${provider} — the app itself may not be handling this correctly.`)
+    }, 6000)
+  }
+
   const handleAuthGoogle = () => {
     haptic(8)
     setAuthError('')
     if ((window as any).ReactNativeWebView) {
       ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'google_signin', intent: authMode }))
+      startAuthWatchdog('Google')
       return
     }
     supabase.auth.signInWithOAuth({
@@ -283,6 +302,7 @@ export default function OnboardingPage() {
     setAuthError('')
     if ((window as any).ReactNativeWebView) {
       ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'apple_signin', intent: authMode }))
+      startAuthWatchdog('Apple')
     }
   }
 
@@ -299,7 +319,10 @@ export default function OnboardingPage() {
     const handler = (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data)
-        if (msg.type === 'auth_error' && typeof msg.message === 'string') setAuthError(msg.message)
+        if (msg.type === 'auth_error' && typeof msg.message === 'string') {
+          if (authWatchdogRef.current) clearTimeout(authWatchdogRef.current)
+          setAuthError(msg.message)
+        }
       } catch {}
     }
     window.addEventListener('message', handler)
