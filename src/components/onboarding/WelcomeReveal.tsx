@@ -262,7 +262,10 @@ export function WelcomeReveal({ onDone }: { onDone: () => void }) {
               type: 'spring',
               stiffness: 220,
               damping: 26,
-              delay: phase === 'emerge' ? i * 0.09 : i * 0.02,
+              // 0.35s base delay lets the intro overlay finish its 0.4s exit
+              // before the first card pops — otherwise cards are born under
+              // the still-fading wordmark.
+              delay: phase === 'emerge' ? 0.35 + i * 0.09 : i * 0.02,
             }}
           >
             <div
@@ -290,6 +293,7 @@ export function WelcomeReveal({ onDone }: { onDone: () => void }) {
         <motion.button
           onClick={() => { haptic(8); finish() }}
           disabled={phase !== 'cta'}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: phase === 'cta' ? 1 : 0, y: phase === 'cta' ? 0 : 14 }}
           transition={{ duration: 0.4, ease: 'easeOut' }}
           className="w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
