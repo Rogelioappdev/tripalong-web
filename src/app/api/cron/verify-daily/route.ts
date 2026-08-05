@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
         .eq('id', row.user_id)
         .single()
       if (!userRow?.profile_photo) {
+        console.error(`[verify-daily] row ${row.id}: no profile_photo on user ${row.user_id}`)
         summary.failed++
         continue
       }
@@ -81,6 +82,7 @@ export async function GET(req: NextRequest) {
         .from('verification-selfies')
         .createSignedUrl(row.selfie_path, 120)
       if (!signed?.signedUrl) {
+        console.error(`[verify-daily] row ${row.id}: couldn't sign selfie URL for ${row.selfie_path}`)
         summary.failed++
         continue
       }
@@ -92,6 +94,7 @@ export async function GET(req: NextRequest) {
       ])
       const validReferenceImgs = referenceImgs.filter((img): img is NonNullable<typeof img> => !!img)
       if (!selfieImg || validReferenceImgs.length === 0) {
+        console.error(`[verify-daily] row ${row.id}: selfieImg=${!!selfieImg} validReferenceImgs=${validReferenceImgs.length}`)
         summary.failed++
         continue
       }
@@ -120,7 +123,8 @@ export async function GET(req: NextRequest) {
 
       summary.processed++
       summary[verdict.label]++
-    } catch {
+    } catch (e: any) {
+      console.error(`[verify-daily] row ${row.id}: ${e?.status ?? ''} ${e?.message ?? String(e)}`)
       summary.failed++
     }
   }
