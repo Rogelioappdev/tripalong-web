@@ -197,6 +197,11 @@ export default function ProfilePage() {
   const [editingField, setEditingField] = useState<string | null>(null)
   const [fieldDraft, setFieldDraft] = useState<string | string[]>('')
 
+  // Mirrors /verify's own status resolution (pending/rejected/none) so the
+  // profile row can show "Verification sent…" instead of just falling back
+  // to the generic "Get Verified" prompt while a submission is in flight.
+  const [verificationStatus, setVerificationStatus] = useState<'none' | 'pending' | 'rejected'>('none')
+
   useEffect(() => {
     // getSession() reads the locally persisted session — no network round
     // trip, so a transient blip (e.g. WebView resuming from background)
@@ -215,6 +220,12 @@ export default function ProfilePage() {
         setCountryVal(p.country ?? '')
         setAgeVal(p.age != null ? String(p.age) : '')
         setInstagramVal(p.instagram_handle ?? '')
+        if (!p.is_verified) {
+          const { data: row } = await supabase.from('photo_verifications')
+            .select('status').eq('user_id', session.user.id)
+            .order('created_at', { ascending: false }).limit(1).maybeSingle()
+          setVerificationStatus(row?.status === 'pending' ? 'pending' : row?.status === 'rejected' ? 'rejected' : 'none')
+        }
       }
       setMyTrips(trips)
       setLoading(false)
@@ -411,9 +422,10 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {/* Get Verified row — /verify itself resolves the exact pending/
-              rejected/none status; this row only needs the binary
-              is_verified flag already on `profile`. */}
+          {/* Get Verified row — three visible states: verified, pending
+              (already submitted, waiting on review), and none/rejected
+              (prompt to submit or retry). /verify itself still owns the
+              full detail view; this is just the summary row. */}
           <button
             type="button"
             onClick={() => { haptic(8); router.push('/verify') }}
@@ -426,12 +438,22 @@ export default function ProfilePage() {
                   <circle cx="12" cy="12" r="11" fill="#3B82F6" />
                   <path d="M8 12.5l2.5 2.5L16 9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
+              ) : verificationStatus === 'pending' ? (
+                <span className="text-base">⏳</span>
               ) : (
                 <span className="text-base">🤳</span>
               )}
               <div className="text-left">
-                <p className="text-white text-sm font-semibold">{profile?.is_verified ? 'Verified' : 'Get Verified'}</p>
-                <p className="text-white/40 text-xs">{profile?.is_verified ? 'Your identity is confirmed' : 'Confirm it\'s really you with a quick live photo'}</p>
+                <p className="text-white text-sm font-semibold">
+                  {profile?.is_verified ? 'Verified' : verificationStatus === 'pending' ? 'Verification sent' : 'Get Verified'}
+                </p>
+                <p className="text-white/40 text-xs">
+                  {profile?.is_verified
+                    ? 'Your identity is confirmed'
+                    : verificationStatus === 'pending'
+                    ? 'May take a couple hours to review — we\'ll notify you'
+                    : 'Confirm it\'s really you with a quick live photo'}
+                </p>
               </div>
             </div>
             <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
