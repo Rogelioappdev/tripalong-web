@@ -14,6 +14,7 @@ import { SEASONS, VIBES } from '@/lib/tripOptions'
 import { TripPreviewCard } from '@/components/onboarding/TripPreviewCard'
 import { WorldRouteMap } from '@/components/onboarding/WorldRouteMap'
 import { SplashCarousel } from '@/components/onboarding/SplashCarousel'
+import { WelcomeReveal } from '@/components/onboarding/WelcomeReveal'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 import { LiveVerificationCapture } from '@/components/onboarding/LiveVerificationCapture'
@@ -62,7 +63,17 @@ export default function OnboardingPage() {
   const router = useRouter()
 
   const [authChecked, setAuthChecked] = useState(false)
-  const [newStage, setNewStage] = useState<'splash' | 'auth' | 'valueprop' | 'quiz' | 'passport' | 'finale'>('splash')
+  // Captured BEFORE the mount effect below clears the flag — a lingering
+  // 'signup' means the user just came through native OAuth on the sign-up
+  // button, so we can open on the welcome reveal instantly (no spinner)
+  // while the auth check runs behind it.
+  const [freshSignup] = useState(() => typeof window !== 'undefined' && localStorage.getItem('ta_auth_intent') === 'signup')
+  // Two-pass hydration guard: the server always renders the pre-authChecked
+  // spinner, so the first client render must match it — the welcome reveal
+  // only swaps in after mount. Costs one frame, avoids a hydration mismatch.
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => { setHydrated(true) }, [])
+  const [newStage, setNewStage] = useState<'splash' | 'auth' | 'welcome' | 'valueprop' | 'quiz' | 'passport' | 'finale'>(() => freshSignup ? 'welcome' : 'splash')
   const [newDirection, setNewDirection] = useState(1)
   // Flat ordered step-key system (replaces an old quizStep+dnaIndex pair).
   // PRE_DNA_STEPS run first, then one screen per DNA_DIMENSIONS entry, then
@@ -183,7 +194,17 @@ export default function OnboardingPage() {
         }
         if (data.user.user_metadata?.full_name) setNewName(data.user.user_metadata.full_name)
         else if (data.user.user_metadata?.name) setNewName(data.user.user_metadata.name)
-        setNewStage('valueprop')
+        // Authenticated + incomplete profile = a genuinely new user: open on
+        // the welcome reveal (they may already be watching it via the
+        // freshSignup fast path — idempotent). Functional update so a slow
+        // auth check can never yank someone who already advanced past it
+        // back to the start.
+        setNewStage(s => (s === 'splash' || s === 'auth' || s === 'welcome') ? 'welcome' : s)
+      } else {
+        // No session but the fast path optimistically opened on the welcome
+        // reveal (e.g. a stale flag with auth having actually failed) — fall
+        // back to the normal splash/sign-in flow.
+        setNewStage(s => s === 'welcome' ? 'splash' : s)
       }
       setAuthChecked(true)
     })
@@ -195,7 +216,7 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: row } = await supabase.from('users').select('age').eq('id', user.id).single()
-      if (!row || row.age === null) setNewStage('valueprop')
+      if (!row || row.age === null) setNewStage('welcome')
       else router.push('/feed')
     }
     return () => { delete (window as any).__tripalongGoogleSignInResult }
@@ -406,7 +427,7 @@ export default function OnboardingPage() {
       if (authMode === 'signup') {
         const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword })
         if (error) throw error
-        goStage('valueprop', 1)
+        goStage('welcome', 1)
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword })
         if (error) throw error
@@ -423,7 +444,9 @@ export default function OnboardingPage() {
     if (memberCode.trim().toLowerCase() === 'gertrudis') {
       haptic(10)
       setMemberPreview(true)
-      goStage('valueprop', 1)
+      // Member-code preview goes through the welcome reveal too — it's the
+      // safe way to test/tune the animation without creating a real account.
+      goStage('welcome', 1)
     } else {
       haptic([8, 20, 8])
       setMemberCodeError(true)
@@ -696,7 +719,7 @@ export default function OnboardingPage() {
           paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)',
         }}
       >
-        {!authChecked ? (
+        {!authChecked && !(hydrated && newStage === 'welcome') ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
           </div>
@@ -765,6 +788,21 @@ export default function OnboardingPage() {
                     className="flex-1 flex flex-col relative"
                   >
                     <SplashCarousel onContinue={() => goStage('auth', 1)} />
+                  </motion.div>
+                )}
+
+                {newStage === 'welcome' && (
+                  <motion.div
+                    key="welcome"
+                    custom={newDirection}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="flex-1 flex flex-col min-h-0"
+                  >
+                    <WelcomeReveal onDone={() => goStage('valueprop', 1)} />
                   </motion.div>
                 )}
 
