@@ -311,6 +311,13 @@ export default function OnboardingPage() {
   // ("just need it for native Apple users, don't worry about the website").
   const isNativeApp = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
 
+  // See the matching comment in onboarding/page.tsx — only builds with the
+  // native Apple sign-in fix tag their WebView userAgent with
+  // "nativeAppleAuth=1", so this hides the button only for people stuck on
+  // the old broken build without also hiding it from App Review's test of
+  // the new one (which would fail guideline 4.8).
+  const canUseNativeAppleAuth = isNativeApp && typeof navigator !== 'undefined' && /nativeAppleAuth=1/.test(navigator.userAgent)
+
   // Native → web direction. Originally used webViewRef.postMessage() /
   // window.addEventListener('message', ...), but a full device test showed
   // that never actually delivered anything — not even a breadcrumb sent
@@ -767,12 +774,15 @@ export default function OnboardingPage() {
                           </div>
                         )}
 
-                        {/* Native-app only (see isNativeApp/handleAuthApple above) —
-                            no button renders here at all on the plain website.
+                        {/* Native-app only, AND only on a build new enough to
+                            actually have working native Apple sign-in (see
+                            canUseNativeAppleAuth above) — no button renders
+                            here at all on the plain website, or on an old
+                            native build stuck with the broken OAuth flow.
                             Apple goes first/primary, matching the convention the
                             competitor reference this flow is modeled on uses
                             (Apple as the top button, Google secondary). */}
-                        {isNativeApp && (
+                        {canUseNativeAppleAuth && (
                           <button
                             onClick={handleAuthApple}
                             className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-bold text-white text-base active:scale-[0.98] transition-transform"

@@ -334,6 +334,21 @@ export default function OnboardingPage() {
   // ("just need it for native Apple users, don't worry about the website").
   const isNativeApp = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
 
+  // Every build up through the one currently live on the App Store has a
+  // broken Apple sign-in (Services ID/redirect-URL misconfiguration —
+  // confirmed on-device). The fix requires a native module, so it can only
+  // ship as a new build, not an instant web deploy — but hiding the button
+  // globally in the meantime would ALSO hide it from Apple's own reviewer
+  // testing that new build, which is an automatic guideline-4.8 rejection
+  // (any third-party login, e.g. Google here, requires an equivalent Apple
+  // one). Instead: only builds with the fix tag their WebView's userAgent
+  // with "nativeAppleAuth=1" (see App.tsx/WebViewScreen.tsx) — so this only
+  // hides the button for people stuck on the old broken build, while the
+  // reviewer (testing the new build) and anyone already updated still see
+  // and can use it normally. Remove this check once the old build has fully
+  // aged out of the userbase and every native user is guaranteed current.
+  const canUseNativeAppleAuth = isNativeApp && typeof navigator !== 'undefined' && /nativeAppleAuth=1/.test(navigator.userAgent)
+
   // Native → web direction. Originally used webViewRef.postMessage() /
   // window.addEventListener('message', ...), but a full device test showed
   // that never actually delivered anything — not even a breadcrumb sent
@@ -800,12 +815,15 @@ export default function OnboardingPage() {
                           </div>
                         )}
 
-                        {/* Native-app only (see isNativeApp/handleAuthApple above) —
-                            no button renders here at all on the plain website.
+                        {/* Native-app only, AND only on a build new enough to
+                            actually have working native Apple sign-in (see
+                            canUseNativeAppleAuth above) — no button renders
+                            here at all on the plain website, or on an old
+                            native build stuck with the broken OAuth flow.
                             Apple goes first/primary, matching the convention the
                             competitor reference this flow is modeled on uses
                             (Apple as the top button, Google secondary). */}
-                        {isNativeApp && (
+                        {canUseNativeAppleAuth && (
                           <button
                             onClick={handleAuthApple}
                             className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-bold text-white text-base active:scale-[0.98] transition-transform"
