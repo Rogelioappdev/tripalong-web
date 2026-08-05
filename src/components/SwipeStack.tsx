@@ -20,6 +20,7 @@ import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { track } from '@/lib/analytics'
 import { remindNotifications } from '@/lib/notifReminder'
 import { hasPlus, getTrialStatus } from '@/lib/trial'
+import { isBetaTester } from '@/lib/betaTester'
 import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
 
@@ -544,6 +545,13 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
     : userId ? computeSwipeVariant(userId) : 'capped'
   const dailyLimit = getDailySwipeLimit(swipeVariant)
 
+  // Gated behind the same hidden member code (Settings -> About -> "gertrudis")
+  // that flips users.is_beta_tester — screenshot/demo accounts only, never a
+  // real user by accident. Bypasses the daily swipe cap entirely and loops
+  // the fetched feed back to the start once exhausted, so the deck never
+  // visibly runs dry mid-session.
+  const infiniteFeed = isBetaTester(localProfile ?? userProfile)
+
   // Persist the assignment the first time we see this user, so conversion
   // and retention can be segmented by variant directly in Supabase.
   useEffect(() => {
@@ -556,7 +564,7 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
   useEffect(() => {
     if (isGuest) { setLimitChecked(true); return }
     if (!userId || !userProfile) return
-    if (hasPlus(userProfile) || dailyLimit === Infinity) {
+    if (hasPlus(userProfile) || dailyLimit === Infinity || infiniteFeed) {
       setSwipeLimitReached(false)
       setLimitChecked(true)
       return
@@ -571,7 +579,7 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
       .catch(() => {}) // network failure shouldn't wall the user; server still enforces on increment
       .finally(() => { if (!cancelled) setLimitChecked(true) })
     return () => { cancelled = true }
-  }, [userId, userProfile, isGuest, dailyLimit])
+  }, [userId, userProfile, isGuest, dailyLimit, infiniteFeed])
 
   // Record the exposure the moment the wall goes up — whether it was hit by
   // swiping into it this session or was already reached on load. This is the
@@ -637,7 +645,7 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
       else if (item?.type === 'hangout') markHangalongSeen(item.hang.id).catch(() => {})
     }
 
-    if (!skipDailyCount && !isGuest && userId && !hasPlus(localProfile ?? userProfile) && dailyLimit !== Infinity) {
+    if (!skipDailyCount && !isGuest && userId && !hasPlus(localProfile ?? userProfile) && dailyLimit !== Infinity && !infiniteFeed) {
       // Optimistic local bump for instant UX...
       const optimistic = swipesTodayRef.current + 1
       swipesTodayRef.current = optimistic
@@ -685,7 +693,17 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
     )
   }, [trips, hangalongs])
 
-  const visibleItems = feedItems.slice(currentIndex, currentIndex + 2)
+  // Looping wraps by index (modulo) rather than re-fetching/duplicating data —
+  // currentIndex keeps counting up normally (sessionStorage persistence,
+  // nudge triggers etc. are untouched), only which feedItems it points at
+  // wraps back to the start. advance()'s markTripSeen/joinTrip calls are both
+  // upserts and handleSwipeRight already no-ops on an already-joined trip.id,
+  // so replaying the same trips again is safe — no duplicate-write errors.
+  const visibleItems = infiniteFeed && feedItems.length > 0
+    ? (feedItems.length > 1
+        ? [0, 1].map(offset => feedItems[(currentIndex + offset) % feedItems.length])
+        : [feedItems[currentIndex % feedItems.length]])
+    : feedItems.slice(currentIndex, currentIndex + 2)
   const currentItem = visibleItems[0]
 
   // Ref always points to the current top item — used in advance() to mark seen
@@ -697,7 +715,7 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
   const currentHang = currentItem?.type === 'hangout' ? currentItem.hang : null
   const nextTrip = nextItem?.type === 'trip' ? nextItem.trip : null
   const nextHang = nextItem?.type === 'hangout' ? nextItem.hang : null
-  const hasMore = currentIndex < feedItems.length
+  const hasMore = infiniteFeed ? feedItems.length > 0 : currentIndex < feedItems.length
 
   // When an ad slot becomes the top card, tell native to show AdMob content inside the frame.
   // Using isCurrentAd as the dep so the effect always sees the freshly computed value —
