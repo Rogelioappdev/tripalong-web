@@ -216,6 +216,18 @@ export default function FeedPage() {
   }
 
   useEffect(() => {
+    // Instant bounce for brand-new signups on native builds that predate
+    // intent routing (≤ build 76 always load /feed after auth, never
+    // /onboarding). The sign-in screen stashes ta_auth_intent in localStorage
+    // before handing off to native OAuth, so a lingering 'signup' here means
+    // onboarding hasn't happened yet — redirect synchronously instead of
+    // making the user watch a blank feed while getSession+getProfile round-
+    // trip (~2s) just to conclude the same thing. /onboarding removes the
+    // flag on mount, so a completed profile can never be bounced back here.
+    if (localStorage.getItem('ta_auth_intent') === 'signup') {
+      router.replace('/onboarding')
+      return
+    }
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
         setIsGuest(true)
@@ -408,7 +420,10 @@ export default function FeedPage() {
 
   // Blank screen while the incomplete-profile check above is in flight —
   // placed after every hook call (Rules of Hooks), not earlier.
-  if (checkingProfile) return <div style={{ position: 'fixed', inset: 0, backgroundColor: '#000' }} />
+  // zIndex 60 so it also covers BottomTabBar (root layout, z-50) — without
+  // it the tab bar floats above this cover and the redirect-in-flight state
+  // reads as a broken app shell instead of a plain loading screen.
+  if (checkingProfile) return <div style={{ position: 'fixed', inset: 0, backgroundColor: '#000', zIndex: 60 }} />
 
   return (
     <>

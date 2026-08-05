@@ -161,6 +161,12 @@ export default function OnboardingPage() {
   // there would make it impossible to preview the splash/auth screens at
   // all. Keep that route's behavior as-is; this divergence is intentional.
   useEffect(() => {
+    // Consume the signup-intent flag the auth buttons stash for /feed's
+    // instant-bounce fast path (see handleAuthGoogle/handleAuthApple/
+    // handleAuthEmailSubmit, and feed/page.tsx's check). Clearing it the
+    // moment onboarding mounts means a stale flag can never redirect a
+    // completed profile back here — worst case is one extra hop, never a loop.
+    localStorage.removeItem('ta_auth_intent')
     supabase.auth.getUser().then(async ({ data }) => {
       if (data.user) {
         // Safety net for native's intent-based routing (see handleAuthGoogle/
@@ -194,6 +200,21 @@ export default function OnboardingPage() {
     }
     return () => { delete (window as any).__tripalongGoogleSignInResult }
   }, [router])
+
+  // Tell the native shell this page is ready — only /feed and SwipeStack ever
+  // sent app_ready, so a post-signup landing here left WebViewScreen's splash
+  // sitting on its 4s fallback timer over an already-rendered screen. Fires
+  // once the initial auth check has decided what to show (auth stage for
+  // logged-out, valueprop for a fresh signup); two rAFs so the decided UI is
+  // actually painted before the splash starts fading.
+  useEffect(() => {
+    if (!authChecked) return
+    const w = window as any
+    if (!w.ReactNativeWebView) return
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      w.ReactNativeWebView.postMessage(JSON.stringify({ type: 'app_ready' }))
+    }))
+  }, [authChecked])
 
   const currentYear = new Date().getFullYear()
   const newAge = newBirthYear
@@ -303,6 +324,11 @@ export default function OnboardingPage() {
       // check to bounce incomplete profiles to /onboarding after the fact —
       // a real, visible round-trip. Passing intent up front lets native go
       // straight to the right page the first time.
+      // Also stashed in localStorage (shared across the pre-auth and post-auth
+      // WebViews) so /feed can instant-bounce a fresh signup to /onboarding on
+      // old native builds that ignore `intent` and always load /feed —
+      // mirrors handleAuthEmailSubmit's existing stash for the SESSION_BRIDGE.
+      localStorage.setItem('ta_auth_intent', authMode)
       ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'google_signin', intent: authMode }))
       startAuthWatchdog('Google')
       return
@@ -324,6 +350,9 @@ export default function OnboardingPage() {
     haptic(8)
     setAuthError('')
     if ((window as any).ReactNativeWebView) {
+      // Same stash as handleAuthGoogle — lets /feed instant-bounce fresh
+      // signups on old native builds that always load /feed post-auth.
+      localStorage.setItem('ta_auth_intent', authMode)
       ;(window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'apple_signin', intent: authMode }))
       startAuthWatchdog('Apple')
     }
