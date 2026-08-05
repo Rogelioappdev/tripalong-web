@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion, type TargetAndTransition, type Transition } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { haptic } from '@/lib/haptics'
 
@@ -239,7 +239,7 @@ export function WelcomeReveal({ onDone }: { onDone: () => void }) {
         ? { x: -560, rotate: -22, opacity: 0 }
         : { y: 470, scale: 0.55, opacity: 0 }
 
-  const cardAnimate = (i: number): Record<string, unknown> => {
+  const cardAnimate = (i: number): TargetAndTransition => {
     const size = { width: cardW, height: cardH, marginLeft: -cardW / 2, marginTop: -cardH / 2 }
     if (phase === 'emerge') {
       const slot = SLOTS[i]
@@ -270,7 +270,7 @@ export function WelcomeReveal({ onDone }: { onDone: () => void }) {
     }
   }
 
-  const cardTransition = (i: number): Record<string, unknown> => {
+  const cardTransition = (i: number): Transition => {
     if (phase === 'demo' && i === flying && i < swipesRef.current) {
       return { duration: 0.95, times: [0, 0.42, 1], ease: 'easeIn' }
     }
