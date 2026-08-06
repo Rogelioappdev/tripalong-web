@@ -7,32 +7,26 @@ import { haptic } from '@/lib/haptics'
 import { track } from '@/lib/analytics'
 import { registerPush, getNotificationStatusAsync, type NotificationStatus } from '@/lib/push'
 import { getTravelImages } from '@/lib/queries'
-import { TripPreviewCard } from './TripPreviewCard'
 import { TrialOfferPaywall } from './TrialOfferPaywall'
 import type { UserProfile } from '@/lib/types'
 
 // The run-up to the paywall, modelled on Cal AI's sequence:
 //
-//   1. intro     — "we want you to try it free", product shown in use
+//   1. value     — what's free and what it unlocks, up front
 //   2. reminder  — "we'll tell you before it ends", the risk-reversal beat
-//   3. value     — what's actually free, right before the price appears
-//   4. paywall   — the actual offer (our existing TrialOfferPaywall)
+//   3. paywall   — the actual offer (our existing TrialOfferPaywall)
 //
-// The first three sell nothing. Their job is that by the time plan cards
-// appear, the user has been told three times that today costs nothing and
-// once, concretely, what they're getting. The "no payment due now" footer is
-// deliberately identical on every screen — it's the one line that has to
-// survive the whole sequence.
+// The first two sell nothing. Their job is that by the time plan cards
+// appear, the user has been told what they're getting and that today costs
+// nothing. The "no payment due now" footer is deliberately identical on every
+// screen — it's the one line that has to survive the whole sequence.
 
-type Step = 'intro' | 'reminder' | 'value' | 'paywall'
+type Step = 'value' | 'reminder' | 'paywall'
 
 interface Props {
   userId: string
   onDone: (profile: UserProfile | null) => void
   source?: 'onboarding' | 'swipe_wall'
-  // The swipe wall is itself the intro beat — it already showed the locked
-  // deck and made the free-days offer — so it enters at the reminder step
-  // rather than pitching the product to someone mid-swipe.
   startAt?: Step
 }
 
@@ -78,7 +72,7 @@ function PrimaryButton({ label, onClick, disabled }: { label: string; onClick: (
   )
 }
 
-export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'intro' }: Props) {
+export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'value' }: Props) {
   const [step, setStep] = useState<Step>(startAt)
   const [notifStatus, setNotifStatus] = useState<NotificationStatus | null>(null)
   const [notifPanel, setNotifPanel] = useState<'none' | 'granted' | 'instructions'>('none')
@@ -219,7 +213,7 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'in
               onClick={() => {
                 haptic(6)
                 setNotifPanel('none')
-                setStep(step === 'value' ? 'reminder' : 'intro')
+                setStep('value')
               }}
               className="active:opacity-60"
               style={{
@@ -254,40 +248,62 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'in
         </div>
 
         <AnimatePresence mode="wait">
-          {/* ── 1. INTRO ─────────────────────────────────────────────── */}
-          {step === 'intro' && (
+          {/* ── 1. VALUE ─────────────────────────────────────────────── */}
+          {step === 'value' && (
             <motion.div
-              key="intro"
+              key="value"
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.26, ease: 'easeOut' }}
               className="flex-1 min-h-0 flex flex-col"
             >
-              <h1
-                className="text-center font-extrabold"
-                style={{ color: '#fff', fontSize: 32, lineHeight: 1.15, letterSpacing: '-1px', marginTop: 10 }}
-              >
-                We want you to try
-                <br />
-                <span style={{ color: CREAM }}>TripAlong+</span> for free
-              </h1>
-
-              {/* The product actually running — real trips from the live feed,
-                  cycling with real Pass/Join/Save states. Not a screenshot. */}
-              <div className="flex-1 min-h-0 flex items-center justify-center" style={{ paddingBlock: 18 }}>
-                <div
-                  style={{
-                    padding: 8, borderRadius: 34,
-                    backgroundColor: '#111',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
-                  }}
+              <div style={{ textAlign: 'center', marginTop: 8 }}>
+                <motion.p
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                  className="font-extrabold"
+                  style={{ color: CREAM, fontSize: 56, lineHeight: 1, letterSpacing: '-2.5px' }}
                 >
-                  <div style={{ borderRadius: 27, overflow: 'hidden' }}>
-                    <TripPreviewCard />
-                  </div>
-                </div>
+                  FREE
+                </motion.p>
+                <h1
+                  className="font-extrabold"
+                  style={{ color: '#fff', fontSize: 24, lineHeight: 1.2, letterSpacing: '-0.6px', marginTop: 8 }}
+                >
+                  for 3 days — here&rsquo;s
+                  <br />
+                  everything that unlocks
+                </h1>
+              </div>
+
+              <div className="flex-1 min-h-0 flex flex-col justify-center" style={{ gap: 16, paddingBlock: 20 }}>
+                {VALUE.map((f, i) => (
+                  <motion.div
+                    key={f.label}
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 + i * 0.08, duration: 0.32, ease: 'easeOut' }}
+                    className="flex gap-3 items-start text-left"
+                  >
+                    <div
+                      className="flex items-center justify-center shrink-0"
+                      style={{
+                        width: 38, height: 38, borderRadius: 13,
+                        backgroundColor: 'rgba(240,235,227,0.08)',
+                        border: '0.5px solid rgba(240,235,227,0.14)',
+                        color: CREAM, fontSize: 16,
+                      }}
+                    >
+                      {f.icon}
+                    </div>
+                    <div className="min-w-0" style={{ paddingTop: 1 }}>
+                      <p style={{ color: '#fff', fontSize: 14.5, fontWeight: 700 }}>{f.label}</p>
+                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12.5, lineHeight: 1.5, marginTop: 1 }}>{f.sub}</p>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
 
               <div className="shrink-0">
@@ -431,75 +447,11 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'in
                 </AnimatePresence>
 
                 <NoPaymentDue />
-                <PrimaryButton label="Continue for free" onClick={() => { haptic(12); setStep('value') }} />
-              </div>
-            </motion.div>
-          )}
-
-          {/* ── 3. VALUE ─────────────────────────────────────────────── */}
-          {step === 'value' && (
-            <motion.div
-              key="value"
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -24 }}
-              transition={{ duration: 0.26, ease: 'easeOut' }}
-              className="flex-1 min-h-0 flex flex-col"
-            >
-              <div style={{ textAlign: 'center', marginTop: 8 }}>
-                <motion.p
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-                  className="font-extrabold"
-                  style={{ color: CREAM, fontSize: 56, lineHeight: 1, letterSpacing: '-2.5px' }}
-                >
-                  FREE
-                </motion.p>
-                <h1
-                  className="font-extrabold"
-                  style={{ color: '#fff', fontSize: 24, lineHeight: 1.2, letterSpacing: '-0.6px', marginTop: 8 }}
-                >
-                  for 3 days — here&rsquo;s
-                  <br />
-                  everything that unlocks
-                </h1>
-              </div>
-
-              <div className="flex-1 min-h-0 flex flex-col justify-center" style={{ gap: 16, paddingBlock: 20 }}>
-                {VALUE.map((f, i) => (
-                  <motion.div
-                    key={f.label}
-                    initial={{ opacity: 0, x: -12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + i * 0.08, duration: 0.32, ease: 'easeOut' }}
-                    className="flex gap-3 items-start text-left"
-                  >
-                    <div
-                      className="flex items-center justify-center shrink-0"
-                      style={{
-                        width: 38, height: 38, borderRadius: 13,
-                        backgroundColor: 'rgba(240,235,227,0.08)',
-                        border: '0.5px solid rgba(240,235,227,0.14)',
-                        color: CREAM, fontSize: 16,
-                      }}
-                    >
-                      {f.icon}
-                    </div>
-                    <div className="min-w-0" style={{ paddingTop: 1 }}>
-                      <p style={{ color: '#fff', fontSize: 14.5, fontWeight: 700 }}>{f.label}</p>
-                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12.5, lineHeight: 1.5, marginTop: 1 }}>{f.sub}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              <div className="shrink-0">
-                <NoPaymentDue />
                 <PrimaryButton label="Start my 3 free days" onClick={() => { haptic(12); setStep('paywall') }} />
               </div>
             </motion.div>
           )}
+
         </AnimatePresence>
       </div>
     </motion.div>
