@@ -83,7 +83,6 @@ export default function OnboardingPage() {
   // progress %, and back/next navigation, so no other function needs touching
   // when a new step is inserted.
   const [stepIndex, setStepIndex] = useState(0)
-  const [newHearAbout, setNewHearAbout] = useState('')
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [newName, setNewName] = useState('')
   const [newBirthDay, setNewBirthDay] = useState('')
@@ -251,7 +250,7 @@ export default function OnboardingPage() {
   // user already confirmed it, so a corrected date gets re-confirmed.
   useEffect(() => { setAgeConfirmed(false) }, [newBirthDay, newBirthMonth, newBirthYear])
 
-  const PRE_DNA_STEPS = ['birthday', 'attribution', 'nameGender', 'travelerType', 'photo', 'travelPhotos', 'verifyPhoto', 'location', 'tripTeaser', 'bio', 'momentum'] as const
+  const PRE_DNA_STEPS = ['birthday', 'nameGender', 'travelerType', 'photo', 'travelPhotos', 'verifyPhoto', 'location', 'tripTeaser', 'bio', 'momentum'] as const
   const POST_DNA_STEPS = [] as const
   type PreDnaStep = typeof PRE_DNA_STEPS[number]
   type PostDnaStep = typeof POST_DNA_STEPS[number]
@@ -561,7 +560,6 @@ export default function OnboardingPage() {
     if (currentStepKind === 'pre') {
       switch (currentPreDnaStep) {
         case 'birthday': return newAgeValid && ageConfirmed
-        case 'attribution': return newHearAbout !== ''
         case 'nameGender': return newName.trim().length >= 2 && !!newGender
         case 'travelerType': return newTravelerTypes.length > 0
         case 'photo': return !!photoUrl && !uploading
@@ -1133,64 +1131,6 @@ export default function OnboardingPage() {
                     </div>
 
                     <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
-                  </motion.div>
-                )}
-
-                {newStage === 'quiz' && currentPreDnaStep === 'attribution' && (
-                  <motion.div
-                    key={quizKey}
-                    custom={newDirection}
-                    variants={slideVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex-1 flex flex-col"
-                    {...quizDragProps}
-                  >
-                    <div>
-                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">How did you hear about us?</h1>
-                      <p className="text-white/38 text-sm">Help us understand how you found TripAlong.</p>
-                    </div>
-
-                    {/* Scrollable content area — 7 stacked option buttons (each
-                        py-5, rounded-3xl) plus the heading routinely add up to
-                        more than the fixed h-[100dvh] shell's height on
-                        mainstream phone viewports (e.g. ~390x844), and the
-                        shell itself is overflow-hidden with no scroll. Without
-                        this, the last option(s) and/or the Continue button got
-                        hard-clipped at the bottom edge — invisible or
-                        partially cut off — which is what made this step's
-                        Continue transition look broken/different from every
-                        other (fully-visible, shorter) quiz step's clean slide.
-                        Same fix already applied to 'location' above and
-                        'travelPhotos' below for the same reason. */}
-                    <div className="flex-1 min-h-0 overflow-y-auto mt-7">
-                      <div className="flex flex-col gap-3">
-                        {([
-                          { v: 'instagram', e: '📸', l: 'Instagram' },
-                          { v: 'tiktok', e: '🎵', l: 'TikTok' },
-                          { v: 'youtube', e: '▶️', l: 'YouTube Shorts' },
-                          { v: 'twitter', e: '✕', l: 'X (Twitter)' },
-                          { v: 'reddit', e: '🤖', l: 'Reddit' },
-                          { v: 'friend', e: '👥', l: 'A friend' },
-                          { v: 'other', e: '🌐', l: 'Other' },
-                        ]).map(o => (
-                          <button
-                            key={o.v}
-                            onClick={() => { haptic(8); setNewHearAbout(o.v) }}
-                            className="w-full flex items-center gap-3.5 py-5 px-5 rounded-3xl text-sm font-semibold border transition-colors"
-                            style={newHearAbout === o.v
-                              ? { backgroundColor: '#F0EBE3', color: '#000', borderColor: 'transparent' }
-                              : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)', borderColor: 'rgba(255,255,255,0.12)' }}
-                          >
-                            <span className="text-xl">{o.e}</span> {o.l}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="next" />
                   </motion.div>
                 )}
 
