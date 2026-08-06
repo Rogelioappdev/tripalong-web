@@ -497,15 +497,14 @@ export default function ProfilePage() {
             <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
           </button>
 
-          {/* Hero photo — square, not a wider/taller crop: PhotoCropModal always
-              outputs a 1:1 crop (round frame, aspect={1}), so a mismatched
-              aspect ratio here would crop off part of what the user just
-              centered in that circle. Matches how this same profile_photo
-              renders as a round avatar everywhere else in the app (swipe
-              cards, chat, etc. all use resizedAvatar). */}
-          <div className="relative w-full aspect-square rounded-3xl overflow-hidden bg-white/6">
+          {/* Hero photo — 3:4, matching PhotoCropModal's actual crop aspect
+              (see CROP_ASPECT there) and PublicProfileModal's own hero
+              carousel (~66dvh tall, full width — the real most-seen display
+              of this exact photo). Showing anything other than what was
+              actually cropped here would be misleading. */}
+          <div className="relative w-full aspect-[3/4] rounded-3xl overflow-hidden bg-white/6">
             {profile?.profile_photo ? (
-              <img key={profile.profile_photo} src={resizedAvatar(profile.profile_photo, 800, 80)} alt="" className="w-full h-full object-cover" />
+              <img key={profile.profile_photo} src={resizedImage(profile.profile_photo, 800, 80, Math.round(800 * 4 / 3))} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-5xl">👤</div>
             )}

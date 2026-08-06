@@ -13,10 +13,20 @@ interface PhotoCropModalProps {
 }
 
 // Fullscreen crop step shown right after a photo is picked, before it's
-// handed to handlePhotoUpload. Profile photos render as circles everywhere in
-// this app (see .ta-avatar in globals.css, and the round avatar treatment in
-// PublicProfileModal), so the crop area is round + locked to a 1:1 aspect —
-// there's no "portrait vs square" choice to make here.
+// handed to handlePhotoUpload. Was previously a round 1:1 crop (reasoning:
+// avatars render as circles everywhere via .ta-avatar) — but the actual
+// most-prominent display of this exact photo is PublicProfileModal's hero
+// carousel, a tall portrait frame (~66dvh tall, full width — roughly 3:4 on
+// most phones), not a small circle. A 1:1 crop threw away real image data
+// (more of the photo above/below the face) that the hero carousel is fully
+// capable of showing, and that a user cropping tightly to a circle would
+// have no way to know they were discarding. 3:4 is a much closer match to
+// that real display, and still crops fine into the small round avatars
+// elsewhere (chat, member chips) via their own object-fit: cover — losing a
+// little off the sides there is a far smaller tradeoff than losing the top
+// of someone's head in the one place their photo is shown large.
+const CROP_ASPECT = 3 / 4
+
 export function PhotoCropModal({ imageSrc, onConfirm, onCancel }: PhotoCropModalProps) {
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
@@ -50,8 +60,8 @@ export function PhotoCropModal({ imageSrc, onConfirm, onCancel }: PhotoCropModal
           image={imageSrc}
           crop={crop}
           zoom={zoom}
-          aspect={1}
-          cropShape="round"
+          aspect={CROP_ASPECT}
+          cropShape="rect"
           showGrid={false}
           restrictPosition
           onCropChange={setCrop}

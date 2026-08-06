@@ -1155,11 +1155,10 @@ export default function OnboardingPage() {
                     <div className="flex-1 flex items-center justify-center py-4">
                       <button
                         onClick={() => fileRef.current?.click()}
-                        // Square, not a taller/wider crop — PhotoCropModal always
-                        // outputs a 1:1 crop (round frame, aspect={1}), so a
-                        // mismatched preview box here would crop off the sides
-                        // of exactly what the user just centered in that circle.
-                        className="w-44 aspect-square rounded-3xl border-2 border-dashed overflow-hidden flex flex-col items-center justify-center gap-3 relative active:scale-[0.97] transition-transform"
+                        // 3:4, matching PhotoCropModal's actual crop aspect (see
+                        // CROP_ASPECT there) — this preview must show exactly
+                        // what was cropped, no more, no less.
+                        className="w-44 aspect-[3/4] rounded-3xl border-2 border-dashed overflow-hidden flex flex-col items-center justify-center gap-3 relative active:scale-[0.97] transition-transform"
                         style={{ borderColor: photoUrl ? 'rgba(240,235,227,0.4)' : 'rgba(255,255,255,0.15)' }}
                       >
                         {photoUrl ? (
