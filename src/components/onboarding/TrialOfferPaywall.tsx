@@ -153,10 +153,13 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
 
   const content = (
     <motion.div
+      // The backdrop itself only fades — it must never translate, or a strip
+      // of the screen underneath shows at the edge. The content column below
+      // does the sliding, matching TrialFlow's step transition.
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.28, ease: 'easeInOut' }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
       style={{ position: 'fixed', inset: 0, zIndex: 100, overflow: 'hidden' }}
     >
       {/* Base layer — always painted on frame one, so the screen is never
@@ -185,11 +188,19 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
         background: 'linear-gradient(to bottom, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.72) 35%, rgba(5,5,5,0.94) 70%, #050505 100%)',
       }} />
 
-      <div style={{
-        position: 'relative', zIndex: 1, height: '100%',
-        display: 'flex', flexDirection: 'column',
-        overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-      }}>
+      {/* Same x: 24 → 0 / 0.26s easeOut as TrialFlow's steps, so the paywall
+          reads as the next screen in the sequence instead of a different
+          surface opening on top. */}
+      <motion.div
+        initial={{ opacity: 0, x: 24 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.26, ease: 'easeOut' }}
+        style={{
+          position: 'relative', zIndex: 1, height: '100%',
+          display: 'flex', flexDirection: 'column',
+          overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+        }}
+      >
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           paddingTop: 'calc(env(safe-area-inset-top) + 20px)',
@@ -217,36 +228,32 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
             </button>
           </div>
 
-          {/* Hero — one badge's worth of "this is free" messaging lives on the
-              yearly card below; a second pill up here was saying the same
-              thing twice before the user even reached the offer itself. */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.15, duration: 0.5, type: 'spring', stiffness: 260, damping: 22 }}
-            style={{ textAlign: 'center', lineHeight: 1, marginBottom: 4, marginTop: 12 }}
-          >
-            <span style={{ fontSize: 84, fontWeight: 900, letterSpacing: '-4px', color: '#ffffff' }}>3 days</span>
-          </motion.div>
-          <motion.p
-            initial={{ opacity: 0, y: 8 }}
+          {/* Hero. The two screens before this one already carry the FREE
+              message — this is the conversion screen, so it states the offer
+              once, plainly, and gets out of the way. The remaining free
+              mentions are the plan badge and the legal fine print, both of
+              which are factual rather than persuasive.
+              Tracks the selected plan so the headline can never promise a
+              trial the chosen plan doesn't include. */}
+          <motion.h2
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.36, ease: 'easeOut' }}
-            style={{ textAlign: 'center', color: 'rgba(255,255,255,0.55)', fontSize: 17, fontWeight: 500, marginBottom: 6 }}
+            transition={{ delay: 0.12, duration: 0.4, ease: 'easeOut' }}
+            style={{
+              textAlign: 'center', color: '#fff',
+              fontSize: 29, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.8px',
+              maxWidth: 320, margin: '18px auto 26px',
+            }}
           >
-            of <span style={{ color: '#F0EBE3', fontWeight: 700 }}>TripAlong+</span>
-            {fromWall ? ' — you’ve earned it' : ', on us'}
-          </motion.p>
-          <motion.p
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.38, duration: 0.36, ease: 'easeOut' }}
-            style={{ textAlign: 'center', color: 'rgba(255,255,255,0.32)', fontSize: 13, maxWidth: 280, margin: '0 auto 26px' }}
-          >
-            {fromWall
-              ? 'You hit the daily limit because you actually use this. Cancel before day 3 and you won’t be charged a cent.'
-              : "No pressure — cancel before day 3 and you won't be charged a cent."}
-          </motion.p>
+            {plan === 'annual' ? (
+              <>
+                Start your 3-day <span style={{ color: '#F0EBE3' }}>free</span> trial
+                {fromWall ? ' to keep swiping' : ' to continue'}
+              </>
+            ) : (
+              <>Go <span style={{ color: '#F0EBE3' }}>TripAlong+</span>{fromWall ? ' to keep swiping' : ' to continue'}</>
+            )}
+          </motion.h2>
 
           {/* Timeline */}
           <div style={{ marginBottom: 26 }}>
@@ -393,10 +400,12 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
                 transition={{ duration: holding ? 1.5 : 0.2, ease: 'linear' }}
               />
               <span style={{ position: 'relative', zIndex: 1 }}>
+                {/* The headline above already states the offer — the button
+                    just needs to be the obvious thing to press, not repeat it. */}
                 {loading ? (isNativeApp() ? 'Unlocking…' : 'Opening checkout…')
                   : holding ? 'Hold to confirm…'
                   : plan === 'annual'
-                    ? (fromWall ? 'Keep swiping — 3 days free →' : 'Start my free 3 days →')
+                    ? 'Continue'
                     : `Continue — ${secondaryPrice}${secondaryUnit}`}
               </span>
             </button>
@@ -432,7 +441,7 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
           </motion.div>
 
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   )
 
