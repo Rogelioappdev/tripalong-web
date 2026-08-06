@@ -19,6 +19,12 @@ interface Props {
   // came here for, so the frame is "you earned this" and the same hold gesture
   // reads as the app making it hard to say yes. Plain tap there.
   source?: 'onboarding' | 'swipe_wall'
+  // A background image already fetched AND decoded by TrialFlow during the
+  // earlier steps. Without it this screen fetches on mount and the blurred
+  // photo lands a beat after everything else, which reads as the paywall
+  // still loading. When provided we skip the fetch entirely and paint it on
+  // the first frame.
+  backgroundImage?: string | null
 }
 
 function SelectDot({ selected }: { selected: boolean }) {
@@ -44,9 +50,9 @@ const TIMELINE = [
   { icon: '💳', title: 'Day 3', body: "Your trial ends. We'll only charge you if you decide to stay — cancel anytime before, no questions asked." },
 ] as const
 
-export function TrialOfferPaywall({ userId, onDone, source = 'onboarding' }: Props) {
+export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backgroundImage = null }: Props) {
   const [plan, setPlan] = useState<'annual' | 'secondary'>('annual')
-  const [travelImages, setTravelImages] = useState<string[]>([])
+  const [travelImages, setTravelImages] = useState<string[]>(backgroundImage ? [backgroundImage] : [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [holding, setHolding] = useState(false)
@@ -69,8 +75,9 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding' }: Pro
   const secondaryUnit = native ? '/mo' : '/wk'
 
   useEffect(() => {
+    if (backgroundImage) return // already painted, nothing to wait for
     getTravelImages(12).then(imgs => setTravelImages(imgs))
-  }, [])
+  }, [backgroundImage])
 
   useEffect(() => {
     track('paywall_viewed', { surface, trigger: 'onboarding-trial', rail: isNativeApp() ? 'native' : 'web' })
@@ -152,7 +159,13 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding' }: Pro
       transition={{ duration: 0.28, ease: 'easeInOut' }}
       style={{ position: 'fixed', inset: 0, zIndex: 100, overflow: 'hidden' }}
     >
-      {/* Travel photo background, same treatment as the founding-member reward screen */}
+      {/* Base layer — always painted on frame one, so the screen is never
+          waiting on the network to look finished. The photo fades in over
+          this rather than popping in against nothing. */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'radial-gradient(120% 80% at 50% 0%, #1c1a18 0%, #0c0b0a 55%, #050505 100%)',
+      }} />
       {travelImages[0] && (
         <div style={{
           position: 'absolute', inset: 0,
@@ -161,8 +174,12 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding' }: Pro
           backgroundPosition: 'center',
           filter: 'blur(22px) saturate(1.2) brightness(0.55)',
           transform: 'scale(1.07)',
+          // Instant when TrialFlow preloaded it; a soft fade in the fallback
+          // path where this component had to fetch it itself.
+          animation: backgroundImage ? undefined : 'ta-bg-fade 420ms ease-out',
         }} />
       )}
+      <style>{'@keyframes ta-bg-fade { from { opacity: 0 } to { opacity: 1 } }'}</style>
       <div style={{
         position: 'absolute', inset: 0,
         background: 'linear-gradient(to bottom, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.72) 35%, rgba(5,5,5,0.94) 70%, #050505 100%)',
