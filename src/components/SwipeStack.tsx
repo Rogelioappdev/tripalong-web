@@ -20,7 +20,7 @@ import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { track } from '@/lib/analytics'
 import { remindNotifications } from '@/lib/notifReminder'
 import { hasPlus, getTrialStatus, canOfferFreeTrial } from '@/lib/trial'
-import { TrialOfferPaywall } from './onboarding/TrialOfferPaywall'
+import { TrialFlow } from './onboarding/TrialFlow'
 import { isBetaTester } from '@/lib/betaTester'
 import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
@@ -1133,13 +1133,18 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
           />
         )}
 
-        {/* The real 3-day trial — same screen onboarding sells, opened with
-            the earned frame. onDone(null) means they backed out; a non-null
-            profile is the server-confirmed Plus state from PlusWelcomeFlow. */}
+        {/* The real 3-day trial — same flow onboarding sells, opened with the
+            earned frame. Enters at the reminder beat rather than the intro:
+            the wall already showed the locked deck and made the free-days
+            offer, so re-pitching the product to someone mid-swipe would just
+            be a tax between them and the thing they asked for.
+            onDone(null) means they backed out; a non-null profile is the
+            server-confirmed Plus state from PlusWelcomeFlow. */}
         {showWallTrial && userId && (
-          <TrialOfferPaywall
+          <TrialFlow
             userId={userId}
             source="swipe_wall"
+            startAt="reminder"
             onDone={(confirmed) => {
               setShowWallTrial(false)
               if (!confirmed) return

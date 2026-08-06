@@ -19,7 +19,7 @@ import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 import { LiveVerificationCapture } from '@/components/onboarding/LiveVerificationCapture'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
-import { TrialOfferPaywall } from '@/components/onboarding/TrialOfferPaywall'
+import { TrialFlow } from '@/components/onboarding/TrialFlow'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
 import { getFlag } from '@/lib/countries'
 import { TRAVELER_TYPES, MAX_TRAVELER_TYPES } from '@/lib/travelerTypes'
@@ -1950,9 +1950,10 @@ export default function OnboardingPage() {
             foot-in-the-door ask (notifications) — X to skip either way, so this
             is never a hard gate. See tripalong_paywall_conversion_plan.md. */}
         {showTrialPaywall && authedUserId && (
-          <TrialOfferPaywall
+          <TrialFlow
             key="trial-paywall"
             userId={authedUserId}
+            source="onboarding"
             onDone={() => { setShowTrialPaywall(false); goStage('finale', 1) }}
           />
         )}

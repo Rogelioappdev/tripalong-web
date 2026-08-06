@@ -36,6 +36,10 @@ type EventProps = {
   // The swipe wall's own two outcomes. `eligible` records whether we offered
   // the trial frame or the plain paid frame (see canOfferFreeTrial), so the
   // two populations never get averaged together in the funnel.
+  // The pre-paywall run-up (intro → reminder → paywall). Each step is its own
+  // drop-off point, so a funnel on this shows whether the sequence is warming
+  // people up or just adding taps between them and the offer.
+  trial_flow_step_viewed: { step: string; source: string }
   wall_cta_tapped: { rail: Rail; eligible: boolean }
   wall_declined: { rail: Rail; eligible: boolean }
   purchase_cancelled: { rail: Rail }
