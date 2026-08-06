@@ -136,6 +136,16 @@ export default function SettingsPage() {
   const [memberVerified, setMemberVerified] = useState(false)
   const [betaSaving, setBetaSaving] = useState(false)
 
+  // Fully separate from the member code above — this one is server-validated
+  // (one-time codes hashed in the creator_access_codes table, never stored in
+  // plaintext anywhere) and actually grants a real, permanent TripAlong+
+  // subscription via /api/redeem-creator-code, not just a client-side flag.
+  const [showCreatorCode, setShowCreatorCode] = useState(false)
+  const [creatorCode, setCreatorCode] = useState('')
+  const [creatorCodeError, setCreatorCodeError] = useState('')
+  const [creatorRedeeming, setCreatorRedeeming] = useState(false)
+  const [creatorRedeemed, setCreatorRedeemed] = useState(false)
+
   useEffect(() => {
     // getSession() reads the locally persisted session — no network round
     // trip, so a transient blip (e.g. WebView resuming from background)
@@ -212,6 +222,31 @@ export default function SettingsPage() {
     } else {
       haptic([8, 20, 8])
       setMemberCodeError(true)
+    }
+  }
+
+  const handleCreatorCodeSubmit = async () => {
+    if (!creatorCode.trim() || creatorRedeeming) return
+    setCreatorRedeeming(true)
+    setCreatorCodeError('')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Please sign in again.')
+      const res = await fetch('/api/redeem-creator-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ code: creatorCode.trim() }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error ?? 'Invalid or already-used code')
+      haptic(10)
+      setCreatorRedeemed(true)
+      setProfile(p => p ? { ...p, subscription_tier: 'plus', subscription_status: 'creator_comp', subscription_expires_at: null } : p)
+    } catch (e: any) {
+      haptic([8, 20, 8])
+      setCreatorCodeError(e?.message ?? 'Invalid or already-used code')
+    } finally {
+      setCreatorRedeeming(false)
     }
   }
 
@@ -458,6 +493,53 @@ export default function SettingsPage() {
                   border
                   right={<Toggle value={!!profile?.is_beta_tester} onChange={() => handleToggleBetaTester()} />}
                 />
+              </div>
+            )}
+          </Group>
+
+          {/* ── Content creator comp — fully separate from the member code
+              above: server-validated one-time codes (hashed, single-use,
+              tracked in creator_access_codes) that grant a real, permanent
+              TripAlong+ subscription via /api/redeem-creator-code, not a
+              client-side flag. ── */}
+          <Group title="Content Creators">
+            <Row
+              label="Are you a TripAlong Content Creator?"
+              sub="Enter your code"
+              chevron={!showCreatorCode}
+              border={false}
+              onPress={showCreatorCode ? undefined : () => setShowCreatorCode(true)}
+            />
+            {showCreatorCode && !creatorRedeemed && (
+              <div className="px-4 pb-4 flex flex-col gap-3" style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
+                <input
+                  value={creatorCode}
+                  onChange={e => { setCreatorCode(e.target.value); setCreatorCodeError('') }}
+                  placeholder="Code"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  className="w-full bg-white/6 border rounded-2xl px-4 py-3 text-white text-sm outline-none mt-3"
+                  style={{ borderColor: creatorCodeError ? '#FF3B30' : 'rgba(255,255,255,0.12)', fontSize: 16 }}
+                />
+                {creatorCodeError && <p className="text-red-400 text-xs">{creatorCodeError}</p>}
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => { haptic(8); setShowCreatorCode(false); setCreatorCode(''); setCreatorCodeError('') }}
+                    className="flex-1 py-3 rounded-2xl text-sm active:scale-95 transition-transform"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={() => { haptic(8); handleCreatorCodeSubmit() }}
+                    disabled={creatorRedeeming}
+                    className="flex-1 py-3 rounded-2xl text-sm font-semibold active:scale-95 transition-transform disabled:opacity-50"
+                    style={{ backgroundColor: '#F0EBE3', color: '#000' }}>
+                    {creatorRedeeming ? 'Checking…' : 'Submit'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {showCreatorCode && creatorRedeemed && (
+              <div className="px-4 pb-4" style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-white/70 text-sm pt-3">You're all set — TripAlong+ is now free on this account, no time limit. Thank you for creating content for TripAlong! 🎉</p>
               </div>
             )}
           </Group>
