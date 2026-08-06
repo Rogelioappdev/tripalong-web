@@ -722,6 +722,7 @@ export default function FeedPage() {
                 onTripTap={setSelectedTrip}
                 onSave={handleTripSaved}
                 onProfileClaimed={setFeedProfile}
+                onOpenSaved={() => setShowSaved(true)}
               />
             </div>
           ) : (

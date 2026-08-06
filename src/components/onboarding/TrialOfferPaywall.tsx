@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { track } from '@/lib/analytics'
-import { purchasePlus, isNativeApp, type BillingInterval } from '@/lib/purchase'
+import { purchasePlus, restorePurchases, isNativeApp, type BillingInterval } from '@/lib/purchase'
 import { getTravelImages } from '@/lib/queries'
 import { PlusWelcomeFlow } from '../PlusWelcomeFlow'
 import type { UserProfile } from '@/lib/types'
@@ -13,6 +13,12 @@ import type { UserProfile } from '@/lib/types'
 interface Props {
   userId: string
   onDone: (profile: UserProfile | null) => void
+  // Where this screen was opened from. Onboarding is ceremonial — the offer is
+  // aspirational and the hold-to-confirm gesture reads as a commitment ritual.
+  // The swipe wall is mid-task: the user was interrupted doing the thing they
+  // came here for, so the frame is "you earned this" and the same hold gesture
+  // reads as the app making it hard to say yes. Plain tap there.
+  source?: 'onboarding' | 'swipe_wall'
 }
 
 function SelectDot({ selected }: { selected: boolean }) {
@@ -38,22 +44,37 @@ const TIMELINE = [
   { icon: '💳', title: 'Day 3', body: "Your trial ends. We'll only charge you if you decide to stay — cancel anytime before, no questions asked." },
 ] as const
 
-export function TrialOfferPaywall({ userId, onDone }: Props) {
-  const [plan, setPlan] = useState<'annual' | 'weekly'>('annual')
+export function TrialOfferPaywall({ userId, onDone, source = 'onboarding' }: Props) {
+  const [plan, setPlan] = useState<'annual' | 'secondary'>('annual')
   const [travelImages, setTravelImages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [holding, setHolding] = useState(false)
   const [showWelcome, setShowWelcome] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const fromWall = source === 'swipe_wall'
+  const surface = fromWall ? 'swipe_wall_trial' : 'onboarding_trial'
+
+  // The no-trial anchor plan. Weekly is the stronger decoy ($6.99/wk makes
+  // $39.99/yr look obvious), but purchase.ts:45 still throws on native for
+  // weekly — real installed builds would silently charge Monthly instead — so
+  // native gets a real Monthly card rather than a card that errors on tap.
+  // Flip this back to weekly everywhere once a weekly-aware build is live.
+  const native = isNativeApp()
+  const secondaryBilling: BillingInterval = native ? 'monthly' : 'weekly'
+  const secondaryLabel = native ? 'Monthly' : 'Weekly'
+  const secondaryPrice = native ? '$6.99' : '$6.99'
+  const secondaryUnit = native ? '/mo' : '/wk'
 
   useEffect(() => {
     getTravelImages(12).then(imgs => setTravelImages(imgs))
   }, [])
 
   useEffect(() => {
-    track('paywall_viewed', { surface: 'onboarding_trial', trigger: 'onboarding-trial', rail: isNativeApp() ? 'native' : 'web' })
-  }, [])
+    track('paywall_viewed', { surface, trigger: 'onboarding-trial', rail: isNativeApp() ? 'native' : 'web' })
+  }, [surface])
 
   const skip = () => {
     haptic(6)
@@ -66,14 +87,38 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const billing: BillingInterval = plan === 'annual' ? 'annual' : 'weekly'
+      const billing: BillingInterval = plan === 'annual' ? 'annual' : secondaryBilling
       await purchasePlus(billing, 'onboarding-trial')
+      // Annual is the only plan carrying the 3-day offer (StoreKit intro on
+      // native, trial_period_days on Stripe) — so this, not purchase_completed,
+      // is the event that means "a trial actually started".
+      if (billing === 'annual') {
+        track('trial_started', { surface, rail: isNativeApp() ? 'native' : 'web', billing })
+      }
       haptic(16)
       setTimeout(() => setShowWelcome(true), 400)
     } catch (err: any) {
       setLoading(false)
       if (err?.message === 'cancelled') return
       setError(err?.message ?? 'Something went wrong. Try again.')
+    }
+  }
+
+  // App Store Review 3.1.2 requires a restore path on any screen selling an
+  // auto-renewable subscription. PaywallModal already had one; this screen
+  // didn't, which was a real submission risk the moment it started selling on
+  // native outside onboarding.
+  const handleRestore = async () => {
+    haptic(8)
+    setRestoring(true)
+    setError(null)
+    try {
+      await restorePurchases()
+      setTimeout(() => setShowWelcome(true), 300)
+    } catch (err: any) {
+      setError(err?.message ?? 'No active purchase found for this account.')
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -172,7 +217,8 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
             transition={{ delay: 0.3, duration: 0.36, ease: 'easeOut' }}
             style={{ textAlign: 'center', color: 'rgba(255,255,255,0.55)', fontSize: 17, fontWeight: 500, marginBottom: 6 }}
           >
-            of <span style={{ color: '#F0EBE3', fontWeight: 700 }}>TripAlong+</span>, on us
+            of <span style={{ color: '#F0EBE3', fontWeight: 700 }}>TripAlong+</span>
+            {fromWall ? ' — you’ve earned it' : ', on us'}
           </motion.p>
           <motion.p
             initial={{ opacity: 0, y: 8 }}
@@ -180,7 +226,9 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
             transition={{ delay: 0.38, duration: 0.36, ease: 'easeOut' }}
             style={{ textAlign: 'center', color: 'rgba(255,255,255,0.32)', fontSize: 13, maxWidth: 280, margin: '0 auto 26px' }}
           >
-            No pressure — cancel before day 3 and you won't be charged a cent.
+            {fromWall
+              ? 'You hit the daily limit because you actually use this. Cancel before day 3 and you won’t be charged a cent.'
+              : "No pressure — cancel before day 3 and you won't be charged a cent."}
           </motion.p>
 
           {/* Timeline */}
@@ -265,25 +313,25 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
 
             <button
               type="button"
-              onClick={() => { haptic(6); setPlan('weekly') }}
+              onClick={() => { haptic(6); setPlan('secondary') }}
               style={{
                 textAlign: 'left', padding: '14px 16px',
                 borderRadius: 18,
-                backgroundColor: plan === 'weekly' ? 'rgba(240,235,227,0.07)' : 'rgba(255,255,255,0.04)',
-                border: plan === 'weekly' ? '1.5px solid #F0EBE3' : '1.5px solid rgba(255,255,255,0.1)',
+                backgroundColor: plan === 'secondary' ? 'rgba(240,235,227,0.07)' : 'rgba(255,255,255,0.04)',
+                border: plan === 'secondary' ? '1.5px solid #F0EBE3' : '1.5px solid rgba(255,255,255,0.1)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>Weekly</span>
-                    <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>$6.99<span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.5)' }}>/wk</span></span>
+                    <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>{secondaryLabel}</span>
+                    <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>{secondaryPrice}<span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.5)' }}>{secondaryUnit}</span></span>
                   </div>
                   <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11.5 }}>
                     No trial — starts today
                   </span>
                 </div>
-                <SelectDot selected={plan === 'weekly'} />
+                <SelectDot selected={plan === 'secondary'} />
               </div>
             </button>
           </motion.div>
@@ -299,10 +347,14 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
             )}
             <button
               type="button"
-              onPointerDown={startHold}
-              onPointerUp={cancelHold}
-              onPointerLeave={cancelHold}
-              onPointerCancel={cancelHold}
+              {...(fromWall
+                ? { onClick: () => { if (!loading) handleConfirm() } }
+                : {
+                    onPointerDown: startHold,
+                    onPointerUp: cancelHold,
+                    onPointerLeave: cancelHold,
+                    onPointerCancel: cancelHold,
+                  })}
               onContextMenu={e => e.preventDefault()}
               disabled={loading}
               className="w-full py-4 rounded-2xl font-bold text-base select-none disabled:opacity-70"
@@ -326,17 +378,36 @@ export function TrialOfferPaywall({ userId, onDone }: Props) {
               <span style={{ position: 'relative', zIndex: 1 }}>
                 {loading ? (isNativeApp() ? 'Unlocking…' : 'Opening checkout…')
                   : holding ? 'Hold to confirm…'
-                  : plan === 'annual' ? 'Start my free 3 days →' : 'Continue — $6.99/week'}
+                  : plan === 'annual'
+                    ? (fromWall ? 'Keep swiping — 3 days free →' : 'Start my free 3 days →')
+                    : `Continue — ${secondaryPrice}${secondaryUnit}`}
               </span>
             </button>
 
             <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 11, lineHeight: 1.5, marginBottom: 10 }}>
               {plan === 'annual'
-                ? "3 days free, then $39.99/year. Cancel anytime before — you won't be charged until then."
-                : '$6.99 billed weekly. Cancel anytime.'}
+                // No "we'll remind you" here until /api/cron/trial-ending
+                // actually exists (P1) — the timeline block above already
+                // makes that promise conditionally and it's currently unbacked;
+                // don't amplify it in a second place.
+                ? "3 days free, then $39.99/year. Cancel anytime before then and you won't be charged."
+                : `${secondaryPrice} billed ${native ? 'monthly' : 'weekly'}. Cancel anytime.`}
             </p>
 
             <div className="flex items-center justify-center gap-3 flex-wrap">
+              {native && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleRestore}
+                    disabled={restoring}
+                    style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textDecoration: 'underline' }}
+                  >
+                    {restoring ? 'Restoring…' : 'Restore Purchases'}
+                  </button>
+                  <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 11 }}>·</span>
+                </>
+              )}
               <a href="/terms" style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textDecoration: 'underline' }}>Terms</a>
               <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 11 }}>·</span>
               <a href="/privacy" style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, textDecoration: 'underline' }}>Privacy</a>

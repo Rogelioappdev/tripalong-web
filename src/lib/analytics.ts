@@ -18,6 +18,7 @@ export type PaywallSurface =
   | 'founding_member'   // FoundingMemberPaywall
   | 'profile_views'     // ProfileViewsSheet
   | 'onboarding_trial'  // TrialOfferPaywall — post-onboarding, pre-first-swipe
+  | 'swipe_wall_trial'  // TrialOfferPaywall — reached from the daily swipe cap
 
 // The PaywallModal's contextual trigger (why the wall appeared).
 export type PaywallTrigger = 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins' | 'filters' | 'onboarding-trial'
@@ -27,6 +28,16 @@ type EventProps = {
   paywall_viewed: { surface: PaywallSurface; rail: Rail; trigger?: PaywallTrigger }
   checkout_started: { rail: Rail; billing: Billing }
   purchase_completed: { rail: Rail; billing?: Billing }
+  // Fires the moment a trial-bearing plan is actually bought (annual, which
+  // carries the 3-day intro offer on both rails). Before this, a trial start
+  // and a straight full-price purchase were indistinguishable in analytics —
+  // which made the whole point of the wall redesign unmeasurable.
+  trial_started: { surface: PaywallSurface; rail: Rail; billing: Billing }
+  // The swipe wall's own two outcomes. `eligible` records whether we offered
+  // the trial frame or the plain paid frame (see canOfferFreeTrial), so the
+  // two populations never get averaged together in the funnel.
+  wall_cta_tapped: { rail: Rail; eligible: boolean }
+  wall_declined: { rail: Rail; eligible: boolean }
   purchase_cancelled: { rail: Rail }
   purchase_failed: { rail: Rail; reason?: string }
   // ── Swipe cap (measures the daily-limit experiment) ─────────────────

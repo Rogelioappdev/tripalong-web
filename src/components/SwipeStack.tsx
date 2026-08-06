@@ -19,7 +19,8 @@ import { RequestSentToast } from './RequestSentToast'
 import { calculateTripMatch, getMatchingVibes } from '@/lib/matching'
 import { track } from '@/lib/analytics'
 import { remindNotifications } from '@/lib/notifReminder'
-import { hasPlus, getTrialStatus } from '@/lib/trial'
+import { hasPlus, getTrialStatus, canOfferFreeTrial } from '@/lib/trial'
+import { TrialOfferPaywall } from './onboarding/TrialOfferPaywall'
 import { isBetaTester } from '@/lib/betaTester'
 import { computeSwipeVariant, getDailySwipeLimit } from '@/lib/swipeVariant'
 import type { TripWithDetails, UserProfile, HangalongWithDetails } from '@/lib/types'
@@ -73,6 +74,10 @@ interface SwipeStackProps {
   onTripTap: (trip: TripWithDetails) => void
   onSave?: (trip: TripWithDetails) => void
   onProfileClaimed?: (profile: UserProfile) => void
+  // Opens the feed page's saved-trips modal — used by the swipe wall's soft
+  // landing, so declining the offer leads somewhere real instead of a dead
+  // screen. Optional: the wall just omits that option if it isn't wired.
+  onOpenSaved?: () => void
 }
 
 // ── DNA helpers ──────────────────────────────────────────────────────────────
@@ -446,7 +451,7 @@ function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, hangalongs = [], myHangalongIds = [], joinedHangIds = [], onHangTap, onHangJoined, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed }: SwipeStackProps) {
+export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, hangalongs = [], myHangalongIds = [], joinedHangIds = [], onHangTap, onHangJoined, userId, isGuest, initialProfile, onAuthRequired, onTripTap, onSave, onProfileClaimed, onOpenSaved }: SwipeStackProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window === 'undefined') return 0
@@ -459,7 +464,7 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
   const [userProfile, setUserProfile] = useState<UserProfile | null>(initialProfile ?? null)
   const [hintVisible, setHintVisible] = useState(false)
   const [dnaNudgeActive, setDnaNudgeActive] = useState(false)
-  const { h, m, s } = useMidnightCountdown()
+  const { h, m } = useMidnightCountdown()
   const [swipeLimitReached, setSwipeLimitReached] = useState(false)
   const [limitChecked, setLimitChecked] = useState(false)
   // Fire `swipe_limit_reached` at most once per mount so PostHog sees one clean
@@ -470,6 +475,16 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
   const swipesTodayRef = useRef(0)
   const [showPaywall, setShowPaywall] = useState(false)
   const [paywallContext, setPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
+  // The wall's own trial screen (TrialOfferPaywall, reused from onboarding) —
+  // separate from showPaywall, which is the plain paid PaywallModal.
+  const [showWallTrial, setShowWallTrial] = useState(false)
+  // Declining at the wall used to leave the user on a dead screen whose only
+  // remaining instruction was "close the app". This flips it to a soft landing.
+  const [wallDeclined, setWallDeclined] = useState(false)
+  // Rendered copy of swipesTodayRef — the ref alone can't drive a re-render,
+  // and the "2 swipes left" heads-up needs one. Kept in sync at every place
+  // the ref is written.
+  const [swipesLeftToast, setSwipesLeftToast] = useState<number | null>(null)
   const [showFoundingScreen, setShowFoundingScreen] = useState(false)
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
@@ -596,6 +611,12 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
     })
   }, [swipeLimitReached, dailyLimit, swipeVariant])
 
+  useEffect(() => {
+    if (swipesLeftToast === null) return
+    const t = setTimeout(() => setSwipesLeftToast(null), 2600)
+    return () => clearTimeout(t)
+  }, [swipesLeftToast])
+
   // Show DNA nudge at card 3 — only on return visits (hint already dismissed before)
   useEffect(() => {
     if (dnaNudgeTriggered.current) return
@@ -649,6 +670,9 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
       // Optimistic local bump for instant UX...
       const optimistic = swipesTodayRef.current + 1
       swipesTodayRef.current = optimistic
+      // An expected wall reads as a rule; a surprise wall reads as a
+      // punishment. One quiet heads-up, two swipes out, once per day.
+      if (dailyLimit - optimistic === 2) setSwipesLeftToast(2)
       // ...but the server is the source of truth and can't be bypassed. Reconcile
       // with its authoritative count (e.g. if the user already swiped elsewhere).
       incrementSwipesToday()
@@ -875,9 +899,22 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
 
   if (swipeLimitReached && hasMore) {
     const effectiveProfile = localProfile ?? userProfile
-    const trialStatus = getTrialStatus(effectiveProfile)
-    const isFirstTime = trialStatus === 'none'
-    const isExpired = trialStatus === 'expired'
+    // The old no-card founding-member trial stays switched off app-wide
+    // (getTrialStatus is stubbed to 'active' and six other call sites depend
+    // on that). The wall keys off real billing history instead and offers the
+    // real 3-day store trial — the same one onboarding sells.
+    const trialEligible = canOfferFreeTrial(effectiveProfile)
+
+    // Real deck data. A blur says "something is hidden"; naming the pile says
+    // "you are being stopped mid-pile", which is the actual loss.
+    const remaining = infiniteFeed ? 0 : Math.max(0, feedItems.length - currentIndex)
+    const names = [currentTrip?.destination, nextTrip?.destination].filter(Boolean) as string[]
+    const deckLine =
+      names.length === 2 && remaining > 2 ? `${names[0]}, ${names[1]} and ${remaining - 2} more`
+      : names.length === 2 ? `${names[0]} and ${names[1]}`
+      : names.length === 1 && remaining > 1 ? `${names[0]} and ${remaining - 1} more`
+      : names.length === 1 ? names[0]
+      : 'More trips'
 
     return (
       <div className="flex flex-col items-center w-full h-full gap-0">
@@ -885,106 +922,80 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.32, ease: 'easeOut' }}
-          className="relative w-full flex-1 min-h-0 overflow-hidden rounded-3xl"
-          style={{ backgroundColor: '#111' }}
+          className="relative w-full flex-1 min-h-0 overflow-hidden rounded-3xl flex flex-col"
+          style={{ backgroundColor: '#0A0A0A' }}
         >
-          {/* Blurred next trip — shows what's locked */}
-          {currentTrip?.cover_image && (
-            <img
-              src={currentTrip.cover_image}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ filter: 'blur(20px)', transform: 'scale(1.1)' }}
-            />
-          )}
-          {/* Gradient — heavier at bottom so CTA is always legible */}
-          <div className="absolute inset-0" style={{
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.44) 0%, rgba(0,0,0,0.70) 38%, rgba(0,0,0,0.93) 100%)'
-          }} />
+          {/* Deck peek — the next card, sharp, with two stacked edges behind
+              it. The old treatment blurred this cover to 20px, which
+              abstracted the one concrete thing on the screen. */}
+          {/* Peek shrinks in the declined state — it grows three buttons and
+              a back link, and this shell is a hard overflow-hidden clamp
+              (the same clipping trap onboarding hit three times). */}
+          <div className="relative w-full shrink-0" style={{ height: wallDeclined ? '26%' : '42%' }}>
+            <div style={{
+              position: 'absolute', top: 8, left: '9%', right: '9%', height: 44,
+              borderRadius: 20, backgroundColor: '#1b1b1b',
+              border: '0.5px solid rgba(255,255,255,0.07)',
+            }} />
+            <div style={{
+              position: 'absolute', top: 16, left: '4.5%', right: '4.5%', height: 44,
+              borderRadius: 20, backgroundColor: '#242424',
+              border: '0.5px solid rgba(255,255,255,0.09)',
+            }} />
+            <div style={{
+              position: 'absolute', top: 26, left: 0, right: 0, bottom: 0,
+              borderRadius: '24px 24px 0 0', overflow: 'hidden',
+            }}>
+              {currentTrip?.cover_image && (
+                <img src={currentTrip.cover_image} alt="" className="w-full h-full object-cover" />
+              )}
+              <div className="absolute inset-0" style={{
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.30) 40%, rgba(10,10,10,0.88) 82%, #0A0A0A 100%)',
+              }} />
+            </div>
+          </div>
 
-          <div className="absolute inset-0 flex flex-col px-7 text-center" style={{ paddingTop: 32, paddingBottom: 24 }}>
+          <div className="flex-1 min-h-0 flex flex-col px-7 text-center overflow-y-auto" style={{ paddingBottom: 22, WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
 
-            {/* Top: lock + destination hook */}
+            {/* The named loss — real destinations, real remaining count */}
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.36, ease: 'easeOut' }}
-              className="flex flex-col items-center gap-3"
             >
-              <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{
-                background: 'rgba(240,235,227,0.08)',
-                border: '1px solid rgba(240,235,227,0.14)',
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.7)" strokeWidth="1.8"/>
-                  <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.7)" strokeWidth="1.8" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <div>
-                <p className="text-white font-extrabold" style={{ fontSize: 22, letterSpacing: '-0.5px', lineHeight: 1.15 }}>
-                  {isExpired ? 'Your Plus trial ended' : (currentTrip ? `${currentTrip.destination} is waiting` : 'More trips are waiting')}
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 5 }}>
-                  {isExpired ? `You're back to ${dailyLimit} daily swipes` : `You've reached your ${dailyLimit} daily swipes`}
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Spacer */}
-            <div style={{ flex: 1 }} />
-
-            {/* Countdown — the dominant anchor */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2, duration: 0.42, ease: 'easeOut' }}
-              className="flex flex-col items-center gap-2"
-            >
-              <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 10, letterSpacing: '0.12em', fontWeight: 700, textTransform: 'uppercase' }}>
-                Resets in
+              <p className="text-white font-extrabold" style={{ fontSize: 21, letterSpacing: '-0.5px', lineHeight: 1.2 }}>
+                {deckLine}
               </p>
-              <div className="flex items-start justify-center">
-                {[{ val: h, label: 'HRS' }, { val: m, label: 'MIN' }, { val: s, label: 'SEC' }].map(({ val, label }, i) => (
-                  <div key={label} className="flex items-start">
-                    <div className="flex flex-col items-center" style={{ minWidth: 58 }}>
-                      <span style={{
-                        fontVariantNumeric: 'tabular-nums',
-                        fontSize: 58, fontWeight: 800,
-                        color: '#ffffff', lineHeight: 1, letterSpacing: '-3px',
-                      }}>
-                        {val}
-                      </span>
-                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.24)', letterSpacing: '0.1em', fontWeight: 700, marginTop: 5 }}>
-                        {label}
-                      </span>
-                    </div>
-                    {i < 2 && (
-                      <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 46, fontWeight: 700, lineHeight: 1, paddingTop: 3, paddingInline: 1 }}>
-                        :
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 13, marginTop: 4 }}>
+                still in your deck
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.26)', fontSize: 12, marginTop: 10 }}>
+                You've used all {dailyLimit} swipes today
+              </p>
             </motion.div>
 
             {/* Spacer */}
             <div style={{ flex: 1 }} />
 
-            {/* "or unlock now" divider */}
-            <motion.div
+            {/* The countdown used to live here at 58px — the single largest
+                element on the screen, advertising the free alternative. It
+                still exists (hiding it would be dishonest) but it is now a
+                footnote under the CTA, not the plan. */}
+            <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.32, duration: 0.36 }}
-              className="flex items-center gap-3"
-              style={{ marginBottom: 14 }}
+              transition={{ delay: 0.28, duration: 0.36 }}
+              style={{
+                color: 'rgba(255,255,255,0.45)', fontSize: 13, lineHeight: 1.5,
+                maxWidth: 300, margin: '0 auto 14px',
+              }}
             >
-              <div style={{ flex: 1, height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-              <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em' }}>
-                {isExpired ? 'or continue now' : 'or unlock now'}
-              </span>
-              <div style={{ flex: 1, height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-            </motion.div>
+              {wallDeclined
+                ? 'No swipes left today — but you’re not stuck.'
+                : trialEligible
+                  ? 'We’d rather you feel Plus for 3 days than pay for something you haven’t tried.'
+                  : 'Unlimited swipes, every trip, no daily wall.'}
+            </motion.p>
 
             {/* CTA */}
             <motion.div
@@ -993,24 +1004,88 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
               transition={{ delay: 0.4, duration: 0.36, ease: 'easeOut' }}
               className="flex flex-col gap-1.5"
             >
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                type="button"
-                onClick={() => {
-                  haptic(14)
-                  if (isFirstTime) setShowFoundingScreen(true)
-                  else setShowPaywall(true)
-                }}
-                className="w-full font-bold py-4 rounded-2xl text-base"
-                style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
-              >
-                {isFirstTime ? 'Get 7 days free →' : isExpired ? 'Continue with Plus →' : 'Unlock unlimited →'}
-              </motion.button>
-              {isFirstTime && (
-                <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12, textAlign: 'center' }}>
-                  No card required
-                </p>
+              {wallDeclined ? (
+                <>
+                  {/* Soft landing. Deliberately does NOT hand back swipes —
+                      that would dissolve the cap and make us pay for the wall
+                      twice. It routes to things that are already theirs. */}
+                  <div className="flex flex-col gap-2">
+                    {onOpenSaved && (
+                      <button
+                        type="button"
+                        onClick={() => { haptic(8); onOpenSaved() }}
+                        className="w-full py-3 rounded-2xl font-semibold text-sm active:opacity-70"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                      >
+                        Your saved trips
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { haptic(8); router.push('/messages') }}
+                      className="w-full py-3 rounded-2xl font-semibold text-sm active:opacity-70"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                    >
+                      Your chats
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { haptic(8); router.push('/world') }}
+                      className="w-full py-3 rounded-2xl font-semibold text-sm active:opacity-70"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                    >
+                      Explore the map
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { haptic(6); setWallDeclined(false) }}
+                    className="w-full text-center py-2 active:opacity-60"
+                    style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12.5 }}
+                  >
+                    {trialEligible ? 'See the 3-day offer' : 'See TripAlong+'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    type="button"
+                    onClick={() => {
+                      haptic(14)
+                      track('wall_cta_tapped', { rail: isNativeApp() ? 'native' : 'web', eligible: trialEligible })
+                      // Eligible users get the real 3-day trial screen (same
+                      // component onboarding uses). Anyone with billing
+                      // history gets the plain paid modal — we never promise
+                      // free days we can't be sure the store will honour.
+                      if (trialEligible && userId) setShowWallTrial(true)
+                      else setShowPaywall(true)
+                    }}
+                    className="w-full font-bold py-4 rounded-2xl text-base"
+                    style={{ background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)', color: '#000' }}
+                  >
+                    {trialEligible ? 'Keep swiping — 3 days free →' : 'Unlock unlimited →'}
+                  </motion.button>
+                  <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 11.5, textAlign: 'center' }}>
+                    {trialEligible ? '$0 today · cancel in two taps' : '$39.99/yr · cancel anytime'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptic(6)
+                      track('wall_declined', { rail: isNativeApp() ? 'native' : 'web', eligible: trialEligible })
+                      setWallDeclined(true)
+                    }}
+                    className="w-full text-center py-2 active:opacity-60"
+                    style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13 }}
+                  >
+                    Not now
+                  </button>
+                </>
               )}
+              <p style={{ color: 'rgba(255,255,255,0.18)', fontSize: 11, textAlign: 'center' }}>
+                or wait {h}h {m}m for tomorrow’s {dailyLimit}
+              </p>
             </motion.div>
 
           </div>
@@ -1054,6 +1129,24 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
             onDismiss={() => {
               setShowFoundingScreen(false)
               setSwipeLimitReached(false)
+            }}
+          />
+        )}
+
+        {/* The real 3-day trial — same screen onboarding sells, opened with
+            the earned frame. onDone(null) means they backed out; a non-null
+            profile is the server-confirmed Plus state from PlusWelcomeFlow. */}
+        {showWallTrial && userId && (
+          <TrialOfferPaywall
+            userId={userId}
+            source="swipe_wall"
+            onDone={(confirmed) => {
+              setShowWallTrial(false)
+              if (!confirmed) return
+              setLocalProfile(confirmed)
+              setUserProfile(confirmed)
+              onProfileClaimed?.(confirmed)
+              if (hasPlus(confirmed)) setSwipeLimitReached(false)
             }}
           />
         )}
@@ -1215,6 +1308,35 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
           >
             <span className="text-lg shrink-0">⚠️</span>
             <p className="text-white text-sm font-medium flex-1">{joinErrorMsg}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Swipes-left heads-up — fires once, two swipes before the wall, so
+          the wall arrives as an expected rule rather than a punishment.
+          Deliberately a transient toast rather than persistent chrome: the
+          card's top corners are already occupied by the PASS/JOIN stamps. */}
+      <AnimatePresence>
+        {swipesLeftToast !== null && (
+          <motion.div
+            initial={{ y: 16, opacity: 0, scale: 0.96 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 10, opacity: 0, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            className="fixed left-4 right-4 z-50 flex items-center justify-center px-4 py-2.5 rounded-2xl pointer-events-none"
+            style={{
+              bottom: 'calc(env(safe-area-inset-bottom) + 90px)',
+              backgroundColor: 'rgba(18,18,18,0.97)',
+              border: '0.5px solid rgba(255,255,255,0.12)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              maxWidth: 260,
+              margin: '0 auto',
+            } as React.CSSProperties}
+          >
+            <p className="text-white/70 text-[13px] font-medium">
+              {swipesLeftToast} swipes left today
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
