@@ -43,10 +43,14 @@ const FEATURES = [
     sub: 'Know exactly how well you match a trip and its travelers before you commit.',
   },
   {
-    icon: '🚫',
-    label: 'No ads',
-    sub: 'Browse the feed without interruptions.',
+    icon: '👀',
+    label: 'See who viewed you',
+    sub: "Know who's been checking out your profile.",
   },
+  // Held back until it's real — the AdMob SDK is integrated but no ads run
+  // anywhere, so this was selling the absence of something that never
+  // existed. Restore it the day ads actually ship to free users.
+  // { icon: '🚫', label: 'No ads', sub: 'Browse the feed without interruptions.' },
 ]
 
 function fmtDate(iso: string | null) {
@@ -115,7 +119,7 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
         : 'Unlock to see exactly how much you match.' :
     trigger === 'rewind' ? 'Unlock rewind and never lose a great trip again.' :
     trigger === 'joins' ? "You've joined today's trip — go Plus to join as many as you want." :
-    trigger === 'upgrade' ? 'Unlimited swipes, no ads, and your compatibility % on every trip.' :
+    trigger === 'upgrade' ? 'Unlimited swipes, see who viewed you, and your compatibility % on every trip.' :
     trigger === 'filters' ? 'Search by location, dates, style, gender, and age to find exactly what you want.' :
     "You've hit today's limit. Upgrade for unlimited."
 

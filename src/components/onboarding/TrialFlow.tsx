@@ -46,7 +46,11 @@ const VALUE = [
   { icon: '∞', label: 'Unlimited swipes', sub: 'No daily wall. Every trip in the feed, whenever you want.' },
   { icon: '👀', label: 'See who viewed you', sub: 'Know who’s been checking out your profile.' },
   { icon: '✦', label: 'Your compatibility %', sub: 'See how well you match a trip before you commit.' },
-  { icon: '🚫', label: 'No ads', sub: 'Just trips.' },
+  // Held back until the thing it promises is real:
+  // { icon: '🚫', label: 'No ads', sub: 'Just trips.' },
+  // — the AdMob SDK is integrated but no ads run anywhere in the app, so
+  // "no ads" is selling the absence of something that was never there.
+  // Restore this the day ads actually ship to free users.
 ]
 
 function NoPaymentDue() {

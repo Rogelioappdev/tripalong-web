@@ -322,7 +322,7 @@ export default function SettingsPage() {
             ) : (
               <Row
                 label="Upgrade to TripAlong+"
-                sub="Unlimited swipes, no ads, and more"
+                sub="Unlimited swipes, see who viewed you, and more"
                 chevron
                 border={false}
                 onPress={() => { haptic(8); setShowPaywall(true) }}

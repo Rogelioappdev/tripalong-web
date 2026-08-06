@@ -374,7 +374,7 @@ function Paywall({ count, viewers, onClose, onSuccess, userId, onWelcomeDone }: 
           {[
             { label: 'Unlimited swipes', sub: 'Never hit a wall mid-session' },
             { label: 'See who viewed your profile', sub: 'Know who\'s already interested' },
-            { label: 'No ads', sub: 'Browse the feed without interruptions' },
+            { label: 'Your compatibility %', sub: 'See how well you match before you commit' },
           ].map(f => (
             <div key={f.label} className="flex items-center gap-3 text-left">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
