@@ -24,6 +24,7 @@ import { TrialOfferPaywall } from '@/components/onboarding/TrialOfferPaywall'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
 import { getFlag } from '@/lib/countries'
 import { TRAVELER_TYPES, MAX_TRAVELER_TYPES } from '@/lib/travelerTypes'
+import { track } from '@/lib/analytics'
 import type { UserProfile } from '@/lib/types'
 
 const slideVariants = {
@@ -266,6 +267,33 @@ export default function OnboardingPage() {
   const currentDnaIndex = currentStepKind === 'dna' ? stepIndex - PRE_DNA_STEPS.length : -1
   const currentPostDnaStep: PostDnaStep | null =
     currentStepKind === 'post' ? POST_DNA_STEPS[stepIndex - PRE_DNA_STEPS.length - DNA_DIMENSIONS.length] : null
+
+  // Full ordered screen sequence, for funnel analytics only — keep in sync
+  // with the actual flow (splash → auth → welcome → valueprop → quiz's own
+  // pre/DNA/post steps → passport → finale) whenever a screen is added,
+  // removed, or reordered. Not used for rendering/navigation, only to give
+  // onboarding_step_viewed a stable index/total.
+  const ONBOARDING_SCREENS = [
+    'splash', 'auth', 'welcome', 'valueprop',
+    ...PRE_DNA_STEPS,
+    ...DNA_DIMENSIONS.map(d => d.key),
+    ...POST_DNA_STEPS,
+    'passport', 'finale',
+  ] as const
+
+  const currentScreenName: string =
+    newStage === 'quiz'
+      ? (currentPreDnaStep ?? DNA_DIMENSIONS[currentDnaIndex]?.key ?? currentPostDnaStep ?? 'quiz')
+      : newStage
+
+  // Fires once per distinct screen actually shown — the source for every
+  // onboarding drop-off/funnel report. See ONBOARDING_SCREENS above for why
+  // this is one generically-shaped event rather than 22 named ones.
+  useEffect(() => {
+    const index = ONBOARDING_SCREENS.indexOf(currentScreenName as typeof ONBOARDING_SCREENS[number])
+    track('onboarding_step_viewed', { step: currentScreenName, index, total: ONBOARDING_SCREENS.length })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentScreenName])
 
   // Fetch the momentum step's real active-user count only when that step is
   // actually on screen (not on every render of the whole page). Guarded with
@@ -592,6 +620,7 @@ export default function OnboardingPage() {
 
   const enterFeed = async () => {
     haptic(10)
+    track('onboarding_completed', {})
     await finaleControls.start({ scale: 1.5, opacity: 0, transition: { duration: 0.5, ease: 'easeInOut' } })
     router.push('/feed')
   }

@@ -46,6 +46,18 @@ type EventProps = {
   trip_joined: { trip_id: string; source: 'swipe' | 'detail' }
   trip_join_requested: { trip_id: string; source: 'swipe' | 'detail' }
   trip_created: { destination?: string; vibes_count?: number }
+  // ── Onboarding funnel ────────────────────────────────────────────────
+  // One event per screen shown, not one event type per screen — the
+  // 22-screen sequence (splash → auth → welcome → valueprop → 10 quiz
+  // steps → 6 DNA dimensions → passport → finale) changes over time (a
+  // step was just removed this session), so a generic `step` property
+  // means adding/removing/reordering screens never requires touching this
+  // file. `index`/`total` let a PostHog funnel/trend show exactly where in
+  // the sequence people are dropping, not just which named step.
+  onboarding_step_viewed: { step: string; index: number; total: number }
+  // Fires once, the moment a fresh signup actually reaches /feed — the
+  // bottom of the funnel every onboarding_step_viewed feeds into.
+  onboarding_completed: Record<string, never>
 }
 
 export function track<K extends keyof EventProps>(event: K, props: EventProps[K]): void {
