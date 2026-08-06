@@ -25,6 +25,11 @@ interface Props {
   // still loading. When provided we skip the fetch entirely and paint it on
   // the first frame.
   backgroundImage?: string | null
+  // When supplied, the top-left control is a back arrow returning to the
+  // previous step instead of an X that abandons the whole flow. Standalone
+  // callers (no flow around them) keep the X, since there's nothing to go
+  // back to and trapping someone on a paywall isn't the intent.
+  onBack?: () => void
 }
 
 function SelectDot({ selected }: { selected: boolean }) {
@@ -50,7 +55,7 @@ const TIMELINE = [
   { icon: '💳', title: 'Day 3', body: "Your trial ends. We'll only charge you if you decide to stay — cancel anytime before, no questions asked." },
 ] as const
 
-export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backgroundImage = null }: Props) {
+export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backgroundImage = null, onBack }: Props) {
   const [plan, setPlan] = useState<'annual' | 'secondary'>('annual')
   const [travelImages, setTravelImages] = useState<string[]>(backgroundImage ? [backgroundImage] : [])
   const [loading, setLoading] = useState(false)
@@ -154,12 +159,12 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
   const content = (
     <motion.div
       // The backdrop itself only fades — it must never translate, or a strip
-      // of the screen underneath shows at the edge. The content column below
-      // does the sliding, matching TrialFlow's step transition.
+      // of the screen underneath shows at the edge. Timed to overlap the
+      // outgoing step's 0.32s exit so the two crossfade rather than cutting.
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.18, ease: 'easeOut' }}
+      transition={{ duration: 0.34, ease: 'easeInOut' }}
       style={{ position: 'fixed', inset: 0, zIndex: 100, overflow: 'hidden' }}
     >
       {/* Base layer — always painted on frame one, so the screen is never
@@ -188,13 +193,13 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
         background: 'linear-gradient(to bottom, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.72) 35%, rgba(5,5,5,0.94) 70%, #050505 100%)',
       }} />
 
-      {/* Same x: 24 → 0 / 0.26s easeOut as TrialFlow's steps, so the paywall
-          reads as the next screen in the sequence instead of a different
-          surface opening on top. */}
+      {/* Slides in like the steps before it, but longer and on a decelerating
+          curve — this is the screen the whole sequence exists to deliver, so
+          it should arrive calmly rather than snap into place. */}
       <motion.div
-        initial={{ opacity: 0, x: 24 }}
+        initial={{ opacity: 0, x: 28 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.26, ease: 'easeOut' }}
+        transition={{ duration: 0.44, ease: [0.22, 1, 0.36, 1] }}
         style={{
           position: 'relative', zIndex: 1, height: '100%',
           display: 'flex', flexDirection: 'column',
@@ -208,11 +213,12 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
           paddingLeft: 24, paddingRight: 24,
         }}>
 
-          {/* X — the only way to skip, per plan */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          {/* Back arrow inside the flow (top-left, matching the steps before
+              it); X only when this screen is opened standalone. */}
+          <div style={{ display: 'flex', justifyContent: onBack ? 'flex-start' : 'flex-end', marginBottom: 8 }}>
             <button
               type="button"
-              onClick={skip}
+              onClick={onBack ?? skip}
               className="active:opacity-60"
               style={{
                 width: 34, height: 34, borderRadius: 17,
@@ -220,11 +226,17 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
                 border: '0.5px solid rgba(255,255,255,0.12)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
-              aria-label="Skip"
+              aria-label={onBack ? 'Back' : 'Skip'}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+              {onBack ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                  <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              )}
             </button>
           </div>
 

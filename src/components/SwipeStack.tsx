@@ -909,6 +909,12 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
     // "you are being stopped mid-pile", which is the actual loss.
     const remaining = infiniteFeed ? 0 : Math.max(0, feedItems.length - currentIndex)
     const names = [currentTrip?.destination, nextTrip?.destination].filter(Boolean) as string[]
+
+    // Cover photos for the two cards stacked behind the peek — the trips
+    // sitting immediately after the one they were about to see.
+    // [0] = nearest card behind, [1] = furthest back.
+    const stackCovers = [feedItems[currentIndex + 1], feedItems[currentIndex + 2]]
+      .map(it => (it && it.type === 'trip' ? it.trip.cover_image : null))
     const deckLine =
       names.length === 2 && remaining > 2 ? `${names[0]}, ${names[1]} and ${remaining - 2} more`
       : names.length === 2 ? `${names[0]} and ${names[1]}`
@@ -932,25 +938,62 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
               a back link, and this shell is a hard overflow-hidden clamp
               (the same clipping trap onboarding hit three times). */}
           <div className="relative w-full shrink-0" style={{ height: wallDeclined ? '26%' : '42%' }}>
+            {/* The cards behind carry the REAL cover photos of the next two
+                trips, dimmed. They used to be flat grey rectangles, which
+                read as UI chrome rather than "there is a pile of trips here"
+                — the whole point of the peek is that the stack is the hook. */}
+            {stackCovers.map((cover, i) => {
+              // i=0 sits directly behind the top card, i=1 furthest back.
+              const depth = stackCovers.length - i // 2 for the nearest, 1 for the far one
+              return (
+                <div
+                  key={`stack-${i}`}
+                  style={{
+                    position: 'absolute',
+                    top: i === 0 ? 14 : 4,
+                    left: i === 0 ? '4.5%' : '9%',
+                    right: i === 0 ? '4.5%' : '9%',
+                    height: 74,
+                    borderRadius: 22,
+                    overflow: 'hidden',
+                    backgroundColor: '#1a1a1a',
+                    border: '0.5px solid rgba(255,255,255,0.10)',
+                    boxShadow: '0 -2px 12px rgba(0,0,0,0.5)',
+                    zIndex: depth,
+                  }}
+                >
+                  {cover && (
+                    <img
+                      src={cover}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      style={{ filter: `brightness(${i === 0 ? 0.5 : 0.34}) saturate(0.9)` }}
+                    />
+                  )}
+                  {/* Hairline top highlight — what actually sells a stacked
+                      edge as a physical card rather than a dark band. */}
+                  <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+                    background: `rgba(255,255,255,${i === 0 ? 0.16 : 0.10})`,
+                  }} />
+                </div>
+              )
+            })}
             <div style={{
-              position: 'absolute', top: 8, left: '9%', right: '9%', height: 44,
-              borderRadius: 20, backgroundColor: '#1b1b1b',
-              border: '0.5px solid rgba(255,255,255,0.07)',
-            }} />
-            <div style={{
-              position: 'absolute', top: 16, left: '4.5%', right: '4.5%', height: 44,
-              borderRadius: 20, backgroundColor: '#242424',
-              border: '0.5px solid rgba(255,255,255,0.09)',
-            }} />
-            <div style={{
-              position: 'absolute', top: 26, left: 0, right: 0, bottom: 0,
+              position: 'absolute', top: 28, left: 0, right: 0, bottom: 0,
               borderRadius: '24px 24px 0 0', overflow: 'hidden',
+              zIndex: 3,
+              boxShadow: '0 -6px 20px rgba(0,0,0,0.55)',
             }}>
               {currentTrip?.cover_image && (
                 <img src={currentTrip.cover_image} alt="" className="w-full h-full object-cover" />
               )}
               <div className="absolute inset-0" style={{
                 background: 'linear-gradient(to bottom, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.30) 40%, rgba(10,10,10,0.88) 82%, #0A0A0A 100%)',
+              }} />
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+                background: 'rgba(255,255,255,0.22)',
               }} />
             </div>
           </div>

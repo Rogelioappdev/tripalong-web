@@ -164,17 +164,6 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
     }
   }, [checking, userId])
 
-  if (step === 'paywall') {
-    return (
-      <TrialOfferPaywall
-        userId={userId}
-        source={source}
-        backgroundImage={bgImage}
-        onDone={onDone}
-      />
-    )
-  }
-
   const granted = notifStatus === 'granted'
   const isNative = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
   const isIOS = typeof navigator !== 'undefined' && /iphone|ipad/i.test(navigator.userAgent)
@@ -187,12 +176,17 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
       ? ['Open iPhone Settings → Notifications', 'Find TripAlong in the list', 'Turn on Allow Notifications']
       : ['Tap the lock icon in your browser’s address bar', 'Find Notifications', 'Switch it to Allow']
 
-  const content = (
+  const stepsOverlay = (
     <motion.div
+      key="trial-flow-steps"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      // Held on screen while the paywall fades in over the top, so the last
+      // hop is a crossfade instead of a hard cut. Unmounting this immediately
+      // was what made arriving at the paywall feel snappy — there was a frame
+      // with neither screen on it.
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.26, ease: 'easeInOut' }}
+      transition={{ duration: 0.32, ease: 'easeInOut' }}
       style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: '#050505', overflow: 'hidden' }}
     >
       <div
@@ -204,34 +198,19 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
           overflowY: 'auto', WebkitOverflowScrolling: 'touch',
         } as React.CSSProperties}
       >
-        {/* Top bar — back where there's something to go back to, X always.
-            Never a hidden or delayed dismiss. */}
-        <div className="flex items-center justify-between shrink-0" style={{ marginBottom: 6 }}>
-          {step !== startAt ? (
-            <button
-              type="button"
-              onClick={() => {
-                haptic(6)
-                setNotifPanel('none')
-                setStep('value')
-              }}
-              className="active:opacity-60"
-              style={{
-                width: 34, height: 34, borderRadius: 17,
-                backgroundColor: 'rgba(255,255,255,0.08)',
-                border: '0.5px solid rgba(255,255,255,0.12)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-              aria-label="Back"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          ) : <div style={{ width: 34 }} />}
+        {/* Back only — no X anywhere in the flow. Leaving is still always
+            possible (back from the first step exits), it just costs one tap
+            per screen instead of one tap total. Matches Cal AI, which has no
+            dismiss control on any screen in this sequence. */}
+        <div className="flex items-center shrink-0" style={{ marginBottom: 6 }}>
           <button
             type="button"
-            onClick={close}
+            onClick={() => {
+              haptic(6)
+              setNotifPanel('none')
+              if (step === startAt) { close(); return } // first screen — back leaves
+              setStep('value')
+            }}
             className="active:opacity-60"
             style={{
               width: 34, height: 34, borderRadius: 17,
@@ -239,10 +218,10 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
               border: '0.5px solid rgba(255,255,255,0.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-            aria-label="Skip"
+            aria-label="Back"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" />
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>
@@ -457,5 +436,23 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
     </motion.div>
   )
 
-  return createPortal(content, document.body)
+  return createPortal(
+    <>
+      <AnimatePresence>
+        {step !== 'paywall' && stepsOverlay}
+      </AnimatePresence>
+      {/* Mounted after the steps overlay, so with equal z-index it paints on
+          top while that one is still fading out. */}
+      {step === 'paywall' && (
+        <TrialOfferPaywall
+          userId={userId}
+          source={source}
+          backgroundImage={bgImage}
+          onBack={() => { haptic(6); setStep('reminder') }}
+          onDone={onDone}
+        />
+      )}
+    </>,
+    document.body
+  )
 }
