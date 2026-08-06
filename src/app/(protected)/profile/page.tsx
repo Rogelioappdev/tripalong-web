@@ -13,6 +13,7 @@ import type { UserProfile, TripWithDetails } from '@/lib/types'
 import { PublicProfileModal } from '@/components/PublicProfileModal'
 import { CountryPicker } from '@/components/CountryPicker'
 import { resizedImage, resizedAvatar } from '@/lib/imageUrl'
+import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 
 // ── DNA field definitions (single source of truth on this page) ───────────
 const DNA_FIELDS = [
@@ -172,6 +173,13 @@ export default function ProfilePage() {
   const [uploadingMain, setUploadingMain] = useState(false)
   const [uploadingGrid, setUploadingGrid] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
+  // Crop step for the main profile photo — same PhotoCropModal used in
+  // onboarding's photo step, so manually replacing your photo later gets the
+  // same "adjust before saving" treatment instead of uploading whatever
+  // rectangle the OS picker happened to hand back.
+  const [rawPhotoFile, setRawPhotoFile] = useState<File | null>(null)
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null)
+  const [showCropModal, setShowCropModal] = useState(false)
   useEffect(() => {
     if (!photoError) return
     const t = setTimeout(() => setPhotoError(null), 3500)
@@ -267,6 +275,36 @@ export default function ProfilePage() {
       // Reset input so selecting the same file again still triggers onChange
       if (fileRef.current) fileRef.current.value = ''
     }
+  }
+
+  // Object URL for whatever raw file the picker just returned, so the crop
+  // modal has something to render. Created/revoked in lockstep with
+  // rawPhotoFile so a blob: URL never leaks, whether the user confirms,
+  // cancels, or navigates away mid-crop.
+  useEffect(() => {
+    if (!rawPhotoFile) { setCropImageSrc(null); return }
+    const url = URL.createObjectURL(rawPhotoFile)
+    setCropImageSrc(url)
+    return () => URL.revokeObjectURL(url)
+  }, [rawPhotoFile])
+
+  const handlePhotoPicked = (file: File) => {
+    setRawPhotoFile(file)
+    setShowCropModal(true)
+  }
+
+  const handleCropConfirm = (croppedFile: File) => {
+    setShowCropModal(false)
+    setRawPhotoFile(null)
+    handlePhotoUpload(croppedFile)
+  }
+
+  const handleCropCancel = () => {
+    setShowCropModal(false)
+    setRawPhotoFile(null)
+    // The file input itself is untouched otherwise — reset it so picking the
+    // exact same file again after cancelling still fires onChange.
+    if (fileRef.current) fileRef.current.value = ''
   }
 
   // The hero (profile_photo) and grid (photos) are stored as separate fields,
@@ -483,7 +521,7 @@ export default function ProfilePage() {
               </button>
             </div>
             <input ref={fileRef} type="file" accept="image/*" className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }} />
+              onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoPicked(f) }} />
           </div>
 
           {/* Basic info */}
@@ -863,6 +901,14 @@ export default function ProfilePage() {
       {/* Preview modal */}
       {showPreview && profile && (
         <PublicProfileModal userId={profile.id} onClose={() => setShowPreview(false)} />
+      )}
+
+      {showCropModal && cropImageSrc && (
+        <PhotoCropModal
+          imageSrc={cropImageSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
       )}
     </>
   )
