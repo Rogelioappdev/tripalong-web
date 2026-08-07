@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { haptic } from '@/lib/haptics'
 import { track } from '@/lib/analytics'
-import { getMyViewerCount } from '@/lib/queries'
+import { getMyViewerCount, getProfileViewers } from '@/lib/queries'
 
 interface Props {
   isPlus: boolean
@@ -18,15 +18,17 @@ interface Props {
 // discouraging on the app's primary screen.
 const MIN_VIEWERS = 3
 
-// Silhouettes, not faces. getProfileViewers is Plus-gated server-side, so a
-// free user's real viewers genuinely aren't available here — and inventing
-// avatars, or reusing unrelated users' photos, would be a lie. Abstract
-// shapes still carry the "these are people" read that makes the curiosity
-// gap work, without fabricating anyone.
-function ViewerSilhouettes() {
+// Real viewers, blurred for free users. The `get_my_viewers` RPC deliberately
+// returns profile_photo to non-Plus callers (with first-name-only and
+// styles/country nulled, and a `-- blurred client-side` comment) precisely so
+// this can be shown — the identity is what the paywall sells, not the
+// existence of viewers. Plus users see them sharp, which is the reward.
+// Falls back to a silhouette per-viewer when someone has no photo.
+function ViewerAvatars({ photos, isPlus }: { photos: (string | null)[]; isPlus: boolean }) {
+  const slots = photos.length ? photos.slice(0, 3) : [null, null, null]
   return (
     <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-      {[0, 1, 2].map(i => (
+      {slots.map((photo, i) => (
         <div
           key={i}
           style={{
@@ -39,11 +41,25 @@ function ViewerSilhouettes() {
             zIndex: 3 - i,
           }}
         >
-          {/* head + shoulders, deliberately vague */}
-          <svg width="30" height="30" viewBox="0 0 30 30" style={{ opacity: 0.55 }}>
-            <circle cx="15" cy="11" r="5" fill="rgba(255,255,255,0.55)" />
-            <ellipse cx="15" cy="26" rx="9" ry="7" fill="rgba(255,255,255,0.45)" />
-          </svg>
+          {photo ? (
+            <img
+              src={photo}
+              alt=""
+              style={{
+                width: '100%', height: '100%', objectFit: 'cover',
+                // Lighter than the sheet's blur(5px): these circles are 30px,
+                // where 5px would erase the face into a flat smudge. 3px keeps
+                // the hint of a person, which is the whole mechanic.
+                filter: isPlus ? undefined : 'blur(3px) brightness(0.85)',
+                transform: isPlus ? undefined : 'scale(1.25)',
+              }}
+            />
+          ) : (
+            <svg width="30" height="30" viewBox="0 0 30 30" style={{ opacity: 0.55 }}>
+              <circle cx="15" cy="11" r="5" fill="rgba(255,255,255,0.55)" />
+              <ellipse cx="15" cy="26" rx="9" ry="7" fill="rgba(255,255,255,0.45)" />
+            </svg>
+          )}
         </div>
       ))}
     </div>
@@ -56,6 +72,16 @@ export function ProfileViewsBar({ isPlus, onOpen }: Props) {
     queryFn: getMyViewerCount,
     refetchInterval: 30_000,
     staleTime: 15_000,
+  })
+
+  // Only the newest three — this is a teaser, and the sheet is where the full
+  // list lives. Skipped entirely below the threshold so we don't fetch viewer
+  // data for a bar that won't render.
+  const { data: viewers = [] } = useQuery({
+    queryKey: ['viewerPreview'],
+    queryFn: () => getProfileViewers(3),
+    enabled: count >= MIN_VIEWERS,
+    staleTime: 60_000,
   })
 
   // One impression event per mount once the bar actually qualifies — this is
@@ -91,7 +117,7 @@ export function ProfileViewsBar({ isPlus, onOpen }: Props) {
         textAlign: 'left',
       }}
     >
-      <ViewerSilhouettes />
+      <ViewerAvatars photos={viewers.map(v => v.profile_photo)} isPlus={isPlus} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ color: '#fff', fontSize: 13.5, fontWeight: 700, lineHeight: 1.25 }}>
