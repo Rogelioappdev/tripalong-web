@@ -255,6 +255,11 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
               textAlign: 'center', color: '#fff',
               fontSize: 29, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.8px',
               maxWidth: 320, margin: '18px auto 26px',
+              // Same reason as the fine print below: the two plans' headlines
+              // wrap to a different number of lines, and on a viewport short
+              // enough for the flexible gap to collapse, that would shift
+              // everything under it. Three lines at 29px/1.2 is the taller case.
+              minHeight: 105,
             }}
           >
             {plan === 'annual' ? (
@@ -422,7 +427,12 @@ export function TrialOfferPaywall({ userId, onDone, source = 'onboarding', backg
               </span>
             </button>
 
-            <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 11, lineHeight: 1.5, marginBottom: 10 }}>
+            {/* Two lines' worth of height is reserved whichever plan is
+                selected. The annual copy wraps to two lines and the anchor
+                plan's to one — and since the plan cards are bottom-anchored
+                above this block, letting it change height made the cards
+                visibly slide down when you tapped the second option. */}
+            <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 11, lineHeight: 1.5, marginBottom: 10, minHeight: 33 }}>
               {plan === 'annual'
                 // No "we'll remind you" here until /api/cron/trial-ending
                 // actually exists (P1) — the timeline block above already
