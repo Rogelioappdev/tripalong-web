@@ -199,22 +199,17 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
           overflowY: 'auto', WebkitOverflowScrolling: 'touch',
         } as React.CSSProperties}
       >
-        {/* Two different navigation models on purpose.
-            Swipe wall: back arrow only, no X — the user already had a "Not
-            now" on the wall itself before entering, so they're not cornered.
-            Onboarding: a plain X, because this is a brand-new signup's first
-            experience and burying the exit there is the wrong first
-            impression (and they still have the whole app to reach). */}
-        <div
-          className="flex items-center shrink-0"
-          style={{ marginBottom: 6, justifyContent: fromWall ? 'flex-start' : 'flex-end' }}
-        >
+        {/* Back arrow on the run-up screens in both placements — the only X
+            in the whole flow lives on onboarding's paywall (see onBack
+            below), where dismissing hands off to the finale reveal. Back from
+            the first screen exits the flow the same way. */}
+        <div className="flex items-center shrink-0" style={{ marginBottom: 6 }}>
           <button
             type="button"
             onClick={() => {
               haptic(6)
               setNotifPanel('none')
-              if (!fromWall || step === startAt) { close(); return }
+              if (step === startAt) { close(); return }
               setStep('value')
             }}
             className="active:opacity-60"
@@ -224,17 +219,11 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
               border: '0.5px solid rgba(255,255,255,0.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-            aria-label={fromWall ? 'Back' : 'Skip'}
+            aria-label="Back"
           >
-            {fromWall ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            )}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         </div>
 
@@ -460,7 +449,10 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
           userId={userId}
           source={source}
           backgroundImage={bgImage}
-          // Wall only — onboarding's paywall keeps its X (see the top bar above).
+          // Wall: back arrow, returning to the reminder step.
+          // Onboarding: no onBack, so the paywall renders its X — dismissing
+          // there is what hands off to the finale reveal ("a world of trips
+          // is waiting for you"), which a back arrow would never reach.
           onBack={fromWall ? () => { haptic(6); setStep('reminder') } : undefined}
           onDone={onDone}
         />
