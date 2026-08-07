@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getProfileViewers, getMyViewerCount } from '@/lib/queries'
 import { haptic } from '@/lib/haptics'
+import { track } from '@/lib/analytics'
 import { purchasePlus, restorePurchases, isNativeApp, getNativePlusPricing, type PlusPricing } from '@/lib/purchase'
 import { hasPlus } from '@/lib/trial'
 import { PublicProfileModal } from './PublicProfileModal'
@@ -465,6 +466,19 @@ export function ProfileViewsSheet({ onClose, isPlus = false, userId, onUnlocked,
   }
   const [viewerCount, setViewerCount] = useState(0)
   const displayCount = useCountUp(viewerCount)
+
+  // The emitter that never existed: 'profile_views' has been a declared
+  // PaywallSurface in analytics.ts since it was written and was fired from
+  // nowhere, which is why this feature's funnel has no top. A free user
+  // opening this sheet IS a paywall view — it's the blurred grid + upgrade CTA.
+  useEffect(() => {
+    if (isPlus) return
+    track('paywall_viewed', {
+      surface: 'profile_views',
+      trigger: 'who-viewed',
+      rail: isNativeApp() ? 'native' : 'web',
+    })
+  }, [isPlus])
 
   useEffect(() => {
     setMounted(true)

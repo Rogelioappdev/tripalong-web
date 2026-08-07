@@ -55,7 +55,17 @@ type EventProps = {
   join_limit_reached: { limit: number; lifetime: number; rail: Rail }
   // Fires when a Plus user changes a feed filter dimension — product
   // visibility into which filters actually get used post-purchase.
+  // (Filters are parked as of 2026-08-06; kept for when they return.)
   filter_dimension_changed: { dimension: FilterDimension; active_count: number }
+  // ── Who viewed you ───────────────────────────────────────────────────
+  // This feature had NO instrumentation at all until now: the eye icon fired
+  // nothing, ProfileViewsSheet contained no track() calls, and the
+  // 'profile_views' surface below was declared but never emitted. So its 2
+  // lifetime conversions had no denominator — we couldn't tell "nobody sees
+  // it" from "everybody sees it and the paywall fails", which need opposite
+  // fixes. These three give it one.
+  profile_views_bar_shown: { viewer_count: number; is_plus: boolean }
+  profile_views_opened: { viewer_count: number; source: string; is_plus: boolean }
   // ── Activation loop (leading indicators of conversion) ──────────────
   trip_saved: { trip_id: string }
   trip_joined: { trip_id: string; source: 'swipe' | 'detail' }

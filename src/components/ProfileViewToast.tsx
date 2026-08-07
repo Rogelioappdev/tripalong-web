@@ -13,6 +13,10 @@ interface ViewToast {
 
 interface Props {
   userId: string
+  // Tapping the toast must open who-viewed. Before this it called dismiss(),
+  // so the single highest-intent moment the feature gets — "someone just
+  // looked at you", surfaced unprompted — was wired to a delete button.
+  onOpen?: () => void
 }
 
 // Polling instead of a postgres_changes subscription — Realtime delivery has
@@ -21,7 +25,7 @@ interface Props {
 // view and show an in-app toast for it.
 const POLL_MS = 12_000
 
-export function ProfileViewToast({ userId }: Props) {
+export function ProfileViewToast({ userId, onOpen }: Props) {
   const [toasts, setToasts] = useState<ViewToast[]>([])
   const lastCountRef = useRef<number | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -85,7 +89,7 @@ export function ProfileViewToast({ userId }: Props) {
             exit={{ y: -72, opacity: 0, scale: 0.92 }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
             style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-            onClick={() => { haptic(6); dismiss(toast.id) }}
+            onClick={() => { haptic(8); dismiss(toast.id); onOpen?.() }}
           >
             <div style={{
               display: 'flex', alignItems: 'center', gap: 11,

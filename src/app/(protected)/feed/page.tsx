@@ -10,11 +10,10 @@ import dynamicImport from 'next/dynamic'
 import { haptic } from '@/lib/haptics'
 import { NavBar } from '@/components/NavBar'
 import { SwipeStack } from '@/components/SwipeStack'
-import { FilterBar } from '@/components/filters/FilterBar'
-import { PaywallModal } from '@/components/PaywallModal'
+import { ProfileViewsBar } from '@/components/ProfileViewsBar'
+import { ProfileViewsSheet } from '@/components/ProfileViewsSheet'
 import {
   applyTripFilters, activeFilterCount, EMPTY_FILTERS,
-  type TripFilters, type FilterDimension,
 } from '@/lib/tripFilters'
 import { AuthGate } from '@/components/AuthGate'
 import { getTrips, getUserSavedTripIds, saveTrip, getProfile, getHangalongs, getMyHangalongs, getUserJoinedHangalongIds } from '@/lib/queries'
@@ -43,17 +42,9 @@ const HangDetailModal = dynamicImport(() => import('@/components/HangDetailModal
 // Tab bar: 58px height + 16px bottom = 74px. Add 8px breathing room = 82px
 const TAB_BAR_CLEARANCE = 82
 
-// First filter dimension whose value differs between two filter states — used
-// to tag the filter_dimension_changed analytics event. Seasons and its custom
-// date range are one dimension ('seasons').
-function changedFilterDimension(a: TripFilters, b: TripFilters): FilterDimension | null {
-  if (JSON.stringify(a.location) !== JSON.stringify(b.location)) return 'location'
-  if (JSON.stringify(a.seasons) !== JSON.stringify(b.seasons) || JSON.stringify(a.dateRange) !== JSON.stringify(b.dateRange)) return 'seasons'
-  if (JSON.stringify(a.styles) !== JSON.stringify(b.styles)) return 'styles'
-  if (JSON.stringify(a.genders) !== JSON.stringify(b.genders)) return 'genders'
-  if (JSON.stringify(a.ageRange) !== JSON.stringify(b.ageRange)) return 'ageRange'
-  return null
-}
+// changedFilterDimension() lived here to tag filter_dimension_changed. It went
+// with the filter bar (parked 2026-08-06) — restore it from git history
+// alongside the FilterBar render if filters come back.
 
 function Bone({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
   return <div className={`bg-white/8 rounded-2xl animate-pulse ${className}`} style={style} />
@@ -127,6 +118,7 @@ export default function FeedPage() {
   const [selectedHang, setSelectedHang] = useState<HangalongWithDetails | null>(null)
   const [joinedHangIds, setJoinedHangIds] = useState<string[]>([])
   const [showSaved, setShowSaved] = useState(false)
+  const [showViewsSheet, setShowViewsSheet] = useState(false)
   const [savedToast, setSavedToast] = useState<TripWithDetails | null>(null)
   const [savedCount, setSavedCount] = useState(0)
   const [pendingTripId, setPendingTripId] = useState<string | null>(null)
@@ -142,25 +134,21 @@ export default function FeedPage() {
   })
   const isPlusUser = hasPlus(feedProfile)
 
-  const [filters, setFilters] = useState<TripFilters>(EMPTY_FILTERS)
-  const [showFilterPaywall, setShowFilterPaywall] = useState(false)
-  // The drafted-but-blocked filters from a "Done" tap that hit the paywall —
-  // applied automatically if the user upgrades, so their exact configured
-  // filter is honored instantly instead of making them redo it post-purchase.
-  const [pendingFilters, setPendingFilters] = useState<TripFilters | null>(null)
-  // Premium gate for the filter bar — same shape as TripDetailModal's joinGate.
-  const filterGate = () => {
-    if (isPlusUser) return true
-    setShowFilterPaywall(true)
-    return false
-  }
-  const handleFiltersChange = (next: TripFilters) => {
-    if (isPlusUser) {
-      const changed = changedFilterDimension(filters, next)
-      if (changed) track('filter_dimension_changed', { dimension: changed, active_count: activeFilterCount(next) })
-    }
-    setFilters(next)
-  }
+  // Feed filters are PARKED, not deleted — see PLUS_FEATURE_2_PLAN.md.
+  // Four of the five dimensions had almost no inventory behind them (92 of
+  // 121 live trips are flexible-dates, which always pass the date filter;
+  // 112 of 121 are group_preference 'everyone'; age is set on 47), and
+  // location averaged 1.15 trips per destination across 105 destinations. So
+  // the paid filter mostly sold an empty deck. Filtering also solves a
+  // problem this feed doesn't have yet: at 121 trips against a 10/day cap, a
+  // committed user sees the entire app in under two weeks — there is no
+  // abundance to narrow down.
+  //
+  // The engine and UI stay in the repo (lib/tripFilters.ts,
+  // components/filters/*) and drop straight back in when supply justifies
+  // them. Until then the feed shows every trip, and this const keeps the
+  // downstream wiring (applyTripFilters, SwipeStack's filters props) intact.
+  const filters = EMPTY_FILTERS
 
   const [justUpgraded, setJustUpgraded] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
@@ -650,16 +638,18 @@ export default function FeedPage() {
           </button>
         </div>
 
-        {/* Premium feed filters — gated behind Plus via filterGate. The trips
-            prop stays the *unfiltered* list (it feeds FilterSheet's top-country
-            quick-picks; filtering it by the in-progress filters would be circular). */}
-        <FilterBar
-          filters={filters}
-          onChange={handleFiltersChange}
-          trips={trips ?? []}
-          filterGate={filterGate}
-          onGateFail={setPendingFilters}
-        />
+        {/* The strip the filter chips used to occupy. 476 users already have
+            3+ profile viewers and only 2 people have ever converted through
+            who-viewed — not because the feature is weak but because its only
+            entry point was a small eye icon in the Messages header. This puts
+            it in the main loop. Renders nothing below the 3-viewer threshold,
+            so it never shows an empty or discouraging state. */}
+        {userId && (
+          <ProfileViewsBar
+            isPlus={isPlusUser}
+            onOpen={() => setShowViewsSheet(true)}
+          />
+        )}
 
         {/* Card + buttons — fills remaining space above tab bar */}
         <div
@@ -709,7 +699,6 @@ export default function FeedPage() {
                 trips={filteredTrips}
                 filtersKey={JSON.stringify(filters)}
                 filtersActive={activeFilterCount(filters) > 0}
-                onClearFilters={() => setFilters(EMPTY_FILTERS)}
                 hangalongs={hangalongs as HangalongWithDetails[]}
                 myHangalongIds={(myHangalongs as HangalongWithDetails[]).map(h => h.id)}
                 joinedHangIds={joinedHangIds}
@@ -806,24 +795,21 @@ export default function FeedPage() {
         />
       )}
 
-      {/* Filters paywall — shown when a non-Plus user taps "Done" on a filter
-          they've configured. Mirrors SwipeStack's PaywallModal wiring so a
-          purchase here unlocks filters immediately, and also applies
-          whatever they'd already drafted instead of making them redo it. */}
-      <AnimatePresence>
-        {showFilterPaywall && (
-          <PaywallModal
-            trigger="filters"
-            userId={userId ?? undefined}
-            onClose={() => setShowFilterPaywall(false)}
-            onSuccess={() => {
-              if (feedProfile) setFeedProfile({ ...feedProfile, subscription_tier: 'plus' })
-              if (pendingFilters) { setFilters(pendingFilters); setPendingFilters(null) }
-            }}
-            onWelcomeDone={(confirmed) => setFeedProfile(confirmed)}
-          />
-        )}
-      </AnimatePresence>
+      {/* Who-viewed-you, opened from the bar above the deck. The sheet owns
+          its own Plus check and paywall, so this just mounts it. */}
+      {showViewsSheet && (
+        <ProfileViewsSheet
+          isPlus={isPlusUser}
+          userId={userId ?? undefined}
+          onClose={() => setShowViewsSheet(false)}
+          onUnlocked={() => {
+            if (feedProfile) setFeedProfile({ ...feedProfile, subscription_tier: 'plus' })
+          }}
+          onWelcomeDone={(nowPlus) => {
+            if (nowPlus && feedProfile) setFeedProfile({ ...feedProfile, subscription_tier: 'plus' })
+          }}
+        />
+      )}
 
       {/* Upgrade success toast */}
       <AnimatePresence>
