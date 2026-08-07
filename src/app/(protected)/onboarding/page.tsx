@@ -20,7 +20,6 @@ import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 import { LiveVerificationCapture } from '@/components/onboarding/LiveVerificationCapture'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
-import { TrialFlow } from '@/components/onboarding/TrialFlow'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
 import { getFlag } from '@/lib/countries'
 import { TRAVELER_TYPES, MAX_TRAVELER_TYPES } from '@/lib/travelerTypes'
@@ -133,7 +132,6 @@ export default function OnboardingPage() {
   // skipped entirely in that case rather than shown against a fake id.
   const [authedUserId, setAuthedUserId] = useState<string | null>(null)
   const [showNotifPrompt, setShowNotifPrompt] = useState(false)
-  const [showTrialPaywall, setShowTrialPaywall] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const finaleControls = useAnimation()
   // Drives the passport card's brief "thud" reaction (tiny scale-pulse +
@@ -2076,21 +2074,10 @@ export default function OnboardingPage() {
           native-app bridge, the "already blocked" fallback instructions,
           the unsupported-browser silent skip, and success/skip states, all
           in this app's real dark/cream visual language. It portals itself
-          to document.body, so its position in this tree doesn't matter. */}
-      {/* Shared AnimatePresence so the handoff between these two full-screen
-          overlays actually crossfades instead of snap-cutting — each was a
-          plain `&&` conditional before, which unmounts instantly with no
-          chance for either's own exit animation (NotificationPrompt already
-          had one defined) to ever run. */}
-      {/* Permanent, never-animated backdrop underneath both overlays above —
-          without this, the crossfade above has a real window where BOTH
-          NotificationPrompt (opacity 1→0) and TrialOfferPaywall (opacity
-          0→1) are simultaneously translucent, letting the passport screen
-          behind them both show through for a moment. This sits at z-index
-          90 (below both overlays' 300/100) and just stays solid the whole
-          time either overlay is up, so there's never anything but black to
-          see through. */}
-      {(showNotifPrompt || showTrialPaywall) && authedUserId && (
+          to document.body, so its position in this tree doesn't matter.
+          No paywall follows this anymore — onboarding ends at the finale
+          screen, full stop. */}
+      {showNotifPrompt && authedUserId && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 90, backgroundColor: '#000' }} />
       )}
       <AnimatePresence>
@@ -2098,19 +2085,10 @@ export default function OnboardingPage() {
           <NotificationPrompt
             key="notif-prompt"
             userId={authedUserId}
-            onDone={() => { setShowNotifPrompt(false); setShowTrialPaywall(true) }}
-          />
-        )}
-
-        {/* Peak-excitement ask, right after the reward (passport) and the small
-            foot-in-the-door ask (notifications) — X to skip either way, so this
-            is never a hard gate. See tripalong_paywall_conversion_plan.md. */}
-        {showTrialPaywall && authedUserId && (
-          <TrialFlow
-            key="trial-paywall"
-            userId={authedUserId}
-            source="onboarding"
-            onDone={() => { setShowTrialPaywall(false); goStage('finale', 1) }}
+            variant="onboarding"
+            firstName={newName}
+            vibe={newDna.travel_styles[0] ? dnaOption('travel_styles', newDna.travel_styles[0]) : undefined}
+            onDone={() => { setShowNotifPrompt(false); goStage('finale', 1) }}
           />
         )}
       </AnimatePresence>

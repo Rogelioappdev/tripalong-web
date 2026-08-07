@@ -9,12 +9,24 @@ import { supabase } from '@/lib/supabase'
 interface Props {
   userId: string
   onDone: () => void
+  // Onboarding is the single highest-intent moment this prompt ever appears
+  // in — the user hasn't even seen the feed yet, so a "maybe later" here is
+  // the closest thing this app has to losing them for good before they've
+  // started. `firstName`/`vibe` let onboarding hand over what it just
+  // learned (real answers, not invented) so the ask reads as specific to
+  // them instead of generic. Settings/feed/NotifReminderHost keep calling
+  // this with no variant, so they're byte-for-byte unchanged.
+  variant?: 'default' | 'onboarding'
+  firstName?: string
+  vibe?: { emoji: string; label: string }
 }
 
 type State = 'prompt' | 'loading' | 'denied' | 'success' | 'confirm-skip'
 
-export function NotificationPrompt({ userId, onDone }: Props) {
+export function NotificationPrompt({ userId, onDone, variant = 'default', firstName, vibe }: Props) {
   const [state, setState] = useState<State>('prompt')
+  const isOnboarding = variant === 'onboarding'
+  const name = firstName?.trim() || ''
 
   // Computed synchronously (not in an effect) so an unsupported browser never
   // paints the full-screen overlay for a frame before bailing out — that flash
@@ -154,10 +166,12 @@ export function NotificationPrompt({ userId, onDone }: Props) {
         {state === 'confirm-skip' && (
           <>
             <h1 style={{ color: '#fff', fontWeight: 800, fontSize: 28, lineHeight: 1.1, letterSpacing: '-0.5px', marginBottom: 14 }}>
-              You could miss your next travel match.
+              {isOnboarding ? "You haven't even started swiping yet." : 'You could miss your next travel match.'}
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15, lineHeight: 1.65 }}>
-              Without notifications, someone could join your trip, message you, or match your vibe — and you won't know until you happen to open the app. Most travelers who turn this on never miss it.
+              {isOnboarding
+                ? `Right now the only way you'll know someone joined your trip or messaged you${name ? `, ${name}` : ''} is if you happen to reopen the app and check. Turn this on now, while you're already here — it's the easiest time to say yes.`
+                : "Without notifications, someone could join your trip, message you, or match your vibe — and you won't know until you happen to open the app. Most travelers who turn this on never miss it."}
             </p>
           </>
         )}
@@ -178,16 +192,20 @@ export function NotificationPrompt({ userId, onDone }: Props) {
         {(state === 'prompt' || state === 'loading') && (
           <>
             <h1 style={{ color: '#fff', fontWeight: 800, fontSize: 32, lineHeight: 1.1, letterSpacing: '-0.5px', marginBottom: 16 }}>
-              Don't miss your<br />next trip.
+              {isOnboarding ? <>Turn these on{name ? `, ${name}` : ''}.</> : <>Don't miss your<br />next trip.</>}
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: 16, lineHeight: 1.6, marginBottom: 32 }}>
-              Get notified when someone joins your trip, sends you a message, or a new match appears.
+              {isOnboarding
+                ? "You're about to start swiping — this is the only way you'll know the moment any of this happens."
+                : 'Get notified when someone joins your trip, sends you a message, or a new match appears.'}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {[
                 { icon: '💬', text: 'New messages from your travel group' },
                 { icon: '🧳', text: "Someone joins a trip you're on" },
-                { icon: '🌍', text: 'New trips that match your style' },
+                vibe
+                  ? { icon: vibe.emoji, text: `New ${vibe.label} trips picked for you` }
+                  : { icon: '🌍', text: 'New trips that match your style' },
               ].map(({ icon, text }) => (
                 <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{
