@@ -20,8 +20,6 @@ interface SwipeCardProps {
   isSaved?: boolean
   matchPct?: number
   matchingVibes?: string[]
-  isPlus?: boolean
-  onCompatibilityTap?: () => void
   onCreatorTap?: (userId: string) => void
   sharedX?: ReturnType<typeof useMotionValue<number>>
 }
@@ -31,7 +29,7 @@ function formatDate(d: string) {
 }
 
 export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function SwipeCard(props, ref) {
-  const { trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, matchPct, matchingVibes, isPlus, onCompatibilityTap, onCreatorTap, sharedX } = props
+  const { trip, onSwipeLeft, onSwipeRight, onTap, isTop, isJoined, matchPct, matchingVibes, onCreatorTap, sharedX } = props
   const internalX = useMotionValue(0)
   const x = sharedX ?? internalX
   const controls = useAnimation()
@@ -127,19 +125,17 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function Sw
           </motion.div>
         </>
       )}
-      <CardContent trip={trip} dateLabel={dateLabel} isJoined={isTop ? isJoined : false} matchPct={matchPct} matchingVibes={matchingVibes} isPlus={isPlus} onCompatibilityTap={isTop ? onCompatibilityTap : undefined} onCreatorTap={isTop ? onCreatorTap : undefined} />
+      <CardContent trip={trip} dateLabel={dateLabel} isJoined={isTop ? isJoined : false} matchPct={matchPct} matchingVibes={matchingVibes} onCreatorTap={isTop ? onCreatorTap : undefined} />
     </motion.div>
   )
 })
 
-function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlus, onCompatibilityTap, onCreatorTap }: {
+function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, onCreatorTap }: {
   trip: TripWithDetails
   dateLabel: string
   isJoined?: boolean
   matchPct?: number
   matchingVibes?: string[]
-  isPlus?: boolean
-  onCompatibilityTap?: () => void
   onCreatorTap?: (userId: string) => void
 }) {
   // Creator is also in trip_members — exclude them to avoid double-counting
@@ -285,60 +281,33 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, isPlu
         {matchPct !== undefined && (
           <>
             <div style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 12, marginBottom: 10 }} />
-            {isPlus ? (
-              <div className="flex items-center gap-2">
-                {/* Score dot */}
-                <div style={{
-                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                  backgroundColor: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.4)',
-                }} />
-                <span style={{
-                  color: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
-                  fontSize: 13, fontWeight: 700,
-                }}>
-                  {matchPct}% match
-                </span>
-                {matchingVibes && matchingVibes.length > 0 && (
-                  <>
-                    <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>·</span>
-                    <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 500 }}>
-                      {matchingVibes.join(' · ')}
-                    </span>
-                  </>
-                )}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); onCompatibilityTap?.() }}
-                className="flex items-center justify-between w-full active:opacity-70"
-              >
-                <div className="flex items-center gap-2">
-                  {/* Dot reveals quality without revealing the number */}
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                    backgroundColor: matchPct !== undefined
-                      ? (matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.3)')
-                      : 'rgba(255,255,255,0.2)',
-                  }} />
-                  {/* Masked, not the real number — the actual % must never reach
-                      the DOM for free users (a CSS blur is copy-pasteable). */}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>
-                    <span style={{ filter: 'blur(3.5px)', userSelect: 'none' }}>
-                      ••%
-                    </span>
-                    {' '}match
+            {/* Match % is free for everyone as of 2026-08-06. It was Plus-only,
+                which put a locked badge on 100% of cards a free user ever saw
+                — a permanent low-grade nag — while hiding the payoff for the
+                six Travel DNA questions onboarding makes everyone answer. It
+                converted 1 person in the app's lifetime, who then churned.
+                Matching is infrastructure that makes the feed good, not a tier. */}
+            <div className="flex items-center gap-2">
+              {/* Score dot */}
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                backgroundColor: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.4)',
+              }} />
+              <span style={{
+                color: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
+                fontSize: 13, fontWeight: 700,
+              }}>
+                {matchPct}% match
+              </span>
+              {matchingVibes && matchingVibes.length > 0 && (
+                <>
+                  <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>·</span>
+                  <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 500 }}>
+                    {matchingVibes.join(' · ')}
                   </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.5)" strokeWidth="2"/>
-                    <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.5)" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                  <span style={{ color: 'rgba(240,235,227,0.5)', fontSize: 12, fontWeight: 600 }}>Unlock</span>
-                </div>
-              </button>
-            )}
+                </>
+              )}
+            </div>
           </>
         )}
       </div>

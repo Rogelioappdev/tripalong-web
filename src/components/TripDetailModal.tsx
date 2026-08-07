@@ -63,10 +63,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   const [showCelebration, setShowCelebration] = useState(false)
   const [showPhotoNudge, setShowPhotoNudge] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(initialProfile ?? null)
-  const [showCompatPaywall, setShowCompatPaywall] = useState(false)
-  const [compatPaywallContext, setCompatPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
   const [showJoinPaywall, setShowJoinPaywall] = useState(false)
-  const [showCompatTrialOffer, setShowCompatTrialOffer] = useState(false)
   const [joinRequestStatus, setJoinRequestStatus] = useState<'pending' | 'accepted' | 'declined' | null>(null)
   const [requestingJoin, setRequestingJoin] = useState(false)
   const [showRequestSentToast, setShowRequestSentToast] = useState(false)
@@ -173,15 +170,6 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
 
   const displayTrip = tripDetail ?? trip
 
-  const openCompatibilityGate = (score?: number) => {
-    haptic(8)
-    if (getTrialStatus(userProfile) === 'none') {
-      setShowCompatTrialOffer(true)
-    } else {
-      setCompatPaywallContext(score !== undefined ? { matchPct: score, destination: displayTrip.destination } : undefined)
-      setShowCompatPaywall(true)
-    }
-  }
 
   const { tripPct, groupPct } = userProfile ? getTripMatchBreakdown(userProfile, displayTrip) : { tripPct: 0, groupPct: null }
   const matchPct = userProfile ? (groupPct ?? tripPct) : undefined
@@ -217,7 +205,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   useSwipeDownDismiss(
     heroRef,
     onClose,
-    !profileUserId && !showPhotoNudge && !showCelebration && !showCompatPaywall && !showCompatTrialOffer,
+    !profileUserId && !showPhotoNudge && !showCelebration,
   )
 
   return (
@@ -382,7 +370,12 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
             {!isGuest && matchPct !== undefined && (
               <div>
                 <p className="text-white font-bold" style={{ fontSize: 17, marginBottom: 12 }}>Your Compatibility</p>
-                {isPlus ? (
+                {/* Free for everyone as of 2026-08-06. The blurred-scores
+                    variant that used to live here (and the matching locked
+                    badge on every feed card) gated the payoff for the six
+                    Travel DNA questions onboarding requires — and converted
+                    one person in the app's lifetime, who churned. Matching is
+                    infrastructure that makes the feed good, not a tier. */}
                   <div
                     className="rounded-2xl p-4 flex flex-col gap-3"
                     style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}
@@ -438,55 +431,6 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                       </div>
                     )}
                   </div>
-                ) : (
-                  // Free: same layout as Plus but numbers blurred — FOMO
-                  <div
-                    className="rounded-2xl p-4 flex flex-col gap-3"
-                    style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}
-                  >
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      {groupPct !== null && (
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Group</p>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-                            <span style={{
-                              fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
-                              color: groupPct >= 80 ? '#30D158' : groupPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
-                              filter: 'blur(7px)', userSelect: 'none',
-                            }}>••</span>
-                            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600, filter: 'blur(5px)' }}>%</span>
-                          </div>
-                        </div>
-                      )}
-                      {groupPct !== null && (
-                        <div style={{ width: 0.5, backgroundColor: 'rgba(255,255,255,0.08)', alignSelf: 'stretch' }} />
-                      )}
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Trip</p>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-                          <span style={{
-                            fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
-                            color: tripPct >= 80 ? '#30D158' : tripPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
-                            filter: 'blur(7px)', userSelect: 'none',
-                          }}>••</span>
-                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600, filter: 'blur(5px)' }}>%</span>
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => openCompatibilityGate(groupPct ?? tripPct)}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl active:opacity-70"
-                      style={{ backgroundColor: 'rgba(240,235,227,0.07)', border: '0.5px solid rgba(240,235,227,0.15)' }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                        <rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(240,235,227,0.6)" strokeWidth="2"/>
-                        <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="rgba(240,235,227,0.6)" strokeWidth="2" strokeLinecap="round"/>
-                      </svg>
-                      <span style={{ color: 'rgba(240,235,227,0.6)', fontSize: 13, fontWeight: 600 }}>Unlock your scores</span>
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
@@ -571,16 +515,9 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                             Creator
                           </span>
                         ) : score !== null ? (
-                          isPlus ? (
-                            <span style={{ color: scoreColor!, fontSize: 11, fontWeight: 700, marginTop: -2 }}>
-                              {score}%
-                            </span>
-                          ) : (
-                            // Free: colored '?' — reveals quality, hides the number
-                            <span style={{ color: scoreColor!, fontSize: 11, fontWeight: 700, marginTop: -2 }}>
-                              ?%
-                            </span>
-                          )
+                          <span style={{ color: scoreColor!, fontSize: 11, fontWeight: 700, marginTop: -2 }}>
+                            {score}%
+                          </span>
                         ) : null}
                       </button>
                     )
@@ -688,27 +625,6 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
       )}
     </AnimatePresence>
 
-    {showCompatPaywall && (
-      <PaywallModal
-        trigger={compatPaywallContext ? 'compatibility' : 'swipes'}
-        context={compatPaywallContext?.destination}
-        matchPct={compatPaywallContext?.matchPct}
-        userId={userId ?? undefined}
-        onClose={() => { setShowCompatPaywall(false); setCompatPaywallContext(undefined) }}
-        onSuccess={() => {
-          if (!userProfile) return
-          const updated: UserProfile = { ...userProfile, subscription_tier: 'plus' }
-          setUserProfile(updated)
-          onProfileClaimed?.(updated)
-        }}
-        onWelcomeDone={(confirmed) => {
-          if (!confirmed) return
-          setUserProfile(confirmed)
-          onProfileClaimed?.(confirmed)
-        }}
-      />
-    )}
-
     {showJoinPaywall && (
       <PaywallModal
         trigger="joins"
@@ -731,14 +647,6 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
       />
     )}
 
-    {showCompatTrialOffer && userId && userProfile && (
-      <FoundingMemberScreen
-        userId={userId}
-        profile={userProfile}
-        onClaimed={(updated) => { setUserProfile(updated); onProfileClaimed?.(updated) }}
-        onDismiss={() => setShowCompatTrialOffer(false)}
-      />
-    )}
     </>
   )
 }

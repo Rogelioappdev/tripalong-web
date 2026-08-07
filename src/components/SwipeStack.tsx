@@ -474,7 +474,6 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
   // each swipe for instant UX, then reconciled with the server's return value.
   const swipesTodayRef = useRef(0)
   const [showPaywall, setShowPaywall] = useState(false)
-  const [paywallContext, setPaywallContext] = useState<{ matchPct: number; destination?: string } | undefined>()
   // The wall's own trial screen (TrialOfferPaywall, reused from onboarding) —
   // separate from showPaywall, which is the plain paid PaywallModal.
   const [showWallTrial, setShowWallTrial] = useState(false)
@@ -1204,20 +1203,18 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
                 <FoundingMemberPaywall
                   key="expired-paywall"
                   allowDismiss
-                  context={paywallContext}
-                  onClose={() => { setShowPaywall(false); setPaywallContext(undefined) }}
+                  onClose={() => setShowPaywall(false)}
                 />
               )
             }
             return (
               <PaywallModal
                 key="paywall"
-                trigger={paywallContext ? 'compatibility' : 'swipes'}
+                trigger="swipes"
                 context={currentTrip?.destination}
-                matchPct={paywallContext?.matchPct}
                 trips={trips.slice(currentIndex + 1, currentIndex + 4)}
                 userId={userId ?? undefined}
-                onClose={() => { setShowPaywall(false); setPaywallContext(undefined) }}
+                onClose={() => setShowPaywall(false)}
                 onSuccess={() => {
                   if (!profile) return
                   const updated: UserProfile = { ...profile, subscription_tier: 'plus' }
@@ -1282,7 +1279,6 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
       ? joinedHangIds.includes(currentHang.id)
       : false
   const effectiveProfileForMatch = localProfile ?? userProfile
-  const isPlus = hasPlus(effectiveProfileForMatch)
   const matchPct = currentTrip ? calculateTripMatch(effectiveProfileForMatch, currentTrip) : undefined
   const matchingVibes = currentTrip ? getMatchingVibes(effectiveProfileForMatch, currentTrip) : []
   const nextMatchPct = nextTrip ? calculateTripMatch(effectiveProfileForMatch, nextTrip) : undefined
@@ -1428,7 +1424,6 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
               sharedX={topCardX}
               matchPct={nextMatchPct}
               matchingVibes={nextMatchingVibes}
-              isPlus={isPlus}
               onSwipeLeft={() => handleSwipeLeft()}
               onSwipeRight={() => handleSwipeRight(nextItem.trip)}
               onTap={() => {}}
@@ -1470,17 +1465,6 @@ export function SwipeStack({ trips, filtersKey, filtersActive, onClearFilters, h
               isJoined={isCurrentJoined}
               matchPct={matchPct}
               matchingVibes={matchingVibes}
-              isPlus={isPlus}
-              onCompatibilityTap={() => {
-                const profile = localProfile ?? userProfile
-                const trialStatus = getTrialStatus(profile)
-                if (trialStatus === 'none') {
-                  setShowFoundingScreen(true)
-                } else {
-                  setPaywallContext(matchPct !== undefined ? { matchPct, destination: currentTrip?.destination } : undefined)
-                  setShowPaywall(true)
-                }
-              }}
               onSwipeLeft={() => handleSwipeLeft()}
               onSwipeRight={() => handleSwipeRight(currentItem.trip)}
               onTap={() => onTripTap(currentItem.trip)}

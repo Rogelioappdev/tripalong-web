@@ -37,11 +37,9 @@ const FEATURES = [
     label: 'Unlimited swipes',
     sub: 'Swipe through every trip in the feed — no daily walls, no waiting until tomorrow.',
   },
-  {
-    icon: '✦',
-    label: 'See your compatibility %',
-    sub: 'Know exactly how well you match a trip and its travelers before you commit.',
-  },
+  // Compatibility % was here. Freed 2026-08-06 — it gated the payoff for the
+  // six Travel DNA questions onboarding requires and converted one person in
+  // the app's lifetime, who churned. Matching is infrastructure, not a tier.
   {
     icon: '👀',
     label: 'See who viewed you',
@@ -102,7 +100,6 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
 
   const headline =
-    trigger === 'compatibility' ? "See exactly how well you match" :
     trigger === 'swipes' && context ? `${context} is waiting` :
     trigger === 'swipes' ? 'More trips are waiting' :
     trigger === 'rewind' ? 'Want that trip back?' :
@@ -113,13 +110,9 @@ export function PaywallModal({ trigger, context, matchPct, trips, onClose, onSuc
     'See who checked you out'
 
   const subcopy =
-    trigger === 'compatibility'
-      ? matchPct !== undefined && matchPct >= 60
-        ? `You're a ${matchPct >= 80 ? 'strong' : 'good'} match — unlock to see the exact number.`
-        : 'Unlock to see exactly how much you match.' :
     trigger === 'rewind' ? 'Unlock rewind and never lose a great trip again.' :
     trigger === 'joins' ? "You've joined today's trip — go Plus to join as many as you want." :
-    trigger === 'upgrade' ? 'Unlimited swipes, see who viewed you, and your compatibility % on every trip.' :
+    trigger === 'upgrade' ? 'Unlimited swipes, and see who viewed your profile.' :
     trigger === 'filters' ? 'Search by location, dates, style, gender, and age to find exactly what you want.' :
     "You've hit today's limit. Upgrade for unlimited."
 
