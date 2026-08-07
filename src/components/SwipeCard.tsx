@@ -277,36 +277,23 @@ function CardContent({ trip, dateLabel, isJoined, matchPct, matchingVibes, onCre
           )}
         </div>
 
-        {/* ── Compatibility row ─────────────────────────────── */}
-        {matchPct !== undefined && (
+        {/* ── Shared-vibes row ──────────────────────────────── */}
+        {matchingVibes && matchingVibes.length > 0 && (
           <>
             <div style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 12, marginBottom: 10 }} />
-            {/* Match % is free for everyone as of 2026-08-06. It was Plus-only,
-                which put a locked badge on 100% of cards a free user ever saw
-                — a permanent low-grade nag — while hiding the payoff for the
-                six Travel DNA questions onboarding makes everyone answer. It
-                converted 1 person in the app's lifetime, who then churned.
-                Matching is infrastructure that makes the feed good, not a tier. */}
+            {/* Shared vibes only. The match % that used to sit here was
+                removed 2026-08-06: computeTripScore awards a near-constant
+                35-40 of its 100 points (experience level almost never scores
+                below 20/25, group size almost always scores 15/15), so nearly
+                every trip landed at 55-65%. A number with no dynamic range
+                isn't a signal — it just teaches users the matching is
+                decorative. Shared vibes say the same thing, concretely, and
+                are true. Scoring still runs invisibly for feed ordering
+                (feedScoring.sortTrips). */}
             <div className="flex items-center gap-2">
-              {/* Score dot */}
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                backgroundColor: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.4)',
-              }} />
-              <span style={{
-                color: matchPct >= 80 ? '#30D158' : matchPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
-                fontSize: 13, fontWeight: 700,
-              }}>
-                {matchPct}% match
+              <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: 600 }}>
+                {matchingVibes.join(' · ')}
               </span>
-              {matchingVibes && matchingVibes.length > 0 && (
-                <>
-                  <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>·</span>
-                  <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 500 }}>
-                    {matchingVibes.join(' · ')}
-                  </span>
-                </>
-              )}
             </div>
           </>
         )}

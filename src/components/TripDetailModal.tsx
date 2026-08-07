@@ -366,71 +366,29 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
               </div>
             )}
 
-            {/* Compatibility */}
-            {!isGuest && matchPct !== undefined && (
+            {/* The "Your Compatibility" block (Group % / Trip % / per-member
+                scores) was removed 2026-08-06. computeTripScore awards a
+                near-constant 35-40 of its 100 points — experience level almost
+                never scores below 20/25, group size almost always scores 15/15
+                — so in practice every trip returned 55-65%. A number that says
+                the same thing about everything isn't information, and showing
+                it made the Travel DNA quiz look decorative. Shared vibes below
+                carry the honest version of the same idea. The score still runs
+                invisibly for feed ordering (feedScoring.sortTrips); it needs
+                real dynamic range before it's worth surfacing again. */}
+            {!isGuest && matchingVibes.length > 0 && (
               <div>
-                <p className="text-white font-bold" style={{ fontSize: 17, marginBottom: 12 }}>Your Compatibility</p>
-                {/* Free for everyone as of 2026-08-06. The blurred-scores
-                    variant that used to live here (and the matching locked
-                    badge on every feed card) gated the payoff for the six
-                    Travel DNA questions onboarding requires — and converted
-                    one person in the app's lifetime, who churned. Matching is
-                    infrastructure that makes the feed good, not a tier. */}
-                  <div
-                    className="rounded-2xl p-4 flex flex-col gap-3"
-                    style={{ backgroundColor: '#0F0F0F', border: '0.5px solid rgba(255,255,255,0.08)' }}
-                  >
-                    {/* Scores row */}
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      {/* Group score — primary */}
-                      {groupPct !== null && (
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Group</p>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-                            <span style={{
-                              fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
-                              color: groupPct >= 80 ? '#30D158' : groupPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
-                            }}>{groupPct}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600 }}>%</span>
-                          </div>
-                          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>
-                            {groupPct >= 80 ? 'You\'ll vibe' : groupPct >= 60 ? 'Good fit' : 'Different styles'}
-                          </p>
-                        </div>
-                      )}
-                      {/* Divider */}
-                      {groupPct !== null && (
-                        <div style={{ width: 0.5, backgroundColor: 'rgba(255,255,255,0.08)', alignSelf: 'stretch' }} />
-                      )}
-                      {/* Trip score — secondary */}
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Trip</p>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-                          <span style={{
-                            fontSize: 32, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1,
-                            color: tripPct >= 80 ? '#30D158' : tripPct >= 60 ? '#FFD60A' : 'rgba(255,255,255,0.55)',
-                          }}>{tripPct}</span>
-                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: 600 }}>%</span>
-                        </div>
-                        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>
-                          {tripPct >= 80 ? 'Perfect fit' : tripPct >= 60 ? 'Good match' : 'Explore anyway'}
-                        </p>
-                      </div>
-                    </div>
-                    {/* Matching vibes */}
-                    {matchingVibes.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 4, borderTop: '0.5px solid rgba(255,255,255,0.07)' }}>
-                        {matchingVibes.map(v => (
-                          <span key={v} style={{
-                            padding: '4px 10px', borderRadius: 999,
-                            backgroundColor: 'rgba(240,235,227,0.07)',
-                            border: '0.5px solid rgba(240,235,227,0.15)',
-                            color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 500,
-                          }}>{v}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <p className="text-white font-bold" style={{ fontSize: 17, marginBottom: 12 }}>What you share</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {matchingVibes.map(v => (
+                    <span key={v} style={{
+                      padding: '5px 12px', borderRadius: 999,
+                      backgroundColor: 'rgba(240,235,227,0.07)',
+                      border: '0.5px solid rgba(240,235,227,0.15)',
+                      color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 500,
+                    }}>{v}</span>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -513,10 +471,6 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
                         {m.isCreator ? (
                           <span style={{ color: '#F0EBE3', fontSize: 9, letterSpacing: '0.5px', textTransform: 'uppercase', marginTop: -2, fontWeight: 600 }}>
                             Creator
-                          </span>
-                        ) : score !== null ? (
-                          <span style={{ color: scoreColor!, fontSize: 11, fontWeight: 700, marginTop: -2 }}>
-                            {score}%
                           </span>
                         ) : null}
                       </button>
