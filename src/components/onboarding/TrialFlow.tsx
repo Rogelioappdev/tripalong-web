@@ -164,6 +164,7 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
     }
   }, [checking, userId])
 
+  const fromWall = source === 'swipe_wall'
   const granted = notifStatus === 'granted'
   const isNative = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView
   const isIOS = typeof navigator !== 'undefined' && /iphone|ipad/i.test(navigator.userAgent)
@@ -198,17 +199,22 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
           overflowY: 'auto', WebkitOverflowScrolling: 'touch',
         } as React.CSSProperties}
       >
-        {/* Back only — no X anywhere in the flow. Leaving is still always
-            possible (back from the first step exits), it just costs one tap
-            per screen instead of one tap total. Matches Cal AI, which has no
-            dismiss control on any screen in this sequence. */}
-        <div className="flex items-center shrink-0" style={{ marginBottom: 6 }}>
+        {/* Two different navigation models on purpose.
+            Swipe wall: back arrow only, no X — the user already had a "Not
+            now" on the wall itself before entering, so they're not cornered.
+            Onboarding: a plain X, because this is a brand-new signup's first
+            experience and burying the exit there is the wrong first
+            impression (and they still have the whole app to reach). */}
+        <div
+          className="flex items-center shrink-0"
+          style={{ marginBottom: 6, justifyContent: fromWall ? 'flex-start' : 'flex-end' }}
+        >
           <button
             type="button"
             onClick={() => {
               haptic(6)
               setNotifPanel('none')
-              if (step === startAt) { close(); return } // first screen — back leaves
+              if (!fromWall || step === startAt) { close(); return }
               setStep('value')
             }}
             className="active:opacity-60"
@@ -218,11 +224,17 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
               border: '0.5px solid rgba(255,255,255,0.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-            aria-label="Back"
+            aria-label={fromWall ? 'Back' : 'Skip'}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            {fromWall ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            )}
           </button>
         </div>
 
@@ -448,7 +460,8 @@ export function TrialFlow({ userId, onDone, source = 'onboarding', startAt = 'va
           userId={userId}
           source={source}
           backgroundImage={bgImage}
-          onBack={() => { haptic(6); setStep('reminder') }}
+          // Wall only — onboarding's paywall keeps its X (see the top bar above).
+          onBack={fromWall ? () => { haptic(6); setStep('reminder') } : undefined}
           onDone={onDone}
         />
       )}
