@@ -25,12 +25,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8644781373903568"
-          crossOrigin="anonymous"
-        />
+        {/* Google AdSense loader removed 2026-08-10. It ran on every page —
+            including the whole authenticated app — while no ad has ever been
+            displayed: the feed builds no `type: 'ad'` items, so AdCard never
+            receives one. So it was a third-party script and an ad-tracking
+            beacon on every page load for zero benefit, plus a privacy-label
+            and consent liability.
+
+            To turn ads back on you must restore this tag as well as
+            re-enabling the feed's ad slots — AdCard calls window.adsbygoogle
+            and does nothing without this loader:
+            <script async crossOrigin="anonymous"
+              src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8644781373903568" />
+
+            The Meta Pixel below is deliberately kept — it measures the ad
+            campaigns we buy, which is unrelated to serving ads. */}
+
         {/* Meta Pixel */}
         <script dangerouslySetInnerHTML={{ __html: `
           !function(f,b,e,v,n,t,s)

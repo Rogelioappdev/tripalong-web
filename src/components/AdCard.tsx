@@ -5,6 +5,12 @@ import { motion, useMotionValue, useTransform, useAnimation, type PanInfo } from
 import type { SwipeCardHandle } from './SwipeCard'
 import { isNativeApp } from '@/lib/native-app'
 
+// DORMANT as of 2026-08-10. Two things must both be restored before this
+// renders anything: the feed has to emit `type: 'ad'` items (SwipeStack's
+// feedItems currently never does), and the AdSense loader script has to go
+// back into app/layout.tsx — it was removed because it loaded on every page
+// while no ad was ever shown. Without that loader, window.adsbygoogle is
+// undefined and WebAdSlot below silently no-ops.
 const AD_CLIENT = 'ca-pub-8644781373903568'
 const AD_SLOT = '4676302670' // "Feed Card Web" responsive display unit
 
