@@ -17,7 +17,7 @@ import { SplashCarousel } from '@/components/onboarding/SplashCarousel'
 import { WelcomeReveal } from '@/components/onboarding/WelcomeReveal'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
-import { LiveVerificationCapture } from '@/components/onboarding/LiveVerificationCapture'
+import { LiveVerificationCapture, preloadFaceLandmarker } from '@/components/onboarding/LiveVerificationCapture'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
@@ -304,6 +304,17 @@ export default function OnboardingPage() {
     let cancelled = false
     getActiveUsers30d().then(count => { if (!cancelled) setActiveUsers30d(count) })
     return () => { cancelled = true }
+  }, [currentPreDnaStep])
+
+  // Start downloading the face model as soon as the user reaches the profile
+  // photo step — two steps before verification needs it. The WASM runtime plus
+  // the ~3MB model used to begin downloading only when they tapped "Open
+  // camera", which is why that screen sat on "Starting camera…" for seconds.
+  // Users spend a while on photos, so by the time they arrive it's cached.
+  useEffect(() => {
+    if (currentPreDnaStep === 'photo' || currentPreDnaStep === 'travelPhotos') {
+      preloadFaceLandmarker()
+    }
   }, [currentPreDnaStep])
 
   const goStage = (stage: typeof newStage, dir: number) => { setNewDirection(dir); setNewStage(stage) }

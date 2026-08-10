@@ -48,6 +48,57 @@ const CHALLENGE_TIMEOUT_MS = 15000
 
 type Phase = 'consent' | 'starting' | 'live' | 'uploading' | 'done' | 'error'
 
+// Pinned, not @latest. Resolving "latest" costs jsDelivr a redirect on every
+// cold load, and an unpinned WASM build can change under us without warning.
+// Keep in sync with @mediapipe/tasks-vision in package.json.
+const MEDIAPIPE_WASM_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm'
+const FACE_MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
+
+// Module-level so the work is shared across mounts and, more importantly, can
+// be kicked off long before this screen renders — see preloadFaceLandmarker.
+let landmarkerPromise: Promise<FaceLandmarker> | null = null
+
+function loadFaceLandmarker(): Promise<FaceLandmarker> {
+  if (!landmarkerPromise) {
+    landmarkerPromise = (async () => {
+      const fileset = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_CDN)
+      return FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: 'GPU' },
+        outputFaceBlendshapes: true,
+        runningMode: 'VIDEO',
+        numFaces: 1,
+      })
+    })().catch(err => {
+      // Don't cache a failure — a flaky network on the first attempt would
+      // otherwise poison every retry for the rest of the session.
+      landmarkerPromise = null
+      throw err
+    })
+  }
+  return landmarkerPromise
+}
+
+// Call this a few steps before verification (onboarding does, from the photo
+// step) so the WASM runtime and the ~3MB model are already downloaded and
+// compiled by the time the user taps "Open camera". Safe to call repeatedly;
+// only the first call does work, and failures are swallowed since this is
+// pure optimisation — startCamera retries properly and surfaces real errors.
+export function preloadFaceLandmarker(): void {
+  if (typeof window === 'undefined') return
+  loadFaceLandmarker().catch(() => {})
+}
+
+// Rotating status copy — the model + camera can take several seconds on a
+// cold cache, and one frozen "Starting camera…" reads as a hang.
+const STARTING_MESSAGES = [
+  'Opening camera…',
+  'Warming up…',
+  'Getting things ready…',
+  'Almost there…',
+  'Any second now…',
+]
+
 // Resolves the signed-in user itself (via supabase.auth.getUser(), same as
 // the 'photo'/'travelPhotos' onboarding steps' upload handlers) instead of
 // taking a userId prop — this step runs mid-quiz, before the quiz's own
@@ -56,6 +107,7 @@ type Phase = 'consent' | 'starting' | 'live' | 'uploading' | 'done' | 'error'
 export function LiveVerificationCapture({ onComplete }: { onComplete: () => void }) {
   const [phase, setPhase] = useState<Phase>('consent')
   const [errorMessage, setErrorMessage] = useState('')
+  const [startingMsg, setStartingMsg] = useState(0)
   const [challenge] = useState<ChallengeAction[]>(pickChallenge)
   const [completedSteps, setCompletedSteps] = useState<Set<ChallengeAction>>(new Set())
 
@@ -79,6 +131,18 @@ export function LiveVerificationCapture({ onComplete }: { onComplete: () => void
   }
 
   useEffect(() => stopCamera, [])
+
+  // Advance the status copy while starting, stopping on the last message
+  // rather than looping — a cycling message implies progress that isn't
+  // happening if it genuinely stalls.
+  useEffect(() => {
+    if (phase !== 'starting') { setStartingMsg(0); return }
+    const t = setInterval(
+      () => setStartingMsg(i => Math.min(i + 1, STARTING_MESSAGES.length - 1)),
+      1400,
+    )
+    return () => clearInterval(t)
+  }, [phase])
 
   const captureFrame = async (video: HTMLVideoElement): Promise<Blob> => {
     const maxDim = 1080
@@ -171,25 +235,24 @@ export function LiveVerificationCapture({ onComplete }: { onComplete: () => void
     setPhase('starting')
     setErrorMessage('')
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      // The camera and the ~3MB face model are independent — this used to run
+      // them in series (camera, then WASM, then model), so the download didn't
+      // even begin until the preview was already live. Racing them together,
+      // plus preloadFaceLandmarker() having usually finished during earlier
+      // onboarding steps, is most of the wait gone.
+      const [stream, landmarker] = await Promise.all([
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false }),
+        loadFaceLandmarker(),
+      ])
       streamRef.current = stream
       const video = videoRef.current
-      if (!video) throw new Error('Camera preview was not ready.')
+      if (!video) {
+        stream.getTracks().forEach(t => t.stop())
+        throw new Error('Camera preview was not ready.')
+      }
       video.srcObject = stream
       await video.play()
 
-      const fileset = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm',
-      )
-      const landmarker = await FaceLandmarker.createFromOptions(fileset, {
-        baseOptions: {
-          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-          delegate: 'GPU',
-        },
-        outputFaceBlendshapes: true,
-        runningMode: 'VIDEO',
-        numFaces: 1,
-      })
       landmarkerRef.current = landmarker
 
       setPhase('live')
@@ -257,8 +320,17 @@ export function LiveVerificationCapture({ onComplete }: { onComplete: () => void
           <div className="relative w-full max-w-[280px] aspect-square rounded-[28px] overflow-hidden" style={{ backgroundColor: '#111' }}>
             <video ref={videoRef} muted playsInline className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
             {phase === 'starting' && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white/40 text-sm">Starting camera…</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                <div
+                  style={{
+                    width: 22, height: 22, borderRadius: 11,
+                    border: '2px solid rgba(255,255,255,0.15)',
+                    borderTopColor: 'rgba(240,235,227,0.8)',
+                    animation: 'ta-verify-spin 0.8s linear infinite',
+                  }}
+                />
+                <span className="text-white/45 text-sm">{STARTING_MESSAGES[startingMsg]}</span>
+                <style>{'@keyframes ta-verify-spin { to { transform: rotate(360deg) } }'}</style>
               </div>
             )}
             {phase === 'uploading' && (
