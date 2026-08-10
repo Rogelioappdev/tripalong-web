@@ -468,7 +468,9 @@ export default function OnboardingPage() {
         case 'nameGender': return newName.trim().length >= 2 && !!newGender
         case 'travelerType': return newTravelerTypes.length > 0
         case 'photo': return !!photoUrl && !uploading
-        case 'travelPhotos': return newTravelPhotos.length >= 3
+        // Mirrors /onboarding: no minimum. See the note there — this was the
+        // biggest single drop in the funnel.
+        case 'travelPhotos': return true
         case 'verifyPhoto': return verificationCaptured
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
         case 'tripTeaser': return true
@@ -1202,7 +1204,7 @@ export default function OnboardingPage() {
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Show off your travels.</h1>
-                      <p className="text-white/38 text-sm">Add 3–10 photos of you and your favorite trips — this is what other travelers see on your profile.</p>
+                      <p className="text-white/38 text-sm">Photos of you and your favorite trips — this is what other travelers see on your profile. You can add them now or later from your profile.</p>
                     </div>
 
                     <div className="mt-5 flex items-center justify-between">
@@ -1211,7 +1213,7 @@ export default function OnboardingPage() {
                         className="text-xs font-bold"
                         style={{ color: newTravelPhotos.length >= 3 ? '#30D158' : 'rgba(255,255,255,0.35)' }}
                       >
-                        {newTravelPhotos.length >= 3 ? '✓ Minimum met' : `${3 - newTravelPhotos.length} more to continue`}
+                        {newTravelPhotos.length >= 3 ? '✓ Looking good' : 'Recommended: 3 or more'}
                       </p>
                     </div>
 
@@ -1266,8 +1268,12 @@ export default function OnboardingPage() {
 
                     <QuizContinueButton
                       onClick={quizNext}
-                      disabled={!canQuizContinue() || uploadingTravelPhotos}
-                      label={uploadingTravelPhotos ? 'Uploading…' : 'Continue →'}
+                      disabled={uploadingTravelPhotos}
+                      label={
+                        uploadingTravelPhotos ? 'Uploading…'
+                          : newTravelPhotos.length === 0 ? 'I’ll add these later'
+                          : 'Continue →'
+                      }
                     />
                   </motion.div>
                 )}

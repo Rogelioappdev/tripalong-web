@@ -589,7 +589,14 @@ export default function OnboardingPage() {
         case 'nameGender': return newName.trim().length >= 2 && !!newGender
         case 'travelerType': return newTravelerTypes.length > 0
         case 'photo': return !!photoUrl && !uploading
-        case 'travelPhotos': return newTravelPhotos.length >= 3
+        // No minimum. This was `>= 3` and it was the single biggest drop in the
+        // whole funnel — 23% of everyone still standing (44 people per 14 days)
+        // quit here rather than go find three travel photos 90 seconds after
+        // signing up. They'd already given name, birthday, traveler type and a
+        // profile photo, so they were the most invested people we lose anywhere.
+        // The ask stays, the block doesn't; the step now encourages and lets
+        // people finish later from their profile.
+        case 'travelPhotos': return true
         case 'verifyPhoto': return verificationCaptured
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
         case 'tripTeaser': return true
@@ -1345,7 +1352,7 @@ export default function OnboardingPage() {
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Show off your travels.</h1>
-                      <p className="text-white/38 text-sm">Add 3–10 photos of you and your favorite trips — this is what other travelers see on your profile.</p>
+                      <p className="text-white/38 text-sm">Photos of you and your favorite trips — this is what other travelers see on your profile. You can add them now or later from your profile.</p>
                     </div>
 
                     <div className="mt-5 flex items-center justify-between">
@@ -1354,7 +1361,7 @@ export default function OnboardingPage() {
                         className="text-xs font-bold"
                         style={{ color: newTravelPhotos.length >= 3 ? '#30D158' : 'rgba(255,255,255,0.35)' }}
                       >
-                        {newTravelPhotos.length >= 3 ? '✓ Minimum met' : `${3 - newTravelPhotos.length} more to continue`}
+                        {newTravelPhotos.length >= 3 ? '✓ Looking good' : 'Recommended: 3 or more'}
                       </p>
                     </div>
 
@@ -1407,10 +1414,19 @@ export default function OnboardingPage() {
 
                     {error && <p className="text-red-400 text-sm text-center mb-2">{error}</p>}
 
+                    {/* With nothing added the primary button becomes the skip,
+                        so there's no disabled dead-end and no hunting for a
+                        small "skip" link — leaving is one obvious tap, and
+                        adding photos is still the path of least resistance
+                        once any are picked. */}
                     <QuizContinueButton
                       onClick={quizNext}
-                      disabled={!canQuizContinue() || uploadingTravelPhotos}
-                      label={uploadingTravelPhotos ? 'Uploading…' : 'Continue →'}
+                      disabled={uploadingTravelPhotos}
+                      label={
+                        uploadingTravelPhotos ? 'Uploading…'
+                          : newTravelPhotos.length === 0 ? 'I’ll add these later'
+                          : 'Continue →'
+                      }
                     />
                   </motion.div>
                 )}
