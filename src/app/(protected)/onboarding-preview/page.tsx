@@ -35,7 +35,15 @@ const fadeUpVariants = {
   visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 320, damping: 30 } },
 }
 
-const CTA_STYLE = { backgroundColor: '#F0EBE3', color: '#000' } as const
+// Gradient, not flat cream — the same treatment every other primary button in
+// the app uses (TrialFlow, the swipe wall, TrialOfferPaywall). A selected quiz
+// option is flat #F0EBE3, so when the two sat next to each other they read as
+// one shape; this keeps exactly one thing on screen that looks like "the
+// button to press". See also the guaranteed gap in QuizContinueButton.
+const CTA_STYLE = {
+  background: 'linear-gradient(135deg, #F0EBE3 0%, #ddd4ca 100%)',
+  color: '#000',
+} as const
 
 // 'momentum' step's ring of small bubbles around the big count circle — reuses
 // the app's real VIBES list (lib/tripOptions.ts) rather than fabricating fake
@@ -46,14 +54,22 @@ const MOMENTUM_VIBE_VALUES = ['adventure', 'foodie', 'beach', 'nature', 'party',
 
 function QuizContinueButton({ onClick, disabled, label }: { onClick: () => void; disabled?: boolean; label: string }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="mt-auto w-full py-4 rounded-2xl font-bold text-sm disabled:opacity-30 active:scale-[0.98] transition-transform"
-      style={CTA_STYLE}
-    >
-      {label}
-    </button>
+    <>
+      {/* Guarantees clear air above the CTA. The button used to carry mt-auto
+          alone, which collapses to a zero gap on any step whose content fills
+          the viewport — most visibly the traveler-type step, where selecting
+          the last option ("First-Timer") put a cream block flush against the
+          cream button and the two merged into a single shape. */}
+      <div className="mt-auto shrink-0" style={{ minHeight: 20 }} />
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className="w-full py-4 rounded-2xl font-bold text-sm disabled:opacity-30 active:scale-[0.98] transition-transform shrink-0"
+        style={CTA_STYLE}
+      >
+        {label}
+      </button>
+    </>
   )
 }
 
