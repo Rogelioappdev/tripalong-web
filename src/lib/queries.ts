@@ -72,7 +72,13 @@ export async function getTrips(): Promise<TripWithDetails[]> {
       `)
       .eq('status', 'planning')
       .order('created_at', { ascending: false })
-      .limit(100),
+      // Was 100, against 121 live trips — so the 21 oldest were invisible to
+      // the feed entirely. Worse, this limit applies BEFORE the seen/joined
+      // filters below, so it compounds for exactly the users who engage most:
+      // someone who has already swiped 80 of the newest 100 was left with 20
+      // candidates while dozens of unseen older trips sat unreachable. Matches
+      // getTripsForMap's 1000, which already runs a comparable select.
+      .limit(1000),
 
     userId
       ? supabase.from('user_seen_trips').select('trip_id').eq('user_id', userId)
