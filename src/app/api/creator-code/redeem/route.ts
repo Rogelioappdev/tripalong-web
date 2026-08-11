@@ -20,9 +20,13 @@ export async function POST(req: NextRequest) {
   if (typeof raw !== 'string' || !raw.trim()) {
     return NextResponse.json({ error: 'Enter a code' }, { status: 400 })
   }
-  // Codes are handed out and typed by humans off a video — normalise hard so
-  // "maya", " Maya " and "MAYA" are all the same code.
-  const code = raw.trim().toUpperCase()
+  // Codes are handed out and typed (or pasted) by humans off a video, so
+  // normalise hard: uppercase and strip everything that isn't A-Z0-9. That
+  // covers spaces, stray punctuation, and invisible characters picked up by
+  // copy-paste — a real failure the first time this was used, where a code
+  // pasted out of a formatted table arrived as "| TESTMAYA".
+  const code = raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!code) return NextResponse.json({ error: 'Enter a code' }, { status: 400 })
 
   const anon = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

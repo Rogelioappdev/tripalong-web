@@ -93,7 +93,7 @@ export function CreatorCodeSheet({ onClose, onApplied }: Props) {
 
             <input
               value={code}
-              onChange={e => { setCode(e.target.value.toUpperCase()); setError(null) }}
+              onChange={e => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')); setError(null) }}
               onKeyDown={e => { if (e.key === 'Enter') submit() }}
               placeholder="MAYA"
               autoCapitalize="characters"

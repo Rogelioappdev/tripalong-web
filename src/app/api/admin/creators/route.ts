@@ -72,8 +72,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!authed(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
-  const code = String(body.code ?? '').trim().toUpperCase()
-  const creator_name = String(body.creator_name ?? '').trim()
+  // Same normalisation as redemption, so a code can never be stored in a form
+  // nobody can type back in.
+  const code = String(body.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const creator_name = String(body.creator_name ?? '').replace(/[│|]/g, '').trim()
   if (!code || !creator_name) {
     return NextResponse.json({ error: 'code and creator_name are required' }, { status: 400 })
   }
@@ -81,9 +83,9 @@ export async function POST(req: NextRequest) {
   const { data, error } = await admin().from('creator_codes').insert({
     code,
     creator_name,
-    creator_handle: body.creator_handle ?? null,
-    email: body.email ?? null,
-    payout_method: body.payout_method ?? null,
+    creator_handle: String(body.creator_handle ?? '').trim() || null,
+    email: String(body.email ?? '').trim() || null,
+    payout_method: String(body.payout_method ?? '').trim() || null,
     commission_rate: body.commission_rate ?? 0.15,
   }).select().single()
 
