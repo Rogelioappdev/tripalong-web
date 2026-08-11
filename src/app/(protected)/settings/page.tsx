@@ -11,6 +11,7 @@ import { haptic } from '@/lib/haptics'
 import { getNotificationStatusAsync, type NotificationStatus } from '@/lib/push'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { PaywallModal } from '@/components/PaywallModal'
+import { CreatorCodeSheet } from '@/components/CreatorCodeSheet'
 import { hasPlus } from '@/lib/trial'
 import { isNativeApp, openNativeSubscriptionManagement } from '@/lib/purchase'
 import { openBillingPortal } from '@/lib/subscription'
@@ -141,6 +142,7 @@ export default function SettingsPage() {
   // plaintext anywhere) and actually grants a real, permanent TripAlong+
   // subscription via /api/redeem-creator-code, not just a client-side flag.
   const [showCreatorCode, setShowCreatorCode] = useState(false)
+  const [showReferralSheet, setShowReferralSheet] = useState(false)
   const [creatorCode, setCreatorCode] = useState('')
   const [creatorCodeError, setCreatorCodeError] = useState('')
   const [creatorRedeeming, setCreatorRedeeming] = useState(false)
@@ -503,6 +505,18 @@ export default function SettingsPage() {
               TripAlong+ subscription via /api/redeem-creator-code, not a
               client-side flag. ── */}
           <Group title="Content Creators">
+            {/* Referral attribution — a DIFFERENT thing from the one-time
+                creator comp code below. This credits whichever creator sent
+                you here so they earn commission; it grants the user nothing.
+                Lives here as well as in onboarding so anyone who signed up
+                before hearing about a creator can still credit them. */}
+            <Row
+              label="Were you sent by a creator?"
+              sub="Enter their code to credit them"
+              chevron
+              border
+              onPress={() => { haptic(8); setShowReferralSheet(true) }}
+            />
             <Row
               label="Are you a TripAlong Content Creator?"
               sub="Enter your code"
@@ -607,6 +621,10 @@ export default function SettingsPage() {
           onDone={() => { setShowNotificationPrompt(false); refreshPushStatus() }}
         />
       )}
+      {showReferralSheet && (
+        <CreatorCodeSheet onClose={() => setShowReferralSheet(false)} />
+      )}
+
       {showPaywall && (
         <PaywallModal
           trigger="upgrade"
