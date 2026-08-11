@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { parseFollowers } from '@/lib/parseFollowers'
 
 // Creator pipeline for the founding team: who we've contacted, where each
 // conversation stands, and — for anyone signed — what their code has actually
@@ -90,14 +91,11 @@ function parseBulk(text: string) {
     let followers: number | null = null
     let name = ''
     for (const p of parts.slice(1)) {
-      const digits = p.replace(/[^0-9]/g, '')
-      if (digits && digits.length === p.replace(/[\s,.k]/gi, '').length && !followers) {
-        followers = parseInt(digits, 10)
-      } else if (/^[0-9.,]+k$/i.test(p) && !followers) {
-        followers = Math.round(parseFloat(p) * 1000)
-      } else if (!name) {
-        name = p
-      }
+      // A field is a follower count if it's numeric-ish ("8400", "24k", "1.2m");
+      // anything else is the name.
+      const looksNumeric = /^[~+]?[0-9][0-9.,]*\s*[km]?$/i.test(p)
+      if (looksNumeric && followers == null) followers = parseFollowers(p)
+      else if (!name) name = p
     }
     return { handle, followers, name }
   }).filter(Boolean) as { handle: string; followers: number | null; name: string }[]
@@ -138,11 +136,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Give at least a name or an Instagram handle.' }, { status: 400 })
   }
 
-  const followersRaw = String(body.followers ?? '').replace(/[^0-9]/g, '')
   const { data, error } = await db().from('creators').insert({
     name: name || `@${instagram_handle}`,
     instagram_handle,
-    followers: followersRaw ? parseInt(followersRaw, 10) : null,
+    followers: parseFollowers(body.followers),
     email: String(body.email ?? '').trim() || null,
     owner: String(body.owner ?? '').trim() || null,
     notes: String(body.notes ?? '').trim() || null,
@@ -202,10 +199,7 @@ export async function PATCH(req: NextRequest) {
   if (body.call_at !== undefined) patch.call_at = body.call_at || null
   if (body.email !== undefined) patch.email = String(body.email ?? '').trim() || null
   if (body.payout_method !== undefined) patch.payout_method = String(body.payout_method ?? '').trim() || null
-  if (body.followers !== undefined) {
-    const f = String(body.followers ?? '').replace(/[^0-9]/g, '')
-    patch.followers = f ? parseInt(f, 10) : null
-  }
+  if (body.followers !== undefined) patch.followers = parseFollowers(body.followers)
   if (body.instagram_handle !== undefined) patch.instagram_handle = normaliseHandle(body.instagram_handle)
 
   const { error } = await supa.from('creators').update(patch).eq('id', id)

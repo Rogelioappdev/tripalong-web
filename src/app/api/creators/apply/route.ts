@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { parseFollowers } from '@/lib/parseFollowers'
 
 // Public creator application. Deliberately unauthenticated — the whole point
 // is that replying to a DM with one link removes all data entry from our side,
@@ -33,8 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please enter your Instagram handle.' }, { status: 400 })
   }
 
-  const followersRaw = String(body.followers ?? '').replace(/[^0-9]/g, '')
-  const followers = followersRaw ? Math.min(parseInt(followersRaw, 10), 100_000_000) : null
+  const followers = parseFollowers(body.followers)
 
   const db = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
