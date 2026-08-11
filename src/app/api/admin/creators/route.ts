@@ -4,10 +4,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 // Admin control panel for the creator referral programme: roster + earnings,
-// issuing codes, and marking payouts. Secret-gated the same way as
-// /api/admin/broadcast-push — this exposes every creator's earnings and can
-// create codes, so it must never be reachable from the client.
-const ADMIN_SECRET = process.env.BROADCAST_SECRET
+// issuing codes, and marking payouts. This exposes every creator's earnings
+// and can create codes, so it must never be reachable from the client.
+//
+// Prefers a dedicated ADMIN_SECRET, falling back to BROADCAST_SECRET so the
+// route still works if the dedicated one is ever missing. Kept separate on
+// purpose: rotating the admin password shouldn't break the push-broadcast
+// tooling, and vice versa.
+const ADMIN_SECRET = process.env.ADMIN_SECRET || process.env.BROADCAST_SECRET
 
 function authed(req: NextRequest) {
   const token = (req.headers.get('authorization') ?? '').replace('Bearer ', '').trim()
