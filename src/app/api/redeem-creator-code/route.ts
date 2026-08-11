@@ -5,7 +5,9 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
 // Redeems a one-time "Are you a TripAlong Content Creator?" code (Settings ->
-// About) into a permanent, free TripAlong+ grant. Codes are stored as SHA-256
+// About) into a free TripAlong+ grant, either permanent or for a fixed number
+// of months depending on the code (creator_access_codes.grant_months). Codes
+// are stored as SHA-256
 // hashes only (creator_access_codes.code_hash) — the raw code is never
 // written anywhere after being generated and handed to whoever it's given
 // to, so it can't be read back out of the database by anyone, including us.
@@ -50,27 +52,43 @@ export async function POST(req: NextRequest) {
     .eq('code_hash', codeHash)
     .is('redeemed_by', null)
     .eq('revoked', false)
-    .select('id')
+    .select('id, grant_months')
     .maybeSingle()
 
   if (claimError) return NextResponse.json({ error: claimError.message }, { status: 500 })
   if (!claimed) return NextResponse.json({ error: 'Invalid or already-used code' }, { status: 400 })
 
-  // Permanent, free Plus — subscription_status is a marker distinct from any
-  // real Stripe/RevenueCat status string, so this is easy to find/audit
-  // later and never gets treated as "Canceling" by the Settings UI (which
-  // only special-cases the literal 'canceled' status). No expiry: only ever
-  // ends if manually revoked/downgraded by hand.
+  // A code carries its own duration. grant_months null = permanent, which is
+  // what every code minted before 2026-08-11 means; a number gives a comp
+  // that ends on its own, swept by /api/cron/expire-comps. The clock starts
+  // at redemption, not at minting, so a code sitting unused in a DM doesn't
+  // quietly burn the creator's year.
+  const months = claimed.grant_months
+  let expiresAt: string | null = null
+  if (typeof months === 'number' && months > 0) {
+    const end = new Date()
+    end.setMonth(end.getMonth() + months)
+    expiresAt = end.toISOString()
+  }
+
+  // subscription_status is a marker distinct from any real Stripe/RevenueCat
+  // status string, so comps are easy to find/audit later and never get
+  // treated as "Canceling" by the Settings UI (which only special-cases the
+  // literal 'canceled' status). It's also what scopes the expiry sweep — if
+  // this creator later actually subscribes, the RevenueCat webhook
+  // overwrites the status to 'active' and the sweep can never touch them.
   const { error: grantError } = await supabaseAdmin
     .from('users')
     .update({
       subscription_tier: 'plus',
       subscription_status: 'creator_comp',
-      subscription_expires_at: null,
+      subscription_expires_at: expiresAt,
     })
     .eq('id', user.id)
 
   if (grantError) return NextResponse.json({ error: grantError.message }, { status: 500 })
 
-  return NextResponse.json({ success: true })
+  // expiresAt goes back so the client can show the real end date immediately
+  // instead of optimistically assuming a permanent grant.
+  return NextResponse.json({ success: true, expiresAt })
 }

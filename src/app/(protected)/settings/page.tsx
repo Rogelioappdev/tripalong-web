@@ -139,8 +139,10 @@ export default function SettingsPage() {
 
   // Fully separate from the member code above — this one is server-validated
   // (one-time codes hashed in the creator_access_codes table, never stored in
-  // plaintext anywhere) and actually grants a real, permanent TripAlong+
-  // subscription via /api/redeem-creator-code, not just a client-side flag.
+  // plaintext anywhere) and actually grants a real TripAlong+ subscription
+  // via /api/redeem-creator-code, not just a client-side flag. Each code
+  // carries its own duration: permanent, or a fixed number of months ended by
+  // /api/cron/expire-comps.
   const [showCreatorCode, setShowCreatorCode] = useState(false)
   const [showReferralSheet, setShowReferralSheet] = useState(false)
   const [creatorCode, setCreatorCode] = useState('')
@@ -243,7 +245,10 @@ export default function SettingsPage() {
       if (!res.ok) throw new Error(body.error ?? 'Invalid or already-used code')
       haptic(10)
       setCreatorRedeemed(true)
-      setProfile(p => p ? { ...p, subscription_tier: 'plus', subscription_status: 'creator_comp', subscription_expires_at: null } : p)
+      // expiresAt is null for a permanent comp and an ISO date for a
+      // time-limited one — take whatever the server actually granted rather
+      // than assuming permanent.
+      setProfile(p => p ? { ...p, subscription_tier: 'plus', subscription_status: 'creator_comp', subscription_expires_at: body.expiresAt ?? null } : p)
     } catch (e: any) {
       haptic([8, 20, 8])
       setCreatorCodeError(e?.message ?? 'Invalid or already-used code')
@@ -501,9 +506,9 @@ export default function SettingsPage() {
 
           {/* ── Content creator comp — fully separate from the member code
               above: server-validated one-time codes (hashed, single-use,
-              tracked in creator_access_codes) that grant a real, permanent
-              TripAlong+ subscription via /api/redeem-creator-code, not a
-              client-side flag. ── */}
+              tracked in creator_access_codes) that grant a real TripAlong+
+              subscription via /api/redeem-creator-code, not a client-side
+              flag. Duration is per-code: permanent, or a fixed term. ── */}
           <Group title="Content Creators">
             {/* Referral attribution — a DIFFERENT thing from the one-time
                 creator comp code below. This credits whichever creator sent
