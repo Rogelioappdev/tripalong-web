@@ -70,10 +70,67 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ creators: rows })
 }
 
-/** Add someone to the pipeline. */
+/**
+ * Parses a pasted list into creators. Tolerant on purpose — this gets fed
+ * whatever shape a DM export or spreadsheet happens to be in. One per line:
+ *   @handle
+ *   @handle, 8400
+ *   @handle, 8400, Their Name
+ *   https://instagram.com/handle
+ */
+function parseBulk(text: string) {
+  return text.split(/\r?\n/).map(line => {
+    const raw = line.trim()
+    if (!raw) return null
+    const parts = raw.split(/[,\t|]/).map(p => p.trim()).filter(Boolean)
+    const handle = normaliseHandle(parts[0])
+    if (!handle) return null
+    // Followers = the first remaining field that's mostly digits; name = the
+    // first that isn't. Order-independent, so "Name, @handle" also works.
+    let followers: number | null = null
+    let name = ''
+    for (const p of parts.slice(1)) {
+      const digits = p.replace(/[^0-9]/g, '')
+      if (digits && digits.length === p.replace(/[\s,.k]/gi, '').length && !followers) {
+        followers = parseInt(digits, 10)
+      } else if (/^[0-9.,]+k$/i.test(p) && !followers) {
+        followers = Math.round(parseFloat(p) * 1000)
+      } else if (!name) {
+        name = p
+      }
+    }
+    return { handle, followers, name }
+  }).filter(Boolean) as { handle: string; followers: number | null; name: string }[]
+}
+
+/** Add someone to the pipeline — one at a time, or a pasted list. */
 export async function POST(req: NextRequest) {
   if (!authed(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
+
+  if (typeof body.bulk === 'string' && body.bulk.trim()) {
+    const parsed = parseBulk(body.bulk)
+    if (!parsed.length) {
+      return NextResponse.json({ error: 'Nothing recognisable in that. One handle per line.' }, { status: 400 })
+    }
+    const supa = db()
+    const { data: existing } = await supa.from('creators').select('instagram_handle')
+    const have = new Set((existing ?? []).map((r: any) => r.instagram_handle))
+    const fresh = parsed.filter(p => !have.has(p.handle))
+
+    if (fresh.length) {
+      await supa.from('creators').insert(fresh.map(p => ({
+        name: p.name || `@${p.handle}`,
+        instagram_handle: p.handle,
+        followers: p.followers,
+        owner: String(body.owner ?? '').trim() || null,
+        stage: 'reached_out',
+      })))
+    }
+    return NextResponse.json({
+      ok: true, added: fresh.length, skipped: parsed.length - fresh.length,
+    })
+  }
 
   const name = String(body.name ?? '').trim()
   const instagram_handle = normaliseHandle(body.instagram_handle)

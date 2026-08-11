@@ -73,6 +73,10 @@ export default function PipelinePage() {
   const [showArchived, setShowArchived] = useState(false)
 
   const [add, setAdd] = useState({ name: '', instagram_handle: '', followers: '', owner: '', notes: '' })
+  const [bulk, setBulk] = useState('')
+  const [bulkOwner, setBulkOwner] = useState('')
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkResult, setBulkResult] = useState<string | null>(null)
 
   useEffect(() => { setSecret(localStorage.getItem(KEY) ?? '') }, [])
 
@@ -112,6 +116,21 @@ export default function PipelinePage() {
     setBusy(false)
     if (!res.ok) { setError(out.error ?? 'Could not add'); return }
     setAdd({ name: '', instagram_handle: '', followers: '', owner: '', notes: '' })
+    load(secret)
+  }
+
+  const importBulk = async () => {
+    setBusy(true); setError(null); setBulkResult(null)
+    const res = await fetch('/api/admin/pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ bulk, owner: bulkOwner }),
+    })
+    const out = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) { setError(out.error ?? 'Import failed'); return }
+    setBulkResult(`Added ${out.added}. Skipped ${out.skipped} already in the pipeline.`)
+    setBulk('')
     load(secret)
   }
 
@@ -178,6 +197,39 @@ export default function PipelinePage() {
               </div>
             </section>
 
+            {/* Bulk paste — the fast path for a DM dump or a spreadsheet column */}
+            <section style={{ marginTop: 10, background: '#111', border: '1px solid #222', borderRadius: 12, padding: 16 }}>
+              <button onClick={() => setBulkOpen(v => !v)}
+                style={{ background: 'none', border: 'none', color: '#3E9DBF', fontSize: 13.5, fontWeight: 600, padding: 0, cursor: 'pointer' }}>
+                {bulkOpen ? 'Hide bulk paste' : 'Paste a list instead →'}
+              </button>
+              {bulkOpen && (
+                <>
+                  <p style={{ color: 'rgba(240,235,227,0.4)', fontSize: 12.5, margin: '10px 0 8px', lineHeight: 1.6 }}>
+                    One per line. Handle only, or add followers and a name:
+                    <br /><code style={{ color: 'rgba(240,235,227,0.6)' }}>@mayatravels, 8400, Maya</code>
+                    {' · '}<code style={{ color: 'rgba(240,235,227,0.6)' }}>@jakeroams, 24k</code>
+                    {' · '}<code style={{ color: 'rgba(240,235,227,0.6)' }}>instagram.com/lucagoes</code>
+                    <br />Anyone already in the pipeline is skipped, so re-pasting is safe.
+                  </p>
+                  <textarea value={bulk} onChange={e => setBulk(e.target.value)} rows={6}
+                    placeholder={'@handle, 8400, Name\n@handle2, 12k\n@handle3'}
+                    style={{ ...input, width: '100%', fontFamily: 'ui-monospace, monospace', lineHeight: 1.6, resize: 'vertical' }} />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                    <select value={bulkOwner} onChange={e => setBulkOwner(e.target.value)} style={{ ...input, width: 150 }}>
+                      <option value="">Assign to nobody</option>
+                      {OWNERS.map(o => <option key={o} value={o}>Assign all to {o}</option>)}
+                    </select>
+                    <button onClick={importBulk} disabled={busy || !bulk.trim()}
+                      style={{ padding: '9px 18px', borderRadius: 9, background: '#F0EBE3', color: '#000', fontWeight: 700, fontSize: 13.5, border: 'none', opacity: busy || !bulk.trim() ? 0.4 : 1 }}>
+                      Import
+                    </button>
+                    {bulkResult && <span style={{ fontSize: 13, color: '#5FBF8A' }}>{bulkResult}</span>}
+                  </div>
+                </>
+              )}
+            </section>
+
             {/* Filters */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
               <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name or @handle"
@@ -238,6 +290,19 @@ export default function PipelinePage() {
                             )}
                           </div>
 
+                          {/* Followers are editable inline: the tier badge beside it
+                              recalculates the moment the number is saved, so
+                              categorising someone is just typing their count. */}
+                          <input
+                            defaultValue={c.followers ?? ''}
+                            onBlur={e => {
+                              const v = e.target.value.trim()
+                              if (v !== String(c.followers ?? '')) patch({ id: c.id, followers: v })
+                            }}
+                            placeholder="followers"
+                            title="Follower count — sets their size tier"
+                            style={{ ...input, width: 88, padding: '5px 8px', fontSize: 12.5 }}
+                          />
                           <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: tier.color, background: `${tier.color}1f`, whiteSpace: 'nowrap' }}>
                             {fmtFollowers(c.followers)} · {tier.label}
                           </span>
@@ -261,7 +326,16 @@ export default function PipelinePage() {
                             </button>
                           ) : null}
 
-                          {c.notes && <span style={{ fontSize: 12.5, color: 'rgba(240,235,227,0.3)', flex: 1, minWidth: 100 }}>{c.notes}</span>}
+                          <input
+                            defaultValue={c.notes ?? ''}
+                            onBlur={e => {
+                              const v = e.target.value
+                              if (v !== (c.notes ?? '')) patch({ id: c.id, notes: v })
+                            }}
+                            placeholder="notes"
+                            style={{ ...input, flex: 1, minWidth: 140, padding: '5px 9px', fontSize: 12.5, background: 'transparent', border: '1px solid transparent', color: 'rgba(240,235,227,0.55)' }}
+                            onFocus={e => { e.currentTarget.style.background = '#181818'; e.currentTarget.style.borderColor = '#2a2a2a' }}
+                          />
 
                           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                             <select value={c.stage} onChange={e => patch({ id: c.id, stage: e.target.value })} disabled={busy}
