@@ -64,6 +64,9 @@ type EventProps = {
   // lifetime conversions had no denominator — we couldn't tell "nobody sees
   // it" from "everybody sees it and the paywall fails", which need opposite
   // fixes. These three give it one.
+  // Creator referral attribution — how many people actually type a code is
+  // the number that decides whether commission is measurable at all.
+  creator_code_applied: { already_attributed: boolean }
   profile_views_bar_shown: { viewer_count: number; is_plus: boolean }
   profile_views_opened: { viewer_count: number; source: string; is_plus: boolean }
   // ── Activation loop (leading indicators of conversion) ──────────────

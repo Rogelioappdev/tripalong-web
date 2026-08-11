@@ -18,6 +18,7 @@ import { WelcomeReveal } from '@/components/onboarding/WelcomeReveal'
 import { TravelDnaStep } from '@/components/onboarding/TravelDnaStep'
 import { PhotoCropModal } from '@/components/onboarding/PhotoCropModal'
 import { LiveVerificationCapture, preloadFaceLandmarker } from '@/components/onboarding/LiveVerificationCapture'
+import { CreatorCodeSheet } from '@/components/CreatorCodeSheet'
 import { CitySearchPicker } from '@/components/onboarding/CitySearchPicker'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { DNA_DIMENSIONS, EMPTY_DNA, type NewDnaData, type DnaOption } from '@/components/onboarding/dnaOptions'
@@ -132,6 +133,8 @@ export default function OnboardingPage() {
   const [activeUsers30d, setActiveUsers30d] = useState<number | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [showCreatorCode, setShowCreatorCode] = useState(false)
+  const [creatorCodeApplied, setCreatorCodeApplied] = useState(false)
   const [newTravelPhotos, setNewTravelPhotos] = useState<string[]>([])
   const [uploadingTravelPhotos, setUploadingTravelPhotos] = useState(false)
   const [verificationCaptured, setVerificationCaptured] = useState(false)
@@ -1765,6 +1768,31 @@ export default function OnboardingPage() {
                           ? `${activeUsers30dDisplay} travelers were active this month`
                           : 'Travelers are joining trips right now'}
                       </p>
+
+                      {/* Creator attribution. Deliberately a link on an existing
+                          screen rather than a step of its own — onboarding
+                          already loses 81% and we're not adding a screen to a
+                          funnel we just spent days trimming. It has to sit
+                          before the passport/trial paywall, though, or the
+                          first conversion a creator drives can't be credited
+                          to them. */}
+                      {creatorCodeApplied ? (
+                        <p className="text-white/30 text-xs" style={{ marginTop: 14 }}>
+                          Creator code applied ✓
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => { haptic(6); setShowCreatorCode(true) }}
+                          className="active:opacity-60"
+                          style={{
+                            marginTop: 14, fontSize: 12.5, color: 'rgba(255,255,255,0.35)',
+                            textDecoration: 'underline', textUnderlineOffset: 3,
+                          }}
+                        >
+                          Have a creator code?
+                        </button>
+                      )}
                     </div>
 
                     <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
@@ -2108,6 +2136,13 @@ export default function OnboardingPage() {
           imageSrc={cropImageSrc}
           onConfirm={handleCropConfirm}
           onCancel={handleCropCancel}
+        />
+      )}
+
+      {showCreatorCode && (
+        <CreatorCodeSheet
+          onClose={() => setShowCreatorCode(false)}
+          onApplied={() => setCreatorCodeApplied(true)}
         />
       )}
 
