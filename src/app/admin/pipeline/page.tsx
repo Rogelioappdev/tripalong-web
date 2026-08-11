@@ -4,333 +4,289 @@ export const dynamic = 'force-dynamic'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-// Creator deal pipeline — everything before /admin/creators.
+// Creator pipeline for the three of us. Built to stay usable at 300+ rows:
+// everything is one screen, grouped by stage, with search and filters rather
+// than pagination — you should always be able to find a person in two seconds.
 //
-// Shares the admin secret with the other /admin pages (same localStorage key)
-// so you type it once. The list is stage-filtered rather than a kanban board
-// on purpose: this gets checked on a phone between DMs, and horizontal
-// columns are unusable there.
-const KEY = 'ta_admin_secret'
+// Shares the admin secret (and its localStorage key) with /admin/creators, so
+// signing in to one signs you in to both.
 
-type Lead = {
-  id: string
-  handle: string
-  name: string | null
-  followers: number | null
-  stage: 'new' | 'waiting' | 'call' | 'closed' | 'live' | 'dead'
-  notes: string | null
-  deal_terms: string | null
-  call_at: string | null
-  last_contact_at: string | null
-  code_id: string | null
-  created_at: string
-  perf: { signups: number; subscribers: number; revenue_cents: number } | null
-  call_overdue: boolean
-  call_today: boolean
-  stale: boolean
-  days_quiet: number
-}
+const KEY = 'ta_admin_secret'
+const OWNERS = ['Jack', 'Kurt', 'Rogelio']
 
 const STAGES = [
-  { id: 'new',     label: 'New',      hint: 'Came in, not replied yet',   color: '#5AC8FA' },
-  { id: 'waiting', label: 'Waiting',  hint: 'Ball is in their court',     color: '#FFB020' },
-  { id: 'call',    label: 'Call',     hint: 'Call booked',                color: '#AF7BFF' },
-  { id: 'closed',  label: 'Closed',   hint: 'Agreed, content in progress',color: '#3DD68C' },
-  { id: 'live',    label: 'Live',     hint: 'Content published',          color: '#F0EBE3' },
-  { id: 'dead',    label: 'Passed',   hint: 'Not a fit / ghosted',        color: '#6B6B6B' },
+  { id: 'reached_out', label: 'Reached out', hint: 'DM sent, no reply yet or still talking' },
+  { id: 'call_scheduled', label: 'Call scheduled', hint: 'Booked in' },
+  { id: 'working', label: 'Working with us', hint: 'Signed and posting' },
 ] as const
 
-const money = (c: number) => `$${(c / 100).toFixed(2)}`
-const card = { background: '#111', border: '1px solid #222', borderRadius: 12, padding: 18 } as const
-const input = { padding: '9px 12px', borderRadius: 9, background: '#181818', border: '1px solid #2a2a2a', color: '#fff', fontSize: 13.5 } as const
-const btn = { padding: '8px 14px', borderRadius: 9, border: '1px solid #2a2a2a', background: '#181818', color: '#F0EBE3', fontSize: 13, cursor: 'pointer' } as const
+type Stage = typeof STAGES[number]['id']
 
-function whenLabel(iso: string | null) {
-  if (!iso) return null
-  const d = new Date(iso)
-  return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+type Creator = {
+  id: string
+  name: string
+  instagram_handle: string | null
+  followers: number | null
+  email: string | null
+  stage: Stage
+  owner: string | null
+  notes: string | null
+  archived: boolean
+  code: string | null
+  signups?: number
+  subscribers?: number
+  pending_cents?: number
+  payable_cents?: number
+  paid_cents?: number
+}
+
+// Size tiers. Derived from follower count rather than stored, so correcting a
+// follower number instantly recategorises them.
+function tierOf(f: number | null) {
+  if (f == null) return { id: 'unknown', label: 'Unknown', color: '#6b6b6b' }
+  if (f < 10_000) return { id: 'small', label: 'Small niche', color: '#3E9DBF' }
+  if (f < 100_000) return { id: 'medium', label: 'Medium', color: '#B98A35' }
+  return { id: 'large', label: 'Large 100k+', color: '#8B6BD9' }
+}
+
+const money = (c?: number) => `$${((c ?? 0) / 100).toFixed(2)}`
+const fmtFollowers = (f: number | null) =>
+  f == null ? '—' : f >= 1000 ? `${(f / 1000).toFixed(f >= 10_000 ? 0 : 1)}k` : String(f)
+
+// Stable colour per handle so the same person is always the same colour —
+// it's what makes a long list scannable without avatars.
+function hue(seed: string) {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360
+  return h
 }
 
 export default function PipelinePage() {
   const [secret, setSecret] = useState('')
-  const [leads, setLeads] = useState<Lead[] | null>(null)
+  const [creators, setCreators] = useState<Creator[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [filter, setFilter] = useState<string>('all')
-  const [open, setOpen] = useState<string | null>(null)
-  const [bulk, setBulk] = useState('')
+
+  const [q, setQ] = useState('')
+  const [tierFilter, setTierFilter] = useState('all')
+  const [ownerFilter, setOwnerFilter] = useState('all')
+  const [showArchived, setShowArchived] = useState(false)
+
+  const [add, setAdd] = useState({ name: '', instagram_handle: '', followers: '', owner: '', notes: '' })
 
   useEffect(() => { setSecret(localStorage.getItem(KEY) ?? '') }, [])
 
   const load = useCallback(async (s: string) => {
     if (!s) return
     setError(null)
-    const res = await fetch('/api/admin/creator-leads', { headers: { Authorization: `Bearer ${s}` } })
-    if (!res.ok) { setError('Wrong secret, or the server rejected it.'); setLeads(null); return }
-    const body = await res.json()
-    setLeads(body.leads ?? [])
+    const res = await fetch('/api/admin/pipeline', { headers: { Authorization: `Bearer ${s}` } })
+    if (!res.ok) { setError('Wrong secret, or the server rejected it.'); setCreators(null); return }
+    setCreators((await res.json()).creators ?? [])
     localStorage.setItem(KEY, s)
   }, [])
 
   useEffect(() => { if (secret) load(secret) }, [secret, load])
 
-  const call = useCallback(async (method: string, payload: any) => {
-    setBusy(true); setError(null)
-    const res = await fetch('/api/admin/creator-leads', {
-      method,
+  const patch = async (body: Record<string, unknown>) => {
+    setBusy(true)
+    const res = await fetch('/api/admin/pipeline', {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     })
-    const body = await res.json().catch(() => ({}))
+    const out = await res.json().catch(() => ({}))
     setBusy(false)
-    if (!res.ok) { setError(body.error ?? 'Something went wrong'); return null }
+    if (!res.ok) { setError(out.error ?? 'Update failed'); return false }
     await load(secret)
-    return body
-  }, [secret, load])
-
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {}
-    for (const l of leads ?? []) c[l.stage] = (c[l.stage] ?? 0) + 1
-    return c
-  }, [leads])
-
-  // The whole reason this exists: with 40+ conversations the failure isn't
-  // losing someone, it's forgetting them. Surface that first, above the list.
-  const attention = useMemo(() => {
-    const l = leads ?? []
-    return {
-      overdue: l.filter(x => x.call_overdue),
-      today: l.filter(x => x.call_today && !x.call_overdue),
-      stale: l.filter(x => x.stale),
-      unanswered: l.filter(x => x.stage === 'new'),
-    }
-  }, [leads])
-
-  const shown = useMemo(() => {
-    const l = (leads ?? []).filter(x => filter === 'all' ? x.stage !== 'dead' : x.stage === filter)
-    const rank = (x: Lead) => (x.call_overdue ? 0 : x.call_today ? 1 : x.stale ? 2 : 3)
-    return [...l].sort((a, b) => rank(a) - rank(b) || b.days_quiet - a.days_quiet)
-  }, [leads, filter])
-
-  const importBulk = async () => {
-    const r = await call('POST', { bulk })
-    if (r) { setBulk(''); setFilter('new') }
+    return true
   }
 
+  const create = async () => {
+    setBusy(true); setError(null)
+    const res = await fetch('/api/admin/pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify(add),
+    })
+    const out = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) { setError(out.error ?? 'Could not add'); return }
+    setAdd({ name: '', instagram_handle: '', followers: '', owner: '', notes: '' })
+    load(secret)
+  }
+
+  const issueCode = async (c: Creator) => {
+    const suggested = (c.instagram_handle ?? c.name).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)
+    const code = prompt(`Referral code for ${c.name}:`, suggested)
+    if (!code) return
+    await patch({ id: c.id, action: 'issue_code', code })
+  }
+
+  const visible = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return (creators ?? []).filter(c => {
+      if (c.archived !== showArchived) return false
+      if (tierFilter !== 'all' && tierOf(c.followers).id !== tierFilter) return false
+      if (ownerFilter !== 'all' && (c.owner ?? '') !== (ownerFilter === 'none' ? '' : ownerFilter)) return false
+      if (!needle) return true
+      return c.name.toLowerCase().includes(needle) || (c.instagram_handle ?? '').includes(needle)
+    })
+  }, [creators, q, tierFilter, ownerFilter, showArchived])
+
+  const input = {
+    padding: '9px 12px', borderRadius: 9, background: '#181818',
+    border: '1px solid #2a2a2a', color: '#fff', fontSize: 13.5, outline: 'none',
+  } as const
+
   return (
-    <main style={{ minHeight: '100dvh', background: '#0A0A0A', color: '#F0EBE3', padding: 24, fontFamily: 'ui-sans-serif, -apple-system, system-ui, sans-serif' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', margin: '0 0 4px' }}>Creator pipeline</h1>
-        <p style={{ color: 'rgba(240,235,227,0.45)', fontSize: 14, marginTop: 0 }}>
-          Every creator conversation, from first DM to signed. <a href="/admin/creators" style={{ color: '#5AC8FA' }}>Signed creators & payouts →</a>
+    <main style={{ minHeight: '100dvh', background: '#0A0A0A', color: '#F0EBE3', fontFamily: 'ui-sans-serif, -apple-system, system-ui, sans-serif' }}>
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 24px 80px' }}>
+
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
+          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', margin: 0 }}>Creator pipeline</h1>
+          <a href="/admin/creators" style={{ fontSize: 13, color: '#3E9DBF' }}>Codes &amp; payouts →</a>
+        </div>
+        <p style={{ color: 'rgba(240,235,227,0.45)', fontSize: 14, marginTop: 4 }}>
+          Everyone we&rsquo;ve talked to, where it stands, and who&rsquo;s chasing it.
         </p>
 
-        <input
-          type="password" value={secret} onChange={e => setSecret(e.target.value)}
-          placeholder="Admin secret"
-          style={{ ...input, marginTop: 16, width: 280, padding: '10px 14px', borderRadius: 10, background: '#141414', border: '1px solid #262626' }}
-        />
+        <input type="password" value={secret} onChange={e => setSecret(e.target.value)} placeholder="Admin secret"
+          style={{ ...input, marginTop: 14, width: 260 }} />
         {error && <p style={{ color: '#FF6B6B', fontSize: 13.5 }}>{error}</p>}
 
-        {leads && (
+        {creators && (
           <>
-            {/* ── Needs you ─────────────────────────────────────────────── */}
-            {(attention.overdue.length + attention.today.length + attention.stale.length + attention.unanswered.length > 0) && (
-              <section style={{ ...card, marginTop: 24, borderColor: '#2e2410', background: '#14100a' }}>
-                <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 12px' }}>Needs you</h2>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {([
-                    ['Call overdue', attention.overdue, '#FF6B6B'],
-                    ['Call today', attention.today, '#AF7BFF'],
-                    ['Gone quiet', attention.stale, '#FFB020'],
-                    ['Never replied to', attention.unanswered, '#5AC8FA'],
-                  ] as const).map(([label, list, color]) => list.length > 0 && (
-                    <div key={label} style={{ flex: '1 1 200px', background: '#0f0f0f', border: '1px solid #232323', borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color }}>{label}</div>
-                      <div style={{ fontSize: 22, fontWeight: 700, margin: '2px 0 6px' }}>{list.length}</div>
-                      <div style={{ fontSize: 12.5, color: 'rgba(240,235,227,0.55)', lineHeight: 1.5 }}>
-                        {list.slice(0, 4).map(l => '@' + l.handle).join(', ')}{list.length > 4 ? ` +${list.length - 4}` : ''}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* ── Bulk import ───────────────────────────────────────────── */}
-            <section style={{ ...card, marginTop: 20 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Add from Instagram</h2>
-              <p style={{ fontSize: 13, color: 'rgba(240,235,227,0.45)', margin: '0 0 12px' }}>
-                Paste handles — one per line or comma separated. @, full profile URLs and mixed case are all fine.
-                Handles already in the pipeline are skipped, so you can paste the same batch twice safely.
-              </p>
-              <textarea
-                value={bulk} onChange={e => setBulk(e.target.value)} rows={4}
-                placeholder={'@traveljane\ninstagram.com/nomadkyle\nbackpack.sam'}
-                style={{ ...input, width: '100%', fontFamily: 'ui-monospace, monospace', resize: 'vertical' }}
-              />
-              <button onClick={importBulk} disabled={busy || !bulk.trim()}
-                style={{ ...btn, marginTop: 10, background: '#F0EBE3', color: '#000', fontWeight: 700, border: 'none', opacity: busy || !bulk.trim() ? 0.4 : 1 }}>
-                Import
-              </button>
+            {/* Add */}
+            <section style={{ marginTop: 22, background: '#111', border: '1px solid #222', borderRadius: 12, padding: 16 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input value={add.instagram_handle} onChange={e => setAdd(a => ({ ...a, instagram_handle: e.target.value }))}
+                  placeholder="@handle" style={{ ...input, width: 170 }} />
+                <input value={add.name} onChange={e => setAdd(a => ({ ...a, name: e.target.value }))}
+                  placeholder="Name" style={{ ...input, width: 170 }} />
+                <input value={add.followers} onChange={e => setAdd(a => ({ ...a, followers: e.target.value }))}
+                  placeholder="Followers" style={{ ...input, width: 110 }} />
+                <select value={add.owner} onChange={e => setAdd(a => ({ ...a, owner: e.target.value }))} style={{ ...input, width: 130 }}>
+                  <option value="">Unassigned</option>
+                  {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <input value={add.notes} onChange={e => setAdd(a => ({ ...a, notes: e.target.value }))}
+                  placeholder="Notes" style={{ ...input, flex: 1, minWidth: 160 }} />
+                <button onClick={create} disabled={busy || (!add.name && !add.instagram_handle)}
+                  style={{ padding: '9px 18px', borderRadius: 9, background: '#F0EBE3', color: '#000', fontWeight: 700, fontSize: 13.5, border: 'none', opacity: busy || (!add.name && !add.instagram_handle) ? 0.4 : 1 }}>
+                  Add
+                </button>
+              </div>
             </section>
 
-            {/* ── Stage filter ──────────────────────────────────────────── */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 22 }}>
-              <button onClick={() => setFilter('all')}
-                style={{ ...btn, background: filter === 'all' ? '#F0EBE3' : '#181818', color: filter === 'all' ? '#000' : '#F0EBE3', fontWeight: filter === 'all' ? 700 : 400 }}>
-                Active {(leads.filter(l => l.stage !== 'dead')).length}
+            {/* Filters */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name or @handle"
+                style={{ ...input, width: 230 }} />
+              <select value={tierFilter} onChange={e => setTierFilter(e.target.value)} style={{ ...input }}>
+                <option value="all">All sizes</option>
+                <option value="small">Small niche (under 10k)</option>
+                <option value="medium">Medium (10k–100k)</option>
+                <option value="large">Large (100k+)</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)} style={{ ...input }}>
+                <option value="all">Anyone</option>
+                {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
+                <option value="none">Unassigned</option>
+              </select>
+              <button onClick={() => setShowArchived(v => !v)}
+                style={{ ...input, cursor: 'pointer', color: showArchived ? '#F0EBE3' : 'rgba(240,235,227,0.5)' }}>
+                {showArchived ? 'Viewing archived' : 'Show archived'}
               </button>
-              {STAGES.map(s => (
-                <button key={s.id} onClick={() => setFilter(s.id)} title={s.hint}
-                  style={{ ...btn, background: filter === s.id ? s.color : '#181818', color: filter === s.id ? '#000' : '#F0EBE3', fontWeight: filter === s.id ? 700 : 400 }}>
-                  {s.label} {counts[s.id] ?? 0}
-                </button>
-              ))}
+              <span style={{ marginLeft: 'auto', fontSize: 13, color: 'rgba(240,235,227,0.4)' }}>
+                {visible.length} shown · {creators.filter(c => !c.archived).length} active
+              </span>
             </div>
 
-            {/* ── Leads ─────────────────────────────────────────────────── */}
-            <section style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {shown.length === 0 && (
-                <p style={{ color: 'rgba(240,235,227,0.4)', fontSize: 14 }}>Nothing here.</p>
-              )}
-              {shown.map(l => {
-                const stage = STAGES.find(s => s.id === l.stage)!
-                const isOpen = open === l.id
-                return (
-                  <div key={l.id} style={{ ...card, padding: 14, borderColor: l.call_overdue ? '#5a2a2a' : l.stale ? '#3a3016' : '#222' }}>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 4, background: stage.color, flexShrink: 0 }} />
-                      <button onClick={() => setOpen(isOpen ? null : l.id)}
-                        style={{ background: 'none', border: 'none', color: '#F0EBE3', fontSize: 15, fontWeight: 650, cursor: 'pointer', padding: 0 }}>
-                        @{l.handle}
-                      </button>
-                      {l.name && <span style={{ fontSize: 13.5, color: 'rgba(240,235,227,0.55)' }}>{l.name}</span>}
-                      {l.followers != null && (
-                        <span style={{ fontSize: 12.5, color: 'rgba(240,235,227,0.4)' }}>
-                          {l.followers >= 1000 ? `${(l.followers / 1000).toFixed(1)}k` : l.followers}
-                        </span>
-                      )}
+            {/* Stages */}
+            {STAGES.map(stage => {
+              const inStage = visible.filter(c => c.stage === stage.id)
+              return (
+                <section key={stage.id} style={{ marginTop: 26 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                    <h2 style={{ fontSize: 15, fontWeight: 750, margin: 0 }}>{stage.label}</h2>
+                    <span style={{ fontSize: 13, color: 'rgba(240,235,227,0.4)', fontVariantNumeric: 'tabular-nums' }}>{inStage.length}</span>
+                    <span style={{ fontSize: 12.5, color: 'rgba(240,235,227,0.25)' }}>{stage.hint}</span>
+                  </div>
 
-                      <span style={{ flex: 1 }} />
+                  <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {inStage.map(c => {
+                      const tier = tierOf(c.followers)
+                      const handle = c.instagram_handle
+                      return (
+                        <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#111', border: '1px solid #1e1e1e', borderRadius: 11, padding: '10px 14px', flexWrap: 'wrap' }}>
+                          <div style={{
+                            width: 34, height: 34, borderRadius: 17, flexShrink: 0, display: 'grid', placeItems: 'center',
+                            background: `hsl(${hue(handle ?? c.name)} 45% 22%)`, color: `hsl(${hue(handle ?? c.name)} 70% 78%)`,
+                            fontWeight: 800, fontSize: 13,
+                          }}>
+                            {(c.name || handle || '?').slice(0, 2).toUpperCase()}
+                          </div>
 
-                      {l.call_at && (
-                        <span style={{ fontSize: 12.5, color: l.call_overdue ? '#FF6B6B' : l.call_today ? '#AF7BFF' : 'rgba(240,235,227,0.45)' }}>
-                          {l.call_overdue ? 'Overdue · ' : l.call_today ? 'Today · ' : ''}{whenLabel(l.call_at)}
-                        </span>
-                      )}
-                      {l.stale && !l.call_at && (
-                        <span style={{ fontSize: 12.5, color: '#FFB020' }}>Quiet {l.days_quiet}d</span>
-                      )}
-                      {l.perf && (
-                        <span style={{ fontSize: 12.5, color: '#3DD68C' }}>
-                          {l.perf.signups} signups · {money(l.perf.revenue_cents)}
-                        </span>
-                      )}
+                          <div style={{ minWidth: 190 }}>
+                            <p style={{ margin: 0, fontSize: 14.5, fontWeight: 650 }}>{c.name}</p>
+                            {handle && (
+                              <a href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: 13, color: '#3E9DBF', textDecoration: 'none' }}>
+                                @{handle} ↗
+                              </a>
+                            )}
+                          </div>
 
-                      <select
-                        value={l.stage}
-                        onChange={e => call('PATCH', { id: l.id, stage: e.target.value })}
-                        style={{ ...input, padding: '6px 8px', fontSize: 12.5 }}
-                      >
-                        {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                      </select>
-                      <button onClick={() => call('PATCH', { id: l.id, touch: true })} disabled={busy}
-                        title="Reset the quiet timer — use when you've just messaged them"
-                        style={{ ...btn, padding: '6px 10px', fontSize: 12.5 }}>
-                        Messaged
-                      </button>
-                    </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: tier.color, background: `${tier.color}1f`, whiteSpace: 'nowrap' }}>
+                            {fmtFollowers(c.followers)} · {tier.label}
+                          </span>
 
-                    {isOpen && (
-                      <LeadDetail lead={l} busy={busy} onCall={call} onDelete={async () => {
-                        if (!confirm(`Remove @${l.handle} from the pipeline? This deletes the notes and history.`)) return
-                        setBusy(true)
-                        await fetch(`/api/admin/creator-leads?id=${l.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${secret}` } })
-                        setBusy(false); setOpen(null); load(secret)
-                      }} />
+                          <select value={c.owner ?? ''} onChange={e => patch({ id: c.id, owner: e.target.value })} disabled={busy}
+                            title="Who's chasing this one"
+                            style={{ ...input, padding: '5px 8px', fontSize: 12.5, width: 118 }}>
+                            <option value="">Unassigned</option>
+                            {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
+                          </select>
+
+                          {c.code ? (
+                            <span style={{ fontSize: 12.5, color: 'rgba(240,235,227,0.75)', fontVariantNumeric: 'tabular-nums' }}>
+                              <strong style={{ letterSpacing: '0.05em' }}>{c.code}</strong>
+                              {' · '}{c.signups ?? 0} signups · {c.subscribers ?? 0} subs · {money(c.payable_cents)} ready
+                            </span>
+                          ) : stage.id === 'working' ? (
+                            <button onClick={() => issueCode(c)} disabled={busy}
+                              style={{ ...input, cursor: 'pointer', padding: '5px 10px', fontSize: 12.5, color: '#F0EBE3' }}>
+                              Issue code
+                            </button>
+                          ) : null}
+
+                          {c.notes && <span style={{ fontSize: 12.5, color: 'rgba(240,235,227,0.3)', flex: 1, minWidth: 100 }}>{c.notes}</span>}
+
+                          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                            <select value={c.stage} onChange={e => patch({ id: c.id, stage: e.target.value })} disabled={busy}
+                              style={{ ...input, padding: '5px 8px', fontSize: 12.5 }}>
+                              {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                            </select>
+                            <button onClick={() => patch({ id: c.id, archived: !c.archived })} disabled={busy}
+                              title={c.archived ? 'Restore' : 'Archive — not a fit'}
+                              style={{ ...input, cursor: 'pointer', padding: '5px 9px', fontSize: 12.5, color: 'rgba(240,235,227,0.45)' }}>
+                              {c.archived ? '↺' : '×'}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {!inStage.length && (
+                      <p style={{ color: 'rgba(240,235,227,0.25)', fontSize: 13, padding: '6px 2px' }}>Nobody here yet.</p>
                     )}
                   </div>
-                )
-              })}
-            </section>
+                </section>
+              )
+            })}
           </>
         )}
       </div>
     </main>
-  )
-}
-
-function LeadDetail({ lead, busy, onCall, onDelete }: {
-  lead: Lead; busy: boolean
-  onCall: (m: string, p: any) => Promise<any>
-  onDelete: () => void
-}) {
-  const [f, setF] = useState({
-    name: lead.name ?? '', followers: lead.followers?.toString() ?? '',
-    notes: lead.notes ?? '', deal_terms: lead.deal_terms ?? '',
-    call_at: lead.call_at ? lead.call_at.slice(0, 16) : '',
-  })
-  const [code, setCode] = useState('')
-  const [rate, setRate] = useState('0.15')
-
-  return (
-    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #222', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <input value={f.name} onChange={e => setF({ ...f, name: e.target.value })} placeholder="Real name" style={{ ...input, width: 170 }} />
-        <input value={f.followers} onChange={e => setF({ ...f, followers: e.target.value })} placeholder="Followers" style={{ ...input, width: 110 }} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'rgba(240,235,227,0.5)' }}>
-          Call
-          <input type="datetime-local" value={f.call_at} onChange={e => setF({ ...f, call_at: e.target.value })} style={{ ...input, colorScheme: 'dark' }} />
-        </label>
-      </div>
-
-      <textarea value={f.notes} onChange={e => setF({ ...f, notes: e.target.value })} rows={2}
-        placeholder="Notes — what they asked for, what you offered, where it stalled"
-        style={{ ...input, width: '100%', resize: 'vertical' }} />
-
-      <textarea value={f.deal_terms} onChange={e => setF({ ...f, deal_terms: e.target.value })} rows={2}
-        placeholder="Agreed terms — e.g. 2 reels + 1 story, 20% commission, free Plus for a year"
-        style={{ ...input, width: '100%', resize: 'vertical' }} />
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button
-          onClick={() => onCall('PATCH', {
-            id: lead.id, name: f.name, followers: f.followers,
-            notes: f.notes, deal_terms: f.deal_terms,
-            call_at: f.call_at ? new Date(f.call_at).toISOString() : null,
-          })}
-          disabled={busy}
-          style={{ ...btn, background: '#F0EBE3', color: '#000', fontWeight: 700, border: 'none' }}>
-          Save
-        </button>
-        <a href={`https://instagram.com/${lead.handle}`} target="_blank" rel="noreferrer" style={{ ...btn, textDecoration: 'none' }}>
-          Open DM
-        </a>
-        <span style={{ flex: 1 }} />
-        <button onClick={onDelete} disabled={busy} style={{ ...btn, color: '#FF6B6B', borderColor: '#3a2020' }}>Remove</button>
-      </div>
-
-      {/* Conversion — the handoff into the real referral programme. */}
-      {lead.code_id ? (
-        <div style={{ fontSize: 13, color: '#3DD68C', paddingTop: 4 }}>
-          Signed — has a referral code.{' '}
-          <a href="/admin/creators" style={{ color: '#5AC8FA' }}>Manage in Creators →</a>
-          {lead.perf && ` · ${lead.perf.signups} signups, ${lead.perf.subscribers} subscribers, ${money(lead.perf.revenue_cents)} commission`}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4, borderTop: '1px solid #1c1c1c' }}>
-          <span style={{ fontSize: 12.5, color: 'rgba(240,235,227,0.5)' }}>Close the deal:</span>
-          <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="THEIRCODE" style={{ ...input, width: 130 }} />
-          <input value={rate} onChange={e => setRate(e.target.value)} placeholder="0.15" style={{ ...input, width: 70 }} />
-          <button
-            onClick={() => onCall('PATCH', { id: lead.id, action: 'convert', code, commission_rate: parseFloat(rate) || 0.15 })}
-            disabled={busy || !code}
-            style={{ ...btn, background: '#3DD68C', color: '#000', fontWeight: 700, border: 'none', opacity: busy || !code ? 0.4 : 1 }}>
-            Issue code & mark closed
-          </button>
-        </div>
-      )}
-    </div>
   )
 }
