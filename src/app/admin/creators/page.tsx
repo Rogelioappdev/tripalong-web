@@ -95,7 +95,7 @@ export default function AdminCreatorsPage() {
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', margin: '0 0 4px' }}>Creators</h1>
         <p style={{ color: 'rgba(240,235,227,0.45)', fontSize: 14, marginTop: 0 }}>
-          Referral codes, attribution and payouts.
+          Referral codes, attribution and payouts. <a href="/admin/pipeline" style={{ color: '#5AC8FA' }}>Creator pipeline →</a>
         </p>
 
         <input
