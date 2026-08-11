@@ -69,7 +69,11 @@ const FALLBACK_TAKEHOME = 0.85 // Apple Small Business Program
  * keep correct.
  */
 async function recordCreatorCommission(
-  admin: ReturnType<typeof createClient>,
+  // Loosely typed on purpose: ReturnType<typeof createClient> resolves its
+  // generics to a schema that doesn't know the creator_* tables, which makes
+  // .insert() infer never[] and fails the build. There are no generated
+  // database types in this project to import instead.
+  admin: any,
   event: RevenueCatEvent,
 ) {
   try {
