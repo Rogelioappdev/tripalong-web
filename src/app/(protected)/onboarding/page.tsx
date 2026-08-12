@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { createProfile, updateProfile, getActiveUsers30d } from '@/lib/queries'
 import { normalizeImageToJpeg } from '@/lib/image'
 import { haptic } from '@/lib/haptics'
+import { claimDeepLink, takePendingTrip, inNativeApp } from '@/lib/deepLink'
 import { playStampSound } from '@/lib/stampSound'
 import { SEASONS, VIBES } from '@/lib/tripOptions'
 import { TripPreviewCard } from '@/components/onboarding/TripPreviewCard'
@@ -78,6 +79,22 @@ function QuizContinueButton({ onClick, disabled, label }: { onClick: () => void;
 
 export default function OnboardingPage() {
   const router = useRouter()
+
+  // Deferred deep link. A fresh install reaches onboarding as its first
+  // screen, which makes this the moment to ask "did this device tap a trip
+  // link before I existed on it?" — the answer is only reachable for a short
+  // window after the tap, so it has to happen now rather than at the end.
+  //
+  // Fire-and-forget: the result is stashed and read by enterFeed(). Nothing
+  // in onboarding waits on it or changes because of it, so a slow or failed
+  // claim costs a personalised final screen and nothing else.
+  //
+  // Native only — on web there was no App Store round trip to lose state
+  // across, and postAuthRedirect already handles that path properly.
+  useEffect(() => {
+    if (!inNativeApp()) return
+    claimDeepLink()
+  }, [])
 
   const [authChecked, setAuthChecked] = useState(false)
   // Captured BEFORE the mount effect below clears the flag — a lingering
@@ -657,6 +674,14 @@ export default function OnboardingPage() {
     haptic(10)
     track('onboarding_completed', {})
     await finaleControls.start({ scale: 1.5, opacity: 0, transition: { duration: 0.5, ease: 'easeInOut' } })
+    // If they got here from a shared trip link, that trip is the reason they
+    // installed — open it instead of a generic feed. See lib/deepLink.
+    const pendingTrip = takePendingTrip()
+    if (pendingTrip) {
+      track('deep_link_trip_opened', { trip_id: pendingTrip })
+      router.push(`/trip/${pendingTrip}`)
+      return
+    }
     router.push('/feed')
   }
 

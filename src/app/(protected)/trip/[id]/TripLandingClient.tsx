@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { getTrip, joinTrip, getTripChat, requestToJoinTrip, getMyJoinRequestStatus } from '@/lib/queries'
 import { sendJoinRequestPush } from '@/lib/push'
 import { RequestSentToast } from '@/components/RequestSentToast'
+import { captureDeepLink, isIosWeb, APP_STORE_URL } from '@/lib/deepLink'
 import { AnimatePresence } from 'framer-motion'
 import type { TripWithDetails } from '@/lib/types'
 
@@ -40,6 +41,12 @@ export default function TripLandingPage() {
   const [joinError, setJoinError] = useState('')
   const [joinRequestStatus, setJoinRequestStatus] = useState<'pending' | 'accepted' | 'declined' | null>(null)
   const [showRequestSentToast, setShowRequestSentToast] = useState(false)
+  const [gettingApp, setGettingApp] = useState(false)
+  // Resolved after mount: isIosWeb() reads navigator, so deciding this during
+  // render would produce different markup on the server and hydrate wrong.
+  const [iosWeb, setIosWeb] = useState(false)
+
+  useEffect(() => { setIosWeb(isIosWeb()) }, [])
 
   useEffect(() => {
     // Store this trip URL immediately so login redirects back here
@@ -80,6 +87,25 @@ export default function TripLandingPage() {
       setJoinError('Could not send request. Please try again.')
     } finally {
       setJoining(false)
+    }
+  }
+
+  /**
+   * Someone on iOS web who isn't signed in — the creator-share case this page
+   * mostly exists for. Remember the trip against this device before handing
+   * off to the App Store, so onboarding can land them back on this card.
+   *
+   * The capture is awaited: it's the single write the whole deferred flow
+   * depends on, and a navigation started underneath it can cancel it. It's
+   * also wrapped so a failure still sends them to the App Store — losing the
+   * personalised first screen is much cheaper than losing the install.
+   */
+  const handleGetApp = async () => {
+    setGettingApp(true)
+    try {
+      await captureDeepLink(tripId)
+    } finally {
+      window.location.href = APP_STORE_URL
     }
   }
 
@@ -335,6 +361,18 @@ export default function TripLandingPage() {
           >
             Open group chat →
           </button>
+        ) : !userId && iosWeb ? (
+          /* Signed-out on iOS web: the shared-link case. Joining happens in
+             the app, so the App Store is the primary path and the trip stays
+             on screen behind it as the reason to go. */
+          <button
+            onClick={handleGetApp}
+            disabled={gettingApp}
+            className="w-full rounded-2xl font-bold text-base disabled:opacity-55 transition-opacity active:opacity-80"
+            style={{ backgroundColor: '#F0EBE3', color: '#000', padding: '16px 0' }}
+          >
+            {gettingApp ? 'Opening App Store…' : 'Get the app to join'}
+          </button>
         ) : (
           <button
             onClick={handleJoin}
@@ -353,13 +391,27 @@ export default function TripLandingPage() {
         )}
         {!userId && (
           <p className="text-center mt-3" style={{ color: 'rgba(255,255,255,0.22)', fontSize: 12 }}>
-            New to TripAlong?{' '}
-            <button
-              onClick={() => { sessionStorage.setItem('postAuthRedirect', `/trip/${tripId}`); router.push('/') }}
-              style={{ color: 'rgba(255,255,255,0.42)', textDecoration: 'underline' }}
-            >
-              Create a free account
-            </button>
+            {iosWeb ? (
+              <>
+                Already have it?{' '}
+                <button
+                  onClick={() => { sessionStorage.setItem('postAuthRedirect', `/trip/${tripId}`); router.push('/') }}
+                  style={{ color: 'rgba(255,255,255,0.42)', textDecoration: 'underline' }}
+                >
+                  Continue in browser
+                </button>
+              </>
+            ) : (
+              <>
+                New to TripAlong?{' '}
+                <button
+                  onClick={() => { sessionStorage.setItem('postAuthRedirect', `/trip/${tripId}`); router.push('/') }}
+                  style={{ color: 'rgba(255,255,255,0.42)', textDecoration: 'underline' }}
+                >
+                  Create a free account
+                </button>
+              </>
+            )}
           </p>
         )}
       </div>
