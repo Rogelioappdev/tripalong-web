@@ -48,10 +48,20 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
   // shape of risk: a JS-driven animation is the only thing standing between
   // the user and a visible call to action.
   //
-  // Now it's a plain CSS transition on a plain button. CSS transitions are
-  // driven by the compositor, so they can't be starved by a busy main
-  // thread during app launch, and there is no library state to desync from
-  // React's. See the deadline in the typing effect for the other half.
+  // Now it's a plain CSS transition on a plain button, and then a backstop.
+  // The transition is compositor-driven, so a busy main thread during launch
+  // can't starve it, and there's no library state to desync from React's.
+  //
+  // But a transition is still an animation, and verification showed the
+  // honest limit of that: in a throttled context the button reached
+  // typingDone (it was interactive) while its opacity stayed 0, because the
+  // transition never advanced. A real launch renders a visible WebView where
+  // transitions do run — but "should run" is what the last two versions of
+  // this button also had. So the last word belongs to no animation at all:
+  // ctaSettled drops the transition and pins opacity to 1 as a static
+  // computed style. If the fade already played this is invisible; if
+  // anything swallowed it, the button simply is there.
+  const [ctaSettled, setCtaSettled] = useState(false)
 
   // Rotate which 3 of the 5 cities are shown, every 4s.
   useEffect(() => {
@@ -97,8 +107,10 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
 
     // Hard deadline. Whatever happened to the interval, the CTA is live.
     const deadline = setTimeout(finish, total + 1500)
+    // Backstop, comfortably after the fade would have finished on its own.
+    const settle = setTimeout(() => setCtaSettled(true), total + 1500 + 1200)
 
-    return () => { clearInterval(id); clearTimeout(deadline) }
+    return () => { clearInterval(id); clearTimeout(deadline); clearTimeout(settle) }
   }, [])
 
   const visibleCities = [0, 1, 2].map(offset => CITIES[(tickerStart + offset) % CITIES.length])
@@ -178,8 +190,8 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
         className="mt-auto shrink-0 w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98]"
         style={{
           ...CTA_STYLE,
-          opacity: typingDone ? 1 : 0,
-          transition: 'opacity 0.9s ease-in-out, transform 0.15s',
+          opacity: ctaSettled || typingDone ? 1 : 0,
+          transition: ctaSettled ? 'none' : 'opacity 0.9s ease-in-out, transform 0.15s',
         }}
       >
         I&apos;m in →
