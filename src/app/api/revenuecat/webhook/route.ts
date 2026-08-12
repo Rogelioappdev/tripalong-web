@@ -63,7 +63,21 @@ const REFUND_HOLD_DAYS = 30
 const FALLBACK_PRICE_CENTS: Record<string, number> = {
   annual: 3999, yearly: 3999, monthly: 699, weekly: 699,
 }
-const FALLBACK_TAKEHOME = 0.85 // Apple Small Business Program
+// Only used if RevenueCat omits `takehome_percentage`. Every real event so far
+// has included it (both live commission rows came through at 0.6999), so this
+// is a safety net rather than the normal path.
+//
+// It previously read 0.85, labelled "Apple Small Business Program" — but we
+// have never been enrolled, so Apple takes 30% and the true figure is 0.70.
+// Had RevenueCat ever dropped the field we'd have computed commission on 21%
+// more revenue than existed and overpaid, which is not recoverable once a
+// creator has been paid.
+//
+// Deliberately left at the un-enrolled rate even while enrolment is underway:
+// the Small Business Program only takes effect the month after approval, and
+// erring low means a correctable underpayment rather than an unrecoverable
+// overpayment. Bump to 0.85 once the lower rate is actually in force.
+const FALLBACK_TAKEHOME = 0.70
 
 /**
  * Writes a commission row when a referred user pays. Deliberately
