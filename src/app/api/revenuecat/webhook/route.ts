@@ -50,6 +50,9 @@ interface RevenueCatEvent {
   currency?: string
   takehome_percentage?: number
   product_id?: string
+  // When the purchase actually happened, used to reject replays of purchases
+  // that predate the referral.
+  purchased_at_ms?: number
 }
 
 // Commission is only ever paid on money that actually changed hands, and only
@@ -83,10 +86,19 @@ async function recordCreatorCommission(
 
     const { data: referral } = await admin
       .from('creator_referrals')
-      .select('code_id')
+      .select('code_id, attributed_at')
       .eq('user_id', event.app_user_id)
       .maybeSingle()
     if (!referral) return
+
+    // Only pay for purchases the creator could actually have caused. Without
+    // this, a restore or an SDK sync replaying a user's historical purchases
+    // writes commission for subscriptions bought before the code was ever
+    // entered — including, in the worst case, from before that creator
+    // existed. A 5-minute grace absorbs clock skew between Apple and us.
+    const attributedAt = new Date((referral as any).attributed_at).getTime()
+    const purchasedAt = event.purchased_at_ms ?? Date.now()
+    if (purchasedAt < attributedAt - 5 * 60_000) return
 
     const { data: creator } = await admin
       .from('creator_codes')
@@ -125,7 +137,10 @@ async function recordCreatorCommission(
     const commissionCents = Math.round(netCents * rate)
     if (commissionCents <= 0) return
 
-    const payableAfter = new Date()
+    // Hold runs from the transaction itself, not from when we processed the
+    // webhook — a delayed or retried delivery shouldn't extend a creator's wait.
+    const purchaseDate = new Date(purchasedAt)
+    const payableAfter = new Date(purchaseDate)
     payableAfter.setDate(payableAfter.getDate() + REFUND_HOLD_DAYS)
 
     // event_id is unique — a redelivered webhook can't pay twice.
@@ -134,11 +149,16 @@ async function recordCreatorCommission(
       user_id: event.app_user_id,
       event_id: event.id ?? null,
       product: event.product_id ?? null,
-      currency: event.currency ?? 'USD',
+      // RevenueCat's `price` is USD-normalised even when the purchase was made
+      // in another currency — a real MXN purchase came through as 39.99 with
+      // currency 'MXN', which would have been wrong against a bank statement.
+      // We store the USD amount, so we label it USD.
+      currency: 'USD',
       gross_cents: grossCents,
       net_cents: netCents,
       rate,
       commission_cents: commissionCents,
+      purchased_at: purchaseDate.toISOString(),
       payable_after: payableAfter.toISOString(),
     })
   } catch {
