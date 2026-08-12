@@ -8,7 +8,7 @@
 // to render it and wire its CTA to goStage('auth', 1).
 
 import { useEffect, useState } from 'react'
-import { motion, AnimatePresence, useAnimation } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import { TripPreviewCard } from '@/components/onboarding/TripPreviewCard'
 
@@ -35,24 +35,23 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
   const [tickerStart, setTickerStart] = useState(0)
   const [charCount, setCharCount] = useState(0)
   const [typingDone, setTypingDone] = useState(false)
-  // Verified via direct browser inspection (real getComputedStyle checks,
-  // not a guess): the previous version drove this button's fade-in purely
-  // through a declarative `animate={typingDone ? {...} : {...}}` prop, and
-  // it reproducibly got stuck at its opacity:0/translateY(14px) state
-  // forever — `disabled` correctly flipped to false (proving typingDone did
-  // become true), but the inline opacity/transform Framer had set never
-  // updated to match. Switched to the same imperative useAnimation()
-  // pattern already proven to work elsewhere in this exact codebase
-  // (finaleControls, passportImpactControls) — an explicit .start() call in
-  // an effect, rather than relying on Framer re-diffing a new object
-  // literal on every render.
-  const buttonControls = useAnimation()
-
-  useEffect(() => {
-    if (typingDone) {
-      buttonControls.start({ opacity: 1, transition: { duration: 0.9, ease: 'easeInOut' } })
-    }
-  }, [typingDone, buttonControls])
+  // This button's visibility is load-bearing in a way nothing else here is:
+  // App Review rejected 1.5 (82) for "the continue button was not visible
+  // when we launched the app". It is therefore deliberately the ONE element
+  // on this screen that no animation library can hide.
+  //
+  // History: it first faded in via a declarative Framer `animate={...}` prop
+  // and reproducibly got stuck at opacity:0 forever — `disabled` correctly
+  // flipped to false (proving typingDone became true) while the inline
+  // opacity Framer had set never caught up. That was replaced with an
+  // imperative useAnimation().start(), which worked, but kept the same
+  // shape of risk: a JS-driven animation is the only thing standing between
+  // the user and a visible call to action.
+  //
+  // Now it's a plain CSS transition on a plain button. CSS transitions are
+  // driven by the compositor, so they can't be starved by a busy main
+  // thread during app launch, and there is no library state to desync from
+  // React's. See the deadline in the typing effect for the other half.
 
   // Rotate which 3 of the 5 cities are shown, every 4s.
   useEffect(() => {
@@ -68,17 +67,38 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
   // "I'm in" button's own fade-in (above) is tuned to the same slower pace
   // so the whole sequence reads as one unhurried beat, not two mismatched
   // speeds stitched together.
+  //
+  // The interval is paced off wall-clock time rather than tick count, and a
+  // deadline finishes the job outright. Both exist because iOS throttles
+  // timers in a WebView during app launch — exactly when this screen is on
+  // screen. A tick-counted interval that gets starved doesn't just run slow,
+  // it may never reach the last character, which leaves typingDone false and
+  // the button at opacity 0 indefinitely. That is the failure App Review
+  // reported, and it is invisible in any test where the tab stays focused.
   useEffect(() => {
-    let i = 0
+    const started = Date.now()
+    const perChar = 75
+    const total = HEADLINE.length * perChar
+
+    const finish = () => {
+      setCharCount(HEADLINE.length)
+      setTypingDone(true)
+    }
+
     const id = setInterval(() => {
-      i += 1
-      setCharCount(i)
-      if (i >= HEADLINE.length) {
+      const elapsed = Date.now() - started
+      if (elapsed >= total) {
         clearInterval(id)
-        setTypingDone(true)
+        finish()
+      } else {
+        setCharCount(Math.floor(elapsed / perChar))
       }
-    }, 75)
-    return () => clearInterval(id)
+    }, perChar)
+
+    // Hard deadline. Whatever happened to the interval, the CTA is live.
+    const deadline = setTimeout(finish, total + 1500)
+
+    return () => { clearInterval(id); clearTimeout(deadline) }
   }, [])
 
   const visibleCities = [0, 1, 2].map(offset => CITIES[(tickerStart + offset) % CITIES.length])
@@ -152,16 +172,18 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
           the button appeared, visibly shifting/shrinking everything else up.
           Animating opacity instead of mount/unmount keeps the layout stable
           throughout, and `disabled` blocks taps until typing finishes. */}
-      <motion.button
-        initial={{ opacity: 0 }}
-        animate={buttonControls}
+      <button
         onClick={() => { haptic(8); onContinue() }}
         disabled={!typingDone}
-        className="mt-auto shrink-0 w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
-        style={CTA_STYLE}
+        className="mt-auto shrink-0 w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98]"
+        style={{
+          ...CTA_STYLE,
+          opacity: typingDone ? 1 : 0,
+          transition: 'opacity 0.9s ease-in-out, transform 0.15s',
+        }}
       >
         I&apos;m in →
-      </motion.button>
+      </button>
     </div>
   )
 }
