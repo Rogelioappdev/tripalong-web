@@ -24,6 +24,14 @@ export type PaywallSurface =
 export type PaywallTrigger = 'swipes' | 'rewind' | 'who-viewed' | 'compatibility' | 'upgrade' | 'joins' | 'filters' | 'onboarding-trial'
 
 type EventProps = {
+  // ── Acquisition ─────────────────────────────────────────────────────
+  // Fires when onboarding ends on a shared trip rather than the feed, i.e.
+  // a deferred deep link matched across the App Store install. This is the
+  // only measurement of whether fingerprint matching is actually working —
+  // compare its count against captures to get the real hit rate, since the
+  // technique is probabilistic and degrades with iCloud Private Relay.
+  deep_link_trip_opened: { trip_id: string }
+
   // ── Conversion funnel ───────────────────────────────────────────────
   paywall_viewed: { surface: PaywallSurface; rail: Rail; trigger?: PaywallTrigger }
   checkout_started: { rail: Rail; billing: Billing }
