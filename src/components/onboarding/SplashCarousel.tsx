@@ -89,12 +89,12 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="text-white font-extrabold tracking-tight text-4xl text-center mt-2"
+        className="text-white font-extrabold tracking-tight text-3xl sm:text-4xl text-center mt-2 shrink-0"
       >
         TripAlong
       </motion.h1>
 
-      <div className="h-5 mt-5 mb-8 flex items-center justify-center">
+      <div className="h-5 mt-4 mb-5 sm:mb-8 flex items-center justify-center shrink-0">
         <AnimatePresence mode="wait">
           <motion.div
             key={tickerStart}
@@ -118,8 +118,8 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
         </AnimatePresence>
       </div>
 
-      <div className="text-center px-1">
-        <h2 className="text-white font-extrabold text-3xl leading-tight min-h-[76px]">
+      <div className="text-center px-1 shrink-0">
+        <h2 className="text-white font-extrabold text-2xl sm:text-3xl leading-tight min-h-[64px] sm:min-h-[76px]">
           {HEADLINE.slice(0, charCount)}
           {/* Always rendered (not conditionally), toggling opacity instead of
               removing it from the DOM — the real cause of the "everything
@@ -141,7 +141,7 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
           the 'valueprop' step right after auth (see TripPreviewCard), swapped
           in here for the old scattered vibe-emoji bubbles so a brand-new
           visitor sees the actual product, not an abstraction of it. */}
-      <div className="w-full flex-1 flex items-center justify-center mt-6 mb-2 min-h-0 overflow-hidden">
+      <div className="w-full flex-1 flex items-center justify-center mt-4 sm:mt-6 mb-2 min-h-0 overflow-hidden">
         <TripPreviewCard />
       </div>
 
@@ -157,7 +157,7 @@ export function SplashCarousel({ onContinue }: { onContinue: () => void }) {
         animate={buttonControls}
         onClick={() => { haptic(8); onContinue() }}
         disabled={!typingDone}
-        className="mt-auto w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
+        className="mt-auto shrink-0 w-full py-4 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform"
         style={CTA_STYLE}
       >
         I&apos;m in →

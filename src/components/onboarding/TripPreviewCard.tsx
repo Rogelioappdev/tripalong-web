@@ -167,17 +167,19 @@ export function TripPreviewCard() {
   }, [index, !!trip])
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center gap-4 min-h-0">
-      {/* Fixed max-width (not a percentage/aspect-ratio-vs-flex trick, which
-          resolves ambiguously against a flex column that also holds the
-          button row below) — 220px keeps the derived height (220*4.1/3≈300px)
-          comfortably inside the space actually available on the shortest
-          realistic device (iPhone SE) once the headline block, gaps, and
-          Continue button are accounted for. This is what actually fixes the
-          "still scrollable" bug: the old 280px cap derived a 383px-tall card,
-          which is taller than what's left over on a short viewport. */}
+    <div className="w-full h-full flex flex-col items-center justify-center gap-3 min-h-0">
+      {/* Sized by available HEIGHT, not width. It used to be
+          `w-full max-w-[220px] aspect-[3/4.1] shrink-0`, which derives a fixed
+          ~300px height and then refuses to compress — fine on a phone, but on
+          iPad the WebView viewport is far squatter relative to its width, so
+          the stack above plus this card exceeded the screen and pushed the
+          "I'm in" button below the shell's overflow-hidden clip. App Review
+          rejected the build for exactly that (guideline 4, iPad Air 11").
+          flex-1 + min-h-0 lets it shrink to whatever is left, the aspect ratio
+          derives the width from that height, and max-h caps it so it never
+          balloons on a big screen. */}
       <div
-        className="relative w-full max-w-[220px] aspect-[3/4.1] rounded-[26px] overflow-hidden shrink-0"
+        className="relative flex-1 min-h-0 max-h-[300px] w-auto max-w-full aspect-[3/4.1] rounded-[26px] overflow-hidden"
         style={{ boxShadow: '0 30px 60px -20px rgba(0,0,0,0.6)' }}
       >
         {!trip || !nextTrip ? (
