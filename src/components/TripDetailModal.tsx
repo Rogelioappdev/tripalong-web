@@ -21,6 +21,7 @@ import { getTrialStatus } from '@/lib/trial'
 import { haptic } from '@/lib/haptics'
 import { useSwipeDownDismiss } from '@/lib/useSwipeDownDismiss'
 import type { TripWithDetails, UserProfile } from '@/lib/types'
+import { shareUrl } from '@/lib/shareUrl'
 
 interface TripDetailModalProps {
   trip: TripWithDetails
@@ -145,7 +146,7 @@ export function TripDetailModal({ trip, onClose, isGuest, initialProfile, onAuth
   const handleShare = async () => {
     haptic(8)
     const text = `Check out this ${displayTrip.destination}${displayTrip.country ? `, ${displayTrip.country}` : ''} trip on TripAlong 🌍✈️`
-    const url = `${window.location.origin}/trip/${displayTrip.id}`
+    const url = shareUrl(`/trip/${displayTrip.id}`)
     try {
       if (navigator.share) {
         await navigator.share({ title: `${displayTrip.destination} — TripAlong`, text, url })

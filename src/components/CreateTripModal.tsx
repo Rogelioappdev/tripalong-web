@@ -9,6 +9,7 @@ import { haptic } from '@/lib/haptics'
 import { track } from '@/lib/analytics'
 import { VIBES, SEASONS, GROUP_PREFS } from '@/lib/tripOptions'
 import { remindNotifications } from '@/lib/notifReminder'
+import { shareUrl } from '@/lib/shareUrl'
 
 interface CreateTripModalProps {
   onClose: () => void
@@ -387,7 +388,7 @@ export function CreateTripModal({ onClose, userId }: CreateTripModalProps) {
                     type="button"
                     onClick={() => {
                       haptic(8)
-                      const url = `${window.location.origin}/trip/${createdTripId}`
+                      const url = shareUrl(`/trip/${createdTripId}`)
                       if (navigator.share) {
                         navigator.share({ title: `Join my trip to ${destination}`, url })
                       } else {

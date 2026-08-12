@@ -6,6 +6,7 @@ import { leaveHangalongFromChat, getTripChatMuted, setTripChatMuted } from '@/li
 import { haptic } from '@/lib/haptics'
 import { PublicProfileModal } from './PublicProfileModal'
 import type { HangalongWithDetails, ActivityType, WhenLabel } from '@/lib/types'
+import { shareUrl } from '@/lib/shareUrl'
 
 const ACTIVITY_CONFIG: Record<ActivityType, { emoji: string; label: string; bg: string }> = {
   hike:      { emoji: '🥾', label: 'Hike',      bg: 'linear-gradient(160deg, #0f2218 0%, #0a140d 100%)' },
@@ -46,7 +47,7 @@ export function HangGroupInfoSheet({ chatId, hangInfo, userId, onClose, onLeft }
   const spotsLeft = hangInfo.max_people - memberCount
   const hasDescription = !!hangInfo.description?.trim()
   const descLong = (hangInfo.description?.length ?? 0) > 120
-  const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/hang/${hangInfo.id}` : ''
+  const inviteUrl = shareUrl(`/hang/${hangInfo.id}`)
   const inviteText = `Join me for "${hangInfo.title}" on TripAlong! 🤙`
 
   useEffect(() => {

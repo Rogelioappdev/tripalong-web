@@ -9,6 +9,7 @@ import { useOnlineUsers } from '@/lib/presence'
 import { haptic } from '@/lib/haptics'
 import { PublicProfileModal } from './PublicProfileModal'
 import type { TripWithDetails } from '@/lib/types'
+import { shareUrl } from '@/lib/shareUrl'
 
 const VIBE_ICONS: Record<string, string> = {
   beach: '🏖️', adventure: '🧗', nightlife: '🎉', culture: '🏛️',
@@ -76,7 +77,7 @@ export function TripGroupInfoSheet({ chatId, tripInfo, userId, isFullMember = tr
     }
   }
 
-  const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/trip/${tripInfo.id}` : ''
+  const inviteUrl = shareUrl(`/trip/${tripInfo.id}`)
 
   const handleCopyLink = async () => {
     try {

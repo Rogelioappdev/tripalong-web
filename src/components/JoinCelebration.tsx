@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { motion, useAnimate } from 'framer-motion'
 import { haptic } from '@/lib/haptics'
 import type { TripWithDetails } from '@/lib/types'
+import { shareUrl } from '@/lib/shareUrl'
 
 interface JoinCelebrationProps {
   trip: TripWithDetails
@@ -51,7 +52,7 @@ function FloatingPlane() {
 
 async function shareTrip(trip: TripWithDetails) {
   const text = `I just joined a trip to ${trip.destination}${trip.country ? `, ${trip.country}` : ''} on TripAlong. Join me! 🌍✈️`
-  const url = `${window.location.origin}/trip/${trip.id}`
+  const url = shareUrl(`/trip/${trip.id}`)
   try {
     if (navigator.share) {
       await navigator.share({ title: `Join me in ${trip.destination}!`, text, url })
