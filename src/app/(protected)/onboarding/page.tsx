@@ -152,8 +152,10 @@ export default function OnboardingPage() {
   const [uploading, setUploading] = useState(false)
   const [showCreatorCode, setShowCreatorCode] = useState(false)
   const [creatorCodeApplied, setCreatorCodeApplied] = useState(false)
-  const [newTravelPhotos, setNewTravelPhotos] = useState<string[]>([])
-  const [uploadingTravelPhotos, setUploadingTravelPhotos] = useState(false)
+  // Retained deliberately after the travelPhotos step was removed: the profile
+  // save below still writes `photos`, and an empty array is exactly what a user
+  // who skipped that step always produced. Users fill this from their profile now.
+  const [newTravelPhotos] = useState<string[]>([])
   const [verificationCaptured, setVerificationCaptured] = useState(false)
   const [rawPhotoFile, setRawPhotoFile] = useState<File | null>(null)
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null)
@@ -285,7 +287,16 @@ export default function OnboardingPage() {
   // user already confirmed it, so a corrected date gets re-confirmed.
   useEffect(() => { setAgeConfirmed(false) }, [newBirthDay, newBirthMonth, newBirthYear])
 
-  const PRE_DNA_STEPS = ['birthday', 'nameGender', 'travelerType', 'photo', 'travelPhotos', 'verifyPhoto', 'location', 'tripTeaser', 'bio', 'momentum'] as const
+  // 'travelPhotos' was removed 2026-08-13. It was the most expensive screen in
+  // the whole flow: over three days it lost 67 of the 318 people who reached
+  // it (17%), second only to nothing else in the data-entry half. It was also
+  // the *second* photo ask in a row — people had just uploaded a profile
+  // picture on the previous screen — which is a lot to demand from someone who
+  // hasn't seen a single trip yet.
+  //
+  // The capability is untouched: users can still add travel photos any time
+  // from their profile, which is where the gallery is edited anyway.
+  const PRE_DNA_STEPS = ['birthday', 'nameGender', 'travelerType', 'photo', 'verifyPhoto', 'location', 'tripTeaser', 'bio', 'momentum'] as const
   const POST_DNA_STEPS = [] as const
   type PreDnaStep = typeof PRE_DNA_STEPS[number]
   type PostDnaStep = typeof POST_DNA_STEPS[number]
@@ -342,13 +353,16 @@ export default function OnboardingPage() {
     return () => { cancelled = true }
   }, [currentPreDnaStep])
 
-  // Start downloading the face model as soon as the user reaches the profile
-  // photo step — two steps before verification needs it. The WASM runtime plus
-  // the ~3MB model used to begin downloading only when they tapped "Open
-  // camera", which is why that screen sat on "Starting camera…" for seconds.
-  // Users spend a while on photos, so by the time they arrive it's cached.
+  // Start downloading the face model two steps before verification needs it.
+  // The WASM runtime plus the ~3MB model used to begin downloading only when
+  // they tapped "Open camera", which is why that screen sat on "Starting
+  // camera…" for seconds.
+  //
+  // Moved one step earlier (travelerType) when travelPhotos was removed —
+  // otherwise deleting a screen would have quietly halved the head start and
+  // reintroduced the stall this preload exists to prevent.
   useEffect(() => {
-    if (currentPreDnaStep === 'photo' || currentPreDnaStep === 'travelPhotos') {
+    if (currentPreDnaStep === 'travelerType' || currentPreDnaStep === 'photo') {
       preloadFaceLandmarker()
     }
   }, [currentPreDnaStep])
@@ -643,7 +657,6 @@ export default function OnboardingPage() {
         // profile photo, so they were the most invested people we lose anywhere.
         // The ask stays, the block doesn't; the step now encourages and lets
         // people finish later from their profile.
-        case 'travelPhotos': return true
         case 'verifyPhoto': return verificationCaptured
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
         case 'tripTeaser': return true
@@ -705,39 +718,6 @@ export default function OnboardingPage() {
     } finally {
       setUploading(false)
     }
-  }
-
-  // Multi-photo grid upload for the 'travelPhotos' step — same avatars bucket
-  // and path convention as Profile page's handleGridPhotosUpload (uploads
-  // sequentially, appends each public URL as it succeeds).
-  const handleTravelPhotosUpload = async (files: File[]) => {
-    if (files.length === 0) return
-    const remaining = 10 - newTravelPhotos.length
-    const toUpload = files.slice(0, Math.max(0, remaining))
-    if (toUpload.length === 0) return
-    setUploadingTravelPhotos(true)
-    setError('')
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setError('Please sign in again.'); return }
-      for (const file of toUpload) {
-        const jpeg = await normalizeImageToJpeg(file)
-        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`
-        const { error: uploadError } = await supabase.storage.from('avatars')
-          .upload(path, jpeg, { upsert: true, contentType: 'image/jpeg' })
-        if (uploadError) throw uploadError
-        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
-        setNewTravelPhotos(prev => [...prev, publicUrl])
-      }
-    } catch (e: any) {
-      setError(e?.message ?? 'Photo upload failed. Try again.')
-    } finally {
-      setUploadingTravelPhotos(false)
-    }
-  }
-
-  const removeTravelPhoto = (url: string) => {
-    setNewTravelPhotos(prev => prev.filter(p => p !== url))
   }
 
   // Object URL for whatever raw file the picker just returned, so the crop
@@ -1393,99 +1373,6 @@ export default function OnboardingPage() {
                   </motion.div>
                 )}
 
-                {newStage === 'quiz' && currentPreDnaStep === 'travelPhotos' && (
-                  <motion.div
-                    key={quizKey}
-                    custom={newDirection}
-                    variants={slideVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex-1 flex flex-col"
-                    {...quizDragProps}
-                  >
-                    <div>
-                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Show off your travels.</h1>
-                      <p className="text-white/38 text-sm">Photos of you and your favorite trips — this is what other travelers see on your profile. You can add them now or later from your profile.</p>
-                    </div>
-
-                    <div className="mt-5 flex items-center justify-between">
-                      <p className="text-white/40 text-xs font-semibold">{newTravelPhotos.length} of 10 photos</p>
-                      <p
-                        className="text-xs font-bold"
-                        style={{ color: newTravelPhotos.length >= 3 ? '#30D158' : 'rgba(255,255,255,0.35)' }}
-                      >
-                        {newTravelPhotos.length >= 3 ? '✓ Looking good' : 'Recommended: 3 or more'}
-                      </p>
-                    </div>
-
-                    {/* A small spinner tucked inside the "+ Add" tile was easy to
-                        miss right after the native photo picker hands control
-                        back — normalizing + uploading each file sequentially can
-                        take a few seconds with no other feedback, which read as
-                        "stuck." This banner makes the wait unmistakable. */}
-                    {uploadingTravelPhotos && (
-                      <div className="mt-3 flex items-center gap-2.5 rounded-2xl px-4 py-3" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                        <div className="w-4 h-4 border-2 border-white/20 border-t-white/70 rounded-full animate-spin shrink-0" />
-                        <span className="text-white/60 text-xs font-medium">Uploading your photos…</span>
-                      </div>
-                    )}
-
-                    <div className="flex-1 min-h-0 overflow-y-auto mt-3 -mx-1 px-1">
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {newTravelPhotos.map(url => (
-                          <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
-                            <img src={url} alt="" className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => removeTravelPhoto(url)}
-                              className="absolute top-1 right-1 z-10 w-7 h-7 rounded-full flex items-center justify-center"
-                              style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 12, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
-                            >✕</button>
-                          </div>
-                        ))}
-                        {newTravelPhotos.length < 10 && (
-                          <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer active:border-white/30 transition-colors">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              className="hidden"
-                              onChange={e => { const fs = Array.from(e.target.files ?? []); e.currentTarget.value = ''; handleTravelPhotosUpload(fs) }}
-                            />
-                            {uploadingTravelPhotos ? (
-                              <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-                            ) : (
-                              <div className="flex flex-col items-center gap-1">
-                                <span className="text-white/30 text-2xl">+</span>
-                                <span className="text-white/20 text-xs">Add</span>
-                              </div>
-                            )}
-                          </label>
-                        )}
-                      </div>
-                    </div>
-
-                    {error && <p className="text-red-400 text-sm text-center mb-2">{error}</p>}
-
-                    {/* With nothing added the primary button becomes the skip,
-                        so there's no disabled dead-end and no hunting for a
-                        small "skip" link — leaving is one obvious tap, and
-                        adding photos is still the path of least resistance
-                        once any are picked. */}
-                    <QuizContinueButton
-                      onClick={quizNext}
-                      disabled={uploadingTravelPhotos}
-                      label={
-                        uploadingTravelPhotos ? 'Uploading…'
-                          : newTravelPhotos.length === 0 ? 'I’ll add these later'
-                          : 'Continue →'
-                      }
-                    />
-                  </motion.div>
-                )}
-
                 {newStage === 'quiz' && currentPreDnaStep === 'verifyPhoto' && (
                   <motion.div
                     key={quizKey}
@@ -2001,24 +1888,6 @@ export default function OnboardingPage() {
                               </motion.div>
                             )}
 
-                            {newTravelPhotos.length > 0 && (
-                              <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 1.64, duration: 0.3 }}
-                                className="flex gap-1.5 mt-3"
-                              >
-                                {newTravelPhotos.slice(0, 4).map(url => (
-                                  <div
-                                    key={url}
-                                    className="w-9 h-9 rounded-lg overflow-hidden border"
-                                    style={{ borderColor: 'rgba(240,235,227,0.2)' }}
-                                  >
-                                    <img src={url} alt="" className="w-full h-full object-cover" />
-                                  </div>
-                                ))}
-                              </motion.div>
-                            )}
 
                             <motion.div
                               initial={{ opacity: 0, y: 8 }}

@@ -109,6 +109,13 @@ export default function FeedPage() {
   // paints for a moment before the redirect to /onboarding fires, which reads
   // as a jarring flash-then-redirect instead of a smooth transition.
   const [checkingProfile, setCheckingProfile] = useState(true)
+  // Set when the check below never resolves in time or throws — without this
+  // the gate had no way out, so a stalled getSession()/getProfile() call (no
+  // timeout, no .catch() anywhere in that chain) left the user on a bare
+  // black div forever with no error anywhere. Reported as "black screen after
+  // signing in" on Android, where a flaky connection or a cold WebView's
+  // first network round-trip is more likely to stall.
+  const [checkingProfileError, setCheckingProfileError] = useState(false)
   const [authGateDestination, setAuthGateDestination] = useState<string | undefined>(undefined)
   const [showAuthGate, setShowAuthGate] = useState(false)
   const [selectedTrip, setSelectedTrip] = useState<TripWithDetails | null>(null)
@@ -216,75 +223,102 @@ export default function FeedPage() {
       router.replace('/onboarding')
       return
     }
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) {
-        setIsGuest(true)
-        setCheckingProfile(false)
-        return
-      }
-      setUserId(session.user.id)
 
-      // First-run tutorial — show once, ever
-      const tutorialKey = `ta_feed_tutorial_${session.user.id}`
-      if (!localStorage.getItem(tutorialKey)) {
-        localStorage.setItem(tutorialKey, '1')
-        setShowTutorial(true)
-      }
-
-      // After login, honour any pending redirect (e.g. trip invite link)
-      const postAuthRedirect = sessionStorage.getItem('postAuthRedirect')
-      if (postAuthRedirect && postAuthRedirect !== '/feed' && postAuthRedirect !== '/') {
-        sessionStorage.removeItem('postAuthRedirect')
-        router.replace(postAuthRedirect)
-        return
-      }
-
-      const pending = localStorage.getItem('ta_pending_save')
-      if (pending) {
-        localStorage.removeItem('ta_pending_save')
-        setPendingTripId(pending)
-      }
-      // Fetch profile once — reused for trial check, SwipeStack, and TripDetailModal
-      const profile = await getProfile(session.user.id)
-      // Real gap found 2026-08-03: native's LoginScreen always loads /feed
-      // directly after a successful Google/Apple sign-in (see App.tsx's
-      // MainApp — buildWebUrl(deepLinkPath ?? '/feed')), never /onboarding.
-      // This page never checked profile completeness, so a brand-new native
-      // user landed straight in the feed with no name/age/DNA, onboarding
-      // skipped entirely. AuthGate's email-signup path already redirected to
-      // /onboarding correctly — this was specifically a Google/Apple-via-
-      // native gap.
-      if (!profile || profile.age === null) {
-        // Deliberately leave checkingProfile true — stay on the blank screen
-        // through the navigation instead of flashing feed content first.
-        router.replace('/onboarding')
-        return
-      }
+    // Belt-and-suspenders for the black-screen-forever failure mode: if the
+    // chain below hasn't cleared checkingProfile by the time this fires,
+    // force it open with a visible error/retry instead of staying black.
+    let settled = false
+    const watchdog = setTimeout(() => {
+      if (settled) return
+      settled = true
       setCheckingProfile(false)
-      if (profile) {
-        const override = getDevTrialOverride()
-        const effectiveProfile = override ? { ...profile, trial_start_at: override } : profile
-        setFeedProfile(effectiveProfile)
-        const isExpired = getTrialStatus(effectiveProfile) === 'expired' && effectiveProfile.subscription_tier === 'free'
-        if (isExpired) {
-          const alreadySeen = !override && !!localStorage.getItem('ta_trial_paywall_seen')
-          if (alreadySeen) {
-            const nudgeSessions = parseInt(localStorage.getItem('ta_nudge_sessions') ?? '0', 10)
-            if (nudgeSessions < 3) {
-              localStorage.setItem('ta_nudge_sessions', String(nudgeSessions + 1))
-              setTrialExpiredNudge(true)
+      setCheckingProfileError(true)
+    }, 8000)
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      try {
+        if (!session) {
+          setIsGuest(true)
+          setCheckingProfile(false)
+          return
+        }
+        setUserId(session.user.id)
+
+        // First-run tutorial — show once, ever
+        const tutorialKey = `ta_feed_tutorial_${session.user.id}`
+        if (!localStorage.getItem(tutorialKey)) {
+          localStorage.setItem(tutorialKey, '1')
+          setShowTutorial(true)
+        }
+
+        // After login, honour any pending redirect (e.g. trip invite link)
+        const postAuthRedirect = sessionStorage.getItem('postAuthRedirect')
+        if (postAuthRedirect && postAuthRedirect !== '/feed' && postAuthRedirect !== '/') {
+          sessionStorage.removeItem('postAuthRedirect')
+          router.replace(postAuthRedirect)
+          return
+        }
+
+        const pending = localStorage.getItem('ta_pending_save')
+        if (pending) {
+          localStorage.removeItem('ta_pending_save')
+          setPendingTripId(pending)
+        }
+        // Fetch profile once — reused for trial check, SwipeStack, and TripDetailModal
+        const profile = await getProfile(session.user.id)
+        // Real gap found 2026-08-03: native's LoginScreen always loads /feed
+        // directly after a successful Google/Apple sign-in (see App.tsx's
+        // MainApp — buildWebUrl(deepLinkPath ?? '/feed')), never /onboarding.
+        // This page never checked profile completeness, so a brand-new native
+        // user landed straight in the feed with no name/age/DNA, onboarding
+        // skipped entirely. AuthGate's email-signup path already redirected to
+        // /onboarding correctly — this was specifically a Google/Apple-via-
+        // native gap.
+        if (!profile || profile.age === null) {
+          // Deliberately leave checkingProfile true — stay on the blank screen
+          // through the navigation instead of flashing feed content first.
+          router.replace('/onboarding')
+          return
+        }
+        setCheckingProfile(false)
+        if (profile) {
+          const override = getDevTrialOverride()
+          const effectiveProfile = override ? { ...profile, trial_start_at: override } : profile
+          setFeedProfile(effectiveProfile)
+          const isExpired = getTrialStatus(effectiveProfile) === 'expired' && effectiveProfile.subscription_tier === 'free'
+          if (isExpired) {
+            const alreadySeen = !override && !!localStorage.getItem('ta_trial_paywall_seen')
+            if (alreadySeen) {
+              const nudgeSessions = parseInt(localStorage.getItem('ta_nudge_sessions') ?? '0', 10)
+              if (nudgeSessions < 3) {
+                localStorage.setItem('ta_nudge_sessions', String(nudgeSessions + 1))
+                setTrialExpiredNudge(true)
+              }
+              // After 3 sessions, nudge disappears permanently
+            } else {
+              setShowTrialExpiredPaywall(true)
+              // Fetch personalization stats for the paywall in background
+              supabase.rpc('get_my_viewer_count').then(({ data }) => {
+                const viewerCount = (data as number) ?? 0
+                setPaywallStats(prev => ({ viewerCount, topMatch: prev?.topMatch ?? null }))
+              })
             }
-            // After 3 sessions, nudge disappears permanently
-          } else {
-            setShowTrialExpiredPaywall(true)
-            // Fetch personalization stats for the paywall in background
-            supabase.rpc('get_my_viewer_count').then(({ data }) => {
-              const viewerCount = (data as number) ?? 0
-              setPaywallStats(prev => ({ viewerCount, topMatch: prev?.topMatch ?? null }))
-            })
           }
         }
+      } finally {
+        // Runs on every exit path above (including the early returns), the
+        // instant this async callback stops awaiting anything — clears the
+        // watchdog so it can't fire a spurious error after a merely-slow (not
+        // hung) load.
+        settled = true
+        clearTimeout(watchdog)
       }
+    }).catch(() => {
+      if (settled) return
+      settled = true
+      clearTimeout(watchdog)
+      setCheckingProfile(false)
+      setCheckingProfileError(true)
     })
   }, [])
 
@@ -405,6 +439,28 @@ export default function FeedPage() {
     bookmarkControls.start({ scale: [1, 1.55, 1], transition: { duration: 0.38, times: [0, 0.45, 1], ease: 'easeOut' } })
     setTimeout(() => setShowSaved(true), 800)
   }, [pendingTripId, trips, userId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The watchdog in the effect above gives up on a hung/failed profile check
+  // after 8s and lands here instead of leaving the blank screen below up
+  // forever with no way out — same visual language as the trips-query error
+  // state further down (isError), just one gate earlier.
+  if (checkingProfileError) {
+    return (
+      <div
+        style={{ position: 'fixed', inset: 0, backgroundColor: '#000', zIndex: 60 }}
+        className="flex flex-col items-center justify-center gap-4 px-6"
+      >
+        <p className="text-white/50 text-sm text-center">Couldn&apos;t load your profile — check your connection.</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-5 py-2.5 rounded-2xl text-sm font-semibold"
+          style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff' }}
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
 
   // Blank screen while the incomplete-profile check above is in flight —
   // placed after every hook call (Rules of Hooks), not earlier.
