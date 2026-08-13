@@ -498,9 +498,6 @@ export default function OnboardingPage() {
         case 'nameGender': return newName.trim().length >= 2 && !!newGender
         case 'travelerType': return newTravelerTypes.length > 0
         case 'photo': return !!photoUrl && !uploading
-        // Mirrors /onboarding: no minimum. See the note there — this was the
-        // biggest single drop in the funnel.
-        case 'travelPhotos': return true
         case 'verifyPhoto': return verificationCaptured
         case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
         case 'tripTeaser': return true
@@ -1217,94 +1214,6 @@ export default function OnboardingPage() {
                     {error && <p className="text-red-400 text-sm text-center mb-2">{error}</p>}
 
                     <QuizContinueButton onClick={quizNext} disabled={!photoUrl || uploading} label="Continue →" />
-                  </motion.div>
-                )}
-
-                {newStage === 'quiz' && currentPreDnaStep === 'travelPhotos' && (
-                  <motion.div
-                    key={quizKey}
-                    custom={newDirection}
-                    variants={slideVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.22, ease: 'easeInOut' }}
-                    className="flex-1 flex flex-col"
-                    {...quizDragProps}
-                  >
-                    <div>
-                      <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Show off your travels.</h1>
-                      <p className="text-white/38 text-sm">Photos of you and your favorite trips — this is what other travelers see on your profile. You can add them now or later from your profile.</p>
-                    </div>
-
-                    <div className="mt-5 flex items-center justify-between">
-                      <p className="text-white/40 text-xs font-semibold">{newTravelPhotos.length} of 10 photos</p>
-                      <p
-                        className="text-xs font-bold"
-                        style={{ color: newTravelPhotos.length >= 3 ? '#30D158' : 'rgba(255,255,255,0.35)' }}
-                      >
-                        {newTravelPhotos.length >= 3 ? '✓ Looking good' : 'Recommended: 3 or more'}
-                      </p>
-                    </div>
-
-                    {/* A small spinner tucked inside the "+ Add" tile was easy to
-                        miss right after the native photo picker hands control
-                        back — normalizing + uploading each file sequentially can
-                        take a few seconds with no other feedback, which read as
-                        "stuck." This banner makes the wait unmistakable. */}
-                    {uploadingTravelPhotos && (
-                      <div className="mt-3 flex items-center gap-2.5 rounded-2xl px-4 py-3" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                        <div className="w-4 h-4 border-2 border-white/20 border-t-white/70 rounded-full animate-spin shrink-0" />
-                        <span className="text-white/60 text-xs font-medium">Uploading your photos…</span>
-                      </div>
-                    )}
-
-                    <div className="flex-1 min-h-0 overflow-y-auto mt-3 -mx-1 px-1">
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {newTravelPhotos.map(url => (
-                          <div key={url} className="aspect-square rounded-2xl overflow-hidden relative">
-                            <img src={url} alt="" className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => removeTravelPhoto(url)}
-                              className="absolute top-1 right-1 z-10 w-7 h-7 rounded-full flex items-center justify-center"
-                              style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 12, lineHeight: 1, border: '1px solid rgba(255,255,255,0.25)' }}
-                            >✕</button>
-                          </div>
-                        ))}
-                        {newTravelPhotos.length < 10 && (
-                          <label className="aspect-square rounded-2xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer active:border-white/30 transition-colors">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              className="hidden"
-                              onChange={e => { const fs = Array.from(e.target.files ?? []); e.currentTarget.value = ''; handleTravelPhotosUpload(fs) }}
-                            />
-                            {uploadingTravelPhotos ? (
-                              <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-                            ) : (
-                              <div className="flex flex-col items-center gap-1">
-                                <span className="text-white/30 text-2xl">+</span>
-                                <span className="text-white/20 text-xs">Add</span>
-                              </div>
-                            )}
-                          </label>
-                        )}
-                      </div>
-                    </div>
-
-                    {error && <p className="text-red-400 text-sm text-center mb-2">{error}</p>}
-
-                    <QuizContinueButton
-                      onClick={quizNext}
-                      disabled={uploadingTravelPhotos}
-                      label={
-                        uploadingTravelPhotos ? 'Uploading…'
-                          : newTravelPhotos.length === 0 ? 'I’ll add these later'
-                          : 'Continue →'
-                      }
-                    />
                   </motion.div>
                 )}
 
