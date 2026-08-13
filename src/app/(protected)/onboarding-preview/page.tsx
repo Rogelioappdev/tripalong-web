@@ -99,6 +99,10 @@ export default function OnboardingPage() {
   const [newTravelerTypes, setNewTravelerTypes] = useState<string[]>([])
   const [newCountry, setNewCountry] = useState('')
   const [newCity, setNewCity] = useState('')
+  // Mirrors ../onboarding/page.tsx — see the rationale there.
+  const [geoGuess, setGeoGuess] = useState<{ city: string; country: string } | 'pending' | null>('pending')
+  const [geoApplied, setGeoApplied] = useState(false)
+  const [locationSkipped, setLocationSkipped] = useState(false)
   const [newTripDestination, setNewTripDestination] = useState('')
   const [newTripWhen, setNewTripWhen] = useState('')
   // Exact-dates alternative to the newTripWhen season chips, via two native
@@ -249,6 +253,34 @@ export default function OnboardingPage() {
       preloadFaceLandmarker()
     }
   }, [currentPreDnaStep])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/geo')
+      .then(r => r.json())
+      .then((g: { city?: string | null; country?: string | null }) => {
+        if (cancelled) return
+        if (!g?.city) { setGeoGuess(null); return }
+        let countryName = g.country ?? ''
+        try {
+          if (g.country && g.country.length === 2) {
+            countryName = new Intl.DisplayNames(['en'], { type: 'region' }).of(g.country) ?? g.country
+          }
+        } catch { /* fall back to the raw code */ }
+        setGeoGuess({ city: g.city, country: countryName })
+      })
+      .catch(() => { if (!cancelled) setGeoGuess(null) })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (currentPreDnaStep !== 'location') return
+    if (geoApplied || geoGuess === 'pending' || geoGuess === null) return
+    if (newCity.trim() || newCountry.trim()) { setGeoApplied(true); return }
+    setNewCity(geoGuess.city)
+    setNewCountry(geoGuess.country)
+    setGeoApplied(true)
+  }, [currentPreDnaStep, geoGuess, geoApplied, newCity, newCountry])
 
   const goStage = (stage: typeof newStage, dir: number) => { setNewDirection(dir); setNewStage(stage) }
 
@@ -499,7 +531,7 @@ export default function OnboardingPage() {
         case 'travelerType': return newTravelerTypes.length > 0
         case 'photo': return !!photoUrl && !uploading
         case 'verifyPhoto': return verificationCaptured
-        case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
+        case 'location': return locationSkipped || (newCountry.trim().length > 0 && newCity.trim().length > 0)
         case 'tripTeaser': return true
         case 'bio': return true
         case 'momentum': return true
@@ -1253,19 +1285,39 @@ export default function OnboardingPage() {
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Where are you based?</h1>
-                      <p className="text-white/38 text-sm">Helps travelers nearby find you.</p>
+                      <p className="text-white/38 text-sm">
+                        {geoApplied && geoGuess && geoGuess !== 'pending' && newCity === geoGuess.city
+                          ? 'We guessed from your connection — change it if that’s off.'
+                          : 'Helps travelers nearby find you.'}
+                      </p>
                     </div>
 
                     <div className="mt-6">
                       <CitySearchPicker
                         value={newCity ? `${newCity}${newCountry ? `, ${newCountry}` : ''}` : ''}
-                        onSelect={({ city, country }) => { setNewCity(city); setNewCountry(country) }}
+                        onSelect={({ city, country }) => {
+                          setNewCity(city); setNewCountry(country); setLocationSkipped(false)
+                        }}
                         placeholder="Search for your city"
-                        autoFocus
+                        autoFocus={!newCity}
                       />
                     </div>
 
-                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                    <QuizContinueButton
+                      onClick={quizNext}
+                      disabled={!canQuizContinue()}
+                      label={geoApplied && newCity ? 'That’s me →' : 'Continue →'}
+                    />
+
+                    {geoGuess === null && !newCity && (
+                      <button
+                        onClick={() => { setLocationSkipped(true); quizNext() }}
+                        className="mt-3 w-full text-center text-xs py-2"
+                        style={{ color: 'rgba(255,255,255,0.32)' }}
+                      >
+                        Skip for now
+                      </button>
+                    )}
                   </motion.div>
                 )}
 
