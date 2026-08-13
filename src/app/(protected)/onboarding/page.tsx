@@ -129,6 +129,12 @@ export default function OnboardingPage() {
   const [newTravelerTypes, setNewTravelerTypes] = useState<string[]>([])
   const [newCountry, setNewCountry] = useState('')
   const [newCity, setNewCity] = useState('')
+  // IP-derived city guess, fetched once on mount so it's ready long before the
+  // location step. 'pending' until the request settles; null once we know
+  // there's no usable guess, which is what unlocks the skip escape hatch.
+  const [geoGuess, setGeoGuess] = useState<{ city: string; country: string } | 'pending' | null>('pending')
+  const [geoApplied, setGeoApplied] = useState(false)
+  const [locationSkipped, setLocationSkipped] = useState(false)
   const [newTripDestination, setNewTripDestination] = useState('')
   const [newTripWhen, setNewTripWhen] = useState('')
   // Exact-dates alternative to the newTripWhen season chips, via two native
@@ -366,6 +372,45 @@ export default function OnboardingPage() {
       preloadFaceLandmarker()
     }
   }, [currentPreDnaStep])
+
+  // Fetch the IP-derived city guess once, on mount — many steps before the
+  // location screen — so arriving there is instant rather than showing a
+  // spinner on the one screen we're trying to make frictionless.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/geo')
+      .then(r => r.json())
+      .then((g: { city?: string | null; country?: string | null }) => {
+        if (cancelled) return
+        if (!g?.city) { setGeoGuess(null); return }
+        // Vercel returns an ISO-3166 code ("CA"); profiles overwhelmingly store
+        // full English names ("Canada"), so convert rather than introducing a
+        // third spelling into a column that already has "USA", "US" and
+        // "United States" in it. Intl.DisplayNames is built in — no dependency.
+        let countryName = g.country ?? ''
+        try {
+          if (g.country && g.country.length === 2) {
+            countryName = new Intl.DisplayNames(['en'], { type: 'region' }).of(g.country) ?? g.country
+          }
+        } catch { /* fall back to the raw code */ }
+        setGeoGuess({ city: g.city, country: countryName })
+      })
+      .catch(() => { if (!cancelled) setGeoGuess(null) })
+    return () => { cancelled = true }
+  }, [])
+
+  // Apply the guess when they land on the location step, but never over
+  // anything they've already chosen — including on a back-navigation to this
+  // screen, which is why this is latched with geoApplied rather than keyed off
+  // the field being empty.
+  useEffect(() => {
+    if (currentPreDnaStep !== 'location') return
+    if (geoApplied || geoGuess === 'pending' || geoGuess === null) return
+    if (newCity.trim() || newCountry.trim()) { setGeoApplied(true); return }
+    setNewCity(geoGuess.city)
+    setNewCountry(geoGuess.country)
+    setGeoApplied(true)
+  }, [currentPreDnaStep, geoGuess, geoApplied, newCity, newCountry])
 
   const goStage = (stage: typeof newStage, dir: number) => { setNewDirection(dir); setNewStage(stage) }
 
@@ -658,7 +703,11 @@ export default function OnboardingPage() {
         // The ask stays, the block doesn't; the step now encourages and lets
         // people finish later from their profile.
         case 'verifyPhoto': return verificationCaptured
-        case 'location': return newCountry.trim().length > 0 && newCity.trim().length > 0
+        // Skipping counts as satisfied. Location is a hard gate backed by a
+        // third-party geocoder we don't control, and a user who can't find
+        // their city had no way forward at all — see the escape hatch in the
+        // step's UI for when that becomes available.
+        case 'location': return locationSkipped || (newCountry.trim().length > 0 && newCity.trim().length > 0)
         case 'tripTeaser': return true
         case 'bio': return true
         case 'momentum': return true
@@ -1409,19 +1458,48 @@ export default function OnboardingPage() {
                   >
                     <div>
                       <h1 className="text-white font-extrabold text-2xl leading-tight mb-1">Where are you based?</h1>
-                      <p className="text-white/38 text-sm">Helps travelers nearby find you.</p>
+                      <p className="text-white/38 text-sm">
+                        {geoApplied && geoGuess && geoGuess !== 'pending' && newCity === geoGuess.city
+                          ? 'We guessed from your connection — change it if that’s off.'
+                          : 'Helps travelers nearby find you.'}
+                      </p>
                     </div>
 
                     <div className="mt-6">
                       <CitySearchPicker
                         value={newCity ? `${newCity}${newCountry ? `, ${newCountry}` : ''}` : ''}
-                        onSelect={({ city, country }) => { setNewCity(city); setNewCountry(country) }}
+                        onSelect={({ city, country }) => {
+                          setNewCity(city); setNewCountry(country); setLocationSkipped(false)
+                        }}
                         placeholder="Search for your city"
-                        autoFocus
+                        // Only steal focus (and raise the keyboard) when there's
+                        // nothing to confirm. With a guess prefilled the whole
+                        // point is that this is a one-tap screen, and a keyboard
+                        // covering the Continue button undoes that.
+                        autoFocus={!newCity}
                       />
                     </div>
 
-                    <QuizContinueButton onClick={quizNext} disabled={!canQuizContinue()} label="Continue →" />
+                    <QuizContinueButton
+                      onClick={quizNext}
+                      disabled={!canQuizContinue()}
+                      label={geoApplied && newCity ? 'That’s me →' : 'Continue →'}
+                    />
+
+                    {/* Escape hatch. Only appears once we know we have no guess
+                        to offer, so it can't cannibalise the confirm tap in the
+                        common case — but it means the geocoder being down or
+                        missing someone's town can never dead-end onboarding
+                        again, which is what it used to do. */}
+                    {geoGuess === null && !newCity && (
+                      <button
+                        onClick={() => { setLocationSkipped(true); quizNext() }}
+                        className="mt-3 w-full text-center text-xs py-2"
+                        style={{ color: 'rgba(255,255,255,0.32)' }}
+                      >
+                        Skip for now
+                      </button>
+                    )}
                   </motion.div>
                 )}
 
