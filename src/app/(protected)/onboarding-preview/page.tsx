@@ -206,7 +206,10 @@ export default function OnboardingPage() {
   // user already confirmed it, so a corrected date gets re-confirmed.
   useEffect(() => { setAgeConfirmed(false) }, [newBirthDay, newBirthMonth, newBirthYear])
 
-  const PRE_DNA_STEPS = ['birthday', 'nameGender', 'travelerType', 'photo', 'travelPhotos', 'verifyPhoto', 'location', 'tripTeaser', 'bio', 'momentum'] as const
+  // Keep in sync with the real flow in ../onboarding/page.tsx — this file is a
+  // full duplicate of it, so a step removed there and left here means testing
+  // shows a screen users never see. travelPhotos removed 2026-08-13.
+  const PRE_DNA_STEPS = ['birthday', 'nameGender', 'travelerType', 'photo', 'verifyPhoto', 'location', 'tripTeaser', 'bio', 'momentum'] as const
   const POST_DNA_STEPS = [] as const
   type PreDnaStep = typeof PRE_DNA_STEPS[number]
   type PostDnaStep = typeof POST_DNA_STEPS[number]
@@ -242,7 +245,7 @@ export default function OnboardingPage() {
   // camera", which is why that screen sat on "Starting camera…" for seconds.
   // Users spend a while on photos, so by the time they arrive it's cached.
   useEffect(() => {
-    if (currentPreDnaStep === 'photo' || currentPreDnaStep === 'travelPhotos') {
+    if (currentPreDnaStep === 'travelerType' || currentPreDnaStep === 'photo') {
       preloadFaceLandmarker()
     }
   }, [currentPreDnaStep])
