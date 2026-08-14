@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local cache from the creator-inbox skill (contains DM excerpts)
+.creator-sync.json
+
+# Expo local cache — leaks in from the native repo, not part of this app
+.expo/
