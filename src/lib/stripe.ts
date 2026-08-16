@@ -35,20 +35,6 @@ export const PLANS = {
     interval: 'year' as const,
     trialPeriodDays: 3,
   },
-  pro_monthly: {
-    priceId: process.env.STRIPE_PRO_MONTHLY_PRICE_ID!,
-    tier: 'pro' as const,
-    label: 'Pro Monthly',
-    amount: 1499,
-    interval: 'month' as const,
-  },
-  pro_annual: {
-    priceId: process.env.STRIPE_PRO_ANNUAL_PRICE_ID!,
-    tier: 'pro' as const,
-    label: 'Pro Annual',
-    amount: 9999,
-    interval: 'year' as const,
-  },
 } as const
 
 export type PlanKey = keyof typeof PLANS
